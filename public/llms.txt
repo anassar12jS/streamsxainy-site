@@ -1,0 +1,18 @@
+# StreamHub
+
+> StreamHub is a fast, responsive streaming aggregator and media discovery hub for movies, TV series, anime, live television, and sports schedules powered by TMDB.
+
+## Features
+- Movie and TV show exploration with rich metadata, trailers, cast lists, and watch provider links
+- Anime discovery integrating AniList and TMDB
+- Sports schedules and live standings
+- Live TV channel guide and HLS streaming playback
+- Personalized watchlist, watch history, and continue watching stored locally
+
+## Navigation Links
+- [Home](https://streamsxainy.vercel.app/)
+- [Discover Movies & TV](https://streamsxainy.vercel.app/discover)
+- [Anime](https://streamsxainy.vercel.app/anime)
+- [Sports Schedules](https://streamsxainy.vercel.app/sports)
+- [Live TV Channels](https://streamsxainy.vercel.app/livetv)
+- [Personal Library](https://streamsxainy.vercel.app/library)

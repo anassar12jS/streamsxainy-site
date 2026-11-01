@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "StreamHub",
+  "description": "A movie and TV show discovery platform powered by TMDB.",
+  "url": "https://streamsxainy.vercel.app",
+  "version": "1.0.0",
+  "capabilities": [
+    "movie-discovery",
+    "tv-discovery",
+    "anime-tracking",
+    "sports-schedules",
+    "live-tv"
+  ]
+}

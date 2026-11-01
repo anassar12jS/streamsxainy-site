@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StreamHub anas</title>
+    <meta name="description" content="A movie and TV show discovery platform powered by TMDB." />
+    <meta property="og:title" content="StreamHub anas" />
+    <meta property="og:description" content="A movie and TV show discovery platform powered by TMDB." />
+    
+    <!-- Favicon / Website Tab Logo -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <meta name="theme-color" content="#09090b" />
+
+    <!-- Performance: Preconnect & DNS-Prefetch -->
+    <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
+    <link rel="dns-prefetch" href="https://image.tmdb.org" />
+    <link rel="preconnect" href="https://api.themoviedb.org" crossorigin />
+    <link rel="dns-prefetch" href="https://api.themoviedb.org" />
+    <link rel="preconnect" href="https://graphql.anilist.co" crossorigin />
+    <link rel="dns-prefetch" href="https://graphql.anilist.co" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: ['class', '[data-theme="dark"]'],
+        theme: {
+          extend: {
+            colors: {
+              background: 'var(--bg-main)',
+              foreground: 'var(--text-main)',
+            },
+            keyframes: {
+                fadeIn: {
+                    '0%': { opacity: '0' },
+                    '100%': { opacity: '1' },
+                },
+                fadeInUp: {
+                    '0%': { opacity: '0', transform: 'translateY(10px)' },
+                    '100%': { opacity: '1', transform: 'translateY(0)' },
+                }
+            },
+            animation: {
+                'fade-in': 'fadeIn 0.5s ease-out forwards',
+                'fade-in-up': 'fadeInUp 0.7s ease-out forwards',
+            }
+          }
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
