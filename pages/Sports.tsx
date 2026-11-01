@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { getAllMatches, isMatchFinished, normalizeTeamToken } from '../services/sports';
+import { getAllMatches, getExpectedMatchDurationMs, isLiveMatchStatus, isMatchFinished, normalizeTeamToken } from '../services/sports';
 import { SportsMatch, LeagueTopScorer } from '../types';
 import {
   Trophy, Calendar, PlayCircle, Clock, Loader2, Search,
@@ -25,6 +25,85 @@ const generateColor = (name: string) => {
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   const c = (hash & 0x00ffffff).toString(16).toUpperCase();
   return '#' + '00000'.substring(0, 6 - c.length) + c;
+};
+
+const getTeamBrand = (name: string) => {
+  const normalizedName = name.trim().toLowerCase();
+  const knownBrand = CLUB_BRAND_COLORS[name]
+    || Object.entries(CLUB_BRAND_COLORS).find(([team]) => {
+      const normalizedTeam = team.toLowerCase();
+      return normalizedName.includes(normalizedTeam) || normalizedTeam.includes(normalizedName);
+    })?.[1];
+  return knownBrand || { primary: generateColor(name || 'Sport'), secondary: '#111827' };
+};
+
+const dynamicTeamLogoRequests = new Map<string, Promise<string | undefined>>();
+
+const getDynamicTeamLogo = (teamName: string): Promise<string | undefined> => {
+  const normalizedName = teamName.trim().toLowerCase();
+  if (!normalizedName) return Promise.resolve(undefined);
+  const cachedRequest = dynamicTeamLogoRequests.get(normalizedName);
+  if (cachedRequest) return cachedRequest;
+
+  const request = (async () => {
+    const cacheKey = `streamhub_team_logo_${normalizedName}`;
+    try {
+      const stored = localStorage.getItem(cacheKey);
+      if (stored) {
+        try {
+          const cached = JSON.parse(stored);
+          if (cached && cached.expiresAt > Date.now()) return cached.url || undefined;
+        } catch {
+          if (stored.startsWith('http')) return stored;
+        }
+      }
+    } catch {
+      // Continue with a network lookup when browser storage is unavailable.
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3500);
+    let foundLogo: string | undefined;
+    let lookupSucceeded = false;
+    try {
+      const query = encodeURIComponent(teamName.replace(/[⚽🏎️🥊🏀🏈🎾]/g, '').trim());
+      const response = await fetch(`https://site.api.espn.com/apis/search/v2?query=${query}&limit=1`, {
+        signal: controller.signal
+      });
+      if (!response.ok) throw new Error('Team logo lookup failed');
+      lookupSucceeded = true;
+      const data = await response.json();
+      const team = data.results?.find((result: any) => result.type === 'team')?.contents?.[0];
+      foundLogo = team?.image?.default || team?.image?.defaultDark || team?.logo || undefined;
+    } catch {
+      foundLogo = undefined;
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({
+        url: foundLogo || null,
+        expiresAt: Date.now() + (foundLogo ? 90 : lookupSucceeded ? 1 : 5 / (24 * 60)) * 24 * 60 * 60 * 1000
+      }));
+    } catch {
+      // The in-memory promise still avoids duplicate lookups during this visit.
+    }
+    return foundLogo;
+  })();
+
+  dynamicTeamLogoRequests.set(normalizedName, request);
+  request.then(foundLogo => {
+    if (!foundLogo) {
+      const retryAfterMs = 5 * 60 * 1000;
+      setTimeout(() => {
+        if (dynamicTeamLogoRequests.get(normalizedName) === request) {
+          dynamicTeamLogoRequests.delete(normalizedName);
+        }
+      }, retryAfterMs);
+    }
+  });
+  return request;
 };
 
 // Keep the Morocco ticker on UTC while allowing fixtures to use their own local timezone.
@@ -116,16 +195,18 @@ export const getDayLabelForTz = (dateNum: number, tz: string, regionFlag: string
 // Compute approximate match period / minute for live events
 const getLiveMatchMinute = (dateNum: number, category?: string) => {
   const diffMinutes = Math.floor((Date.now() - dateNum) / 60000);
-  const isFoot = !category || category.toLowerCase().includes('foot');
+  const normalizedCategory = (category || '').toLowerCase();
+  const isSoccer = !category || normalizedCategory.includes('soccer') ||
+    (normalizedCategory.includes('football') && !normalizedCategory.includes('american'));
   
   if (diffMinutes <= 0) return 'Kick-off';
-  if (isFoot) {
+  if (isSoccer) {
     if (diffMinutes < 45) return `${diffMinutes}'`;
     if (diffMinutes >= 45 && diffMinutes < 60) return 'HT';
     if (diffMinutes >= 60 && diffMinutes < 105) return `${diffMinutes - 15}'`;
     return '90\'+';
   }
-  return `${diffMinutes}' live`;
+  return 'LIVE';
 };
 
 const getSportIcon = (cat?: string) => {
@@ -204,12 +285,10 @@ const TeamLogo: React.FC<{ name: string; logo?: string; className?: string; size
     const targetUrl = useMemo(() => getTeamLogoUrl(name, logo), [name, logo]);
     const [currentSrc, setCurrentSrc] = useState(targetUrl);
     const [retriedWithProxy, setRetriedWithProxy] = useState(false);
+    const [lookedUp, setLookedUp] = useState(false);
     const [imgFailed, setImgFailed] = useState(false);
 
-    const brand = useMemo(() => {
-      const match = CLUB_BRAND_COLORS[name] || Object.entries(CLUB_BRAND_COLORS).find(([k]) => name.toLowerCase().includes(k.toLowerCase()))?.[1];
-      return match || { primary: generateColor(name), secondary: '#111827' };
-    }, [name]);
+    const brand = useMemo(() => getTeamBrand(name), [name]);
 
     const initials = useMemo(() => {
       const parts = (name || '').trim().split(/\s+/);
@@ -219,42 +298,24 @@ const TeamLogo: React.FC<{ name: string; logo?: string; className?: string; size
 
     useEffect(() => {
       const resolved = getTeamLogoUrl(name, logo);
-      if (resolved) {
-        setCurrentSrc(resolved);
-        setRetriedWithProxy(false);
-        setImgFailed(false);
-      } else if (name) {
-        // Check dynamic localStorage cache
-        const cacheKey = `streamhub_team_logo_${name.toLowerCase().trim()}`;
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          setCurrentSrc(cached);
-          setImgFailed(false);
-        } else {
-          // Asynchronously query ESPN official team database
-          let active = true;
-          fetch(`https://site.api.espn.com/apis/search/v2?query=${encodeURIComponent(name.replace(/[⚽🏎️🥊🏀🏈🎾]/g, '').trim())}&limit=1`)
-            .then(res => res.ok ? res.json() : null)
-            .then(data => {
-              if (!active || !data) return;
-              const team = data.results?.find((r: any) => r.type === 'team')?.contents?.[0];
-              const foundLogo = team?.image?.default || team?.image?.defaultDark;
-              if (foundLogo) {
-                localStorage.setItem(cacheKey, foundLogo);
-                setCurrentSrc(foundLogo);
-                setImgFailed(false);
-              } else {
-                setImgFailed(true);
-              }
-            })
-            .catch(() => {
-              if (active) setImgFailed(true);
-            });
-          return () => { active = false; };
-        }
-      } else {
+      let active = true;
+      setCurrentSrc(resolved);
+      setRetriedWithProxy(false);
+      setLookedUp(false);
+      setImgFailed(false);
+
+      if (!resolved && name) {
+        setLookedUp(true);
+        getDynamicTeamLogo(name).then(foundLogo => {
+          if (!active) return;
+          if (foundLogo) setCurrentSrc(foundLogo);
+          else setImgFailed(true);
+        });
+      } else if (!name) {
         setImgFailed(true);
       }
+
+      return () => { active = false; };
     }, [name, logo]);
 
     const handleImgError = () => {
@@ -262,6 +323,16 @@ const TeamLogo: React.FC<{ name: string; logo?: string; className?: string; size
       if (!retriedWithProxy && currentSrc && !currentSrc.includes('wsrv.nl') && currentSrc.startsWith('http')) {
         setRetriedWithProxy(true);
         setCurrentSrc(`https://wsrv.nl/?url=${encodeURIComponent(currentSrc)}&w=96&output=png`);
+      } else if (!lookedUp && name) {
+        setLookedUp(true);
+        getDynamicTeamLogo(name).then(foundLogo => {
+          if (foundLogo && foundLogo !== currentSrc) {
+            setCurrentSrc(foundLogo);
+            setRetriedWithProxy(false);
+          } else {
+            setImgFailed(true);
+          }
+        });
       } else {
         setImgFailed(true);
       }
@@ -325,10 +396,25 @@ const MatchGridCard = React.memo(({
   const isMorocco = isMoroccanMatch(match);
   const timeFormatted = formatTimeForTz(match.date, getScheduleTimezone(selectedRegion));
   const liveMinute = isLive ? getLiveMatchMinute(match.date, match.category) : null;
+  const homeBrand = getTeamBrand(match.teams?.home?.name || match.category);
+  const awayBrand = getTeamBrand(match.teams?.away?.name || `${match.category} away`);
+  const [posterFailed, setPosterFailed] = useState(false);
+
+  useEffect(() => setPosterFailed(false), [match.poster]);
 
   return (
     <div
       onClick={() => onPlay(match)}
+      onKeyDown={event => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onPlay(match);
+        }
+      }}
+      role="group"
+      tabIndex={0}
+      aria-label={`Match: ${match.title}. Press Enter to open.`}
       className={`group relative flex flex-col justify-between rounded-2xl bg-[var(--bg-card)] border cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl min-h-[300px] h-full p-4 ${
         isLive 
           ? 'border-red-500/50 hover:border-red-500 shadow-lg shadow-red-900/20' 
@@ -339,15 +425,35 @@ const MatchGridCard = React.memo(({
     >
       {/* Stadium Background Atmosphere */}
       <div className="absolute inset-0 z-0 overflow-hidden rounded-2xl pointer-events-none">
-        {match.poster ? (
+        {match.poster && !posterFailed ? (
           <img 
             src={match.poster} 
             className="w-full h-full object-cover opacity-20 group-hover:opacity-30 transition-opacity duration-500 group-hover:scale-105 transform" 
             loading="lazy" 
-            alt={match.title}
+            alt=""
+            aria-hidden="true"
+            onError={() => setPosterFailed(true)}
           />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-[var(--bg-card)] via-[var(--bg-hover)] to-[var(--bg-main)] opacity-70" />
+          <div
+            className="relative w-full h-full opacity-70"
+            style={{ backgroundImage: `radial-gradient(circle at 12% 15%, ${homeBrand.primary}88 0%, transparent 48%), radial-gradient(circle at 88% 82%, ${awayBrand.primary}66 0%, transparent 52%), linear-gradient(140deg, var(--bg-card), var(--bg-hover) 55%, var(--bg-main))` }}
+            aria-hidden="true"
+          >
+            <div className="absolute inset-0 flex items-center justify-between px-4 overflow-hidden text-white font-black">
+              {match.teams?.home?.name && (
+                <span className="text-7xl sm:text-8xl opacity-[0.09] -rotate-12 select-none">
+                  {match.teams.home.name.split(/\s+/).map(part => part[0]).slice(0, 3).join('').toUpperCase()}
+                </span>
+              )}
+              <span className="absolute inset-0 flex items-center justify-center text-4xl opacity-[0.12]">{sportEmoji}</span>
+              {match.teams?.away?.name && (
+                <span className="text-7xl sm:text-8xl opacity-[0.09] rotate-12 select-none">
+                  {match.teams.away.name.split(/\s+/).map(part => part[0]).slice(0, 3).join('').toUpperCase()}
+                </span>
+              )}
+            </div>
+          </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-card)] via-[var(--bg-card)]/90 to-transparent" />
       </div>
@@ -359,6 +465,11 @@ const MatchGridCard = React.memo(({
           <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-[var(--bg-main)]/90 backdrop-blur-md text-[var(--text-main)] border border-[var(--border-subtle)] shadow-sm">
             {match.category}
           </span>
+          {match.competition && (
+            <span className="max-w-[150px] truncate text-[9px] font-bold px-2 py-0.5 rounded-lg bg-black/50 backdrop-blur-md text-white/80 border border-white/10">
+              {match.competition}
+            </span>
+          )}
           {isMorocco && (
             <span className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-sm flex items-center gap-1">
               <span>🇲🇦</span> Maroc
@@ -377,6 +488,8 @@ const MatchGridCard = React.memo(({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onToggleFav(match); }}
+            aria-label={isFav ? `Remove ${match.title} from favorites` : `Add ${match.title} to favorites`}
+            aria-pressed={isFav}
             className={`p-1.5 rounded-full backdrop-blur-md transition-transform duration-200 border ${
               isFav 
                 ? 'bg-red-500/20 text-red-500 border-red-500/30 scale-105' 
@@ -467,8 +580,8 @@ const MatchGridCard = React.memo(({
               Live
             </span>
           ) : (
-            <span className="text-[10px] text-[var(--text-muted)] hidden sm:inline">
-              HD Feed
+              <span className="text-[10px] text-[var(--text-muted)] hidden sm:inline">
+              {match.sources.length > 0 ? 'Feed listed' : 'Scoreboard only'}
             </span>
           )}
         </div>
@@ -497,10 +610,12 @@ const MatchGridCard = React.memo(({
               onPlay(match);
             }}
             className="flex-1 py-2 px-3 rounded-xl bg-[rgb(var(--primary-color))] hover:brightness-110 active:scale-95 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 shadow-md shadow-[rgb(var(--primary-color))]/20 transition-all"
-            title={isLive ? "Watch Live Stream" : "Watch Match Stream"}
+            title={match.sources.length > 0 ? (isLive ? 'Watch Live Stream' : 'Watch Match Stream') : 'Open match details'}
           >
-            <PlayCircle className="w-3.5 h-3.5 fill-current shrink-0" />
-            <span className="truncate font-sans">{isLive ? 'Watch Live' : 'Watch Live'}</span>
+            {match.sources.length > 0
+              ? <PlayCircle className="w-3.5 h-3.5 fill-current shrink-0" />
+              : <Activity className="w-3.5 h-3.5 shrink-0" />}
+            <span className="truncate font-sans">{match.sources.length > 0 ? 'Watch Live' : 'Match Info'}</span>
           </button>
         </div>
 
@@ -536,6 +651,16 @@ const MatchListRow = React.memo(({
   return (
     <div
       onClick={() => onPlay(match)}
+      onKeyDown={event => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onPlay(match);
+        }
+      }}
+      role="group"
+      tabIndex={0}
+      aria-label={`Match: ${match.title}. Press Enter to open.`}
       className={`group relative flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[var(--bg-card)] hover:bg-[var(--bg-hover)] border rounded-2xl p-3 sm:p-4 cursor-pointer transition-all duration-200 ${
         isLive 
           ? 'border-red-500/50 hover:border-red-500' 
@@ -613,6 +738,11 @@ const MatchListRow = React.memo(({
               </h3>
             </div>
           )}
+          {match.competition && (
+            <p className="mt-1 text-[10px] text-[var(--text-muted)] truncate">
+              {match.competition}{match.venueCity ? ` · ${match.venueCity}` : ''}
+            </p>
+          )}
         </div>
 
       </div>
@@ -628,6 +758,8 @@ const MatchListRow = React.memo(({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggleFav(match); }}
+          aria-label={isFav ? `Remove ${match.title} from favorites` : `Add ${match.title} to favorites`}
+          aria-pressed={isFav}
           className={`p-2 rounded-xl transition-colors border ${
             isFav 
               ? 'bg-red-500/10 text-red-500 border-red-500/20' 
@@ -659,10 +791,12 @@ const MatchListRow = React.memo(({
             e.stopPropagation();
             onPlay(match);
           }}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[rgb(var(--primary-color))] hover:brightness-110 active:scale-95 text-white font-bold text-xs shadow-md shadow-[rgb(var(--primary-color))]/20 transition-all"
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs transition-all ${match.sources.length > 0 ? 'bg-[rgb(var(--primary-color))] hover:brightness-110 active:scale-95 text-white shadow-md shadow-[rgb(var(--primary-color))]/20' : 'bg-[var(--bg-main)] border border-[var(--border-subtle)] text-[var(--text-main)]'}`}
         >
-          <PlayCircle className="w-3.5 h-3.5 fill-current shrink-0" />
-          <span>{isLive ? 'Watch Live' : 'Watch Live'}</span>
+          {match.sources.length > 0
+            ? <PlayCircle className="w-3.5 h-3.5 fill-current shrink-0" />
+            : <Activity className="w-3.5 h-3.5 shrink-0" />}
+          <span>{match.sources.length > 0 ? 'Watch Live' : 'Details'}</span>
         </button>
       </div>
     </div>
@@ -681,6 +815,11 @@ export const Sports: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [displayLimit, setDisplayLimit] = useState(24);
+  const hasActiveFilters = Boolean(searchQuery.trim()) || activeCategory !== 'ALL';
+  const clearSportsFilters = () => {
+    setSearchQuery('');
+    setActiveCategory('ALL');
+  };
 
   // Region / Timezone State
   const [selectedRegionId, setSelectedRegionId] = useState<string>(() => {
@@ -759,7 +898,7 @@ export const Sports: React.FC = () => {
     staleTime: 1000 * 60 * 5, // 5 mins freshness
   });
 
-  // Top Scorers Query (Tier 1: Football-Data.org Pichichi / Golden Boot -> Curated)
+  // Top scorer data is supplied by Football-Data.org when available.
   const [standingsSubTab, setStandingsSubTab] = useState<'table' | 'scorers'>('table');
   const {
     data: topScorersData = [],
@@ -804,13 +943,21 @@ export const Sports: React.FC = () => {
     const liveMatches = matches.filter(m => {
       const diff = m.date - now;
       const finished = isMatchFinished(m);
-      return !finished && (m.status === 'IN_PLAY' || (diff <= 15 * 60 * 1000 && diff >= -115 * 60 * 1000));
+      return !finished && (isLiveMatchStatus(m.status) || (diff <= 15 * 60 * 1000 && diff >= -getExpectedMatchDurationMs(m.category)));
     });
     if (liveMatches.length > 0) {
       return liveMatches.find(m => m.popular) || liveMatches[0];
     }
-    return matches.find(m => m.popular) || matches[0];
+    const upcomingMatches = matches
+      .filter(m => !isMatchFinished(m) && m.date - now > 15 * 60 * 1000)
+      .sort((a, b) => a.date - b.date);
+    return upcomingMatches.find(m => m.popular) || upcomingMatches[0] || null;
   }, [matches]);
+
+  const featuredIsLive = Boolean(featuredMatch && !isMatchFinished(featuredMatch) && (
+    isLiveMatchStatus(featuredMatch.status) ||
+    (featuredMatch.date - Date.now() <= 15 * 60 * 1000 && featuredMatch.date - Date.now() >= -getExpectedMatchDurationMs(featuredMatch.category))
+  ));
 
   // Data Partitioning based on chosen region
   const { live, visibleUpcomingGroups, favMatches, upcomingCount } = useMemo(() => {
@@ -823,6 +970,8 @@ export const Sports: React.FC = () => {
       filtered = filtered.filter(m =>
         m.title.toLowerCase().includes(q) ||
         m.category.toLowerCase().includes(q) ||
+        m.competition?.toLowerCase().includes(q) ||
+        m.venueCity?.toLowerCase().includes(q) ||
         m.teams?.home?.name?.toLowerCase().includes(q) ||
         m.teams?.away?.name?.toLowerCase().includes(q)
       );
@@ -844,7 +993,7 @@ export const Sports: React.FC = () => {
 
       const isLiveEvent =
         !finished &&
-        (m.status === 'IN_PLAY' || (diff <= 15 * 60 * 1000 && diff >= -115 * 60 * 1000));
+        (isLiveMatchStatus(m.status) || (diff <= 15 * 60 * 1000 && diff >= -getExpectedMatchDurationMs(m.category)));
 
       if (isLiveEvent) {
         const liveKey = m.teams?.home?.name && m.teams?.away?.name
@@ -926,6 +1075,10 @@ export const Sports: React.FC = () => {
   }, [matches]);
 
   const handlePlayMatch = (m: SportsMatch) => {
+    if (!m.sources?.length) {
+      setPreviewMatch(m);
+      return;
+    }
     navigate('/sports/watch', { state: { match: m } });
   };
 
@@ -1085,7 +1238,7 @@ export const Sports: React.FC = () => {
               <div className="flex-1 text-center lg:text-left">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[rgb(var(--primary-color))]/15 border border-[rgb(var(--primary-color))]/30 text-[rgb(var(--primary-color))] text-xs font-bold uppercase tracking-wider mb-3">
                   <Flame className="w-3.5 h-3.5 fill-current" />
-                  <span>Featured Match · Match Phare (2026/2027)</span>
+                  <span>{featuredIsLive ? 'LIVE NOW · FEATURED MATCH' : 'UP NEXT · FEATURED MATCH'}</span>
                 </div>
                 
                 <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-[var(--text-main)] tracking-tight leading-tight">
@@ -1098,8 +1251,13 @@ export const Sports: React.FC = () => {
                     <span>{selectedRegion.flag} Kickoff: {formatTimeForTz(featuredMatch.date, getScheduleTimezone(selectedRegion))} ({getScheduleOffsetBadge(selectedRegion, featuredMatch.date)})</span>
                   </span>
                   <span className="px-3 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold">
-                    HD 1080p Commentary
+                    {featuredMatch.competition || featuredMatch.category}
                   </span>
+                  {featuredMatch.venueCity && (
+                    <span className="px-3 py-1 rounded-xl bg-[var(--bg-main)]/80 border border-[var(--border-subtle)] text-[var(--text-muted)] font-medium">
+                      {featuredMatch.venueCity}
+                    </span>
+                  )}
                 </div>
 
                 <div className="mt-5 flex flex-wrap items-center justify-center lg:justify-start gap-3">
@@ -1107,8 +1265,10 @@ export const Sports: React.FC = () => {
                     onClick={() => handlePlayMatch(featuredMatch)}
                     className="px-6 py-3 rounded-xl bg-[rgb(var(--primary-color))] text-white font-bold text-sm shadow-xl shadow-[rgb(var(--primary-color))]/25 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
                   >
-                    <Play className="w-4 h-4 fill-white" />
-                    <span>Watch Match Stream</span>
+                    {featuredMatch.sources.length > 0
+                      ? <Play className="w-4 h-4 fill-white" />
+                      : <Activity className="w-4 h-4" />}
+                    <span>{featuredMatch.sources.length > 0 ? 'Watch Match Stream' : 'Match Details'}</span>
                   </button>
 
                   <button
@@ -1170,6 +1330,7 @@ export const Sports: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setTabMode('live')}
+                aria-pressed={tabMode === 'live'}
                 className={`flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
                   tabMode === 'live'
                     ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
@@ -1188,6 +1349,7 @@ export const Sports: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setTabMode('upcoming')}
+                aria-pressed={tabMode === 'upcoming'}
                 className={`flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
                   tabMode === 'upcoming'
                     ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
@@ -1201,6 +1363,7 @@ export const Sports: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setTabMode('favorites')}
+                aria-pressed={tabMode === 'favorites'}
                 className={`flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
                   tabMode === 'favorites'
                     ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
@@ -1217,6 +1380,7 @@ export const Sports: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setTabMode('standings')}
+                aria-pressed={tabMode === 'standings'}
                 className={`flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
                   tabMode === 'standings'
                     ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
@@ -1236,6 +1400,7 @@ export const Sports: React.FC = () => {
                 <Search className="absolute left-3 top-2.5 w-4 h-4 text-[var(--text-muted)]" />
                 <input
                   type="text"
+                  aria-label="Search teams, leagues, and matches"
                   placeholder="Search Real Madrid, Arsenal, PSG, Inter..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
@@ -1243,7 +1408,9 @@ export const Sports: React.FC = () => {
                 />
                 {searchQuery && (
                   <button
+                    type="button"
                     onClick={() => setSearchQuery('')}
+                    aria-label="Clear match search"
                     className="absolute right-2.5 top-2.5 text-[var(--text-muted)] hover:text-[var(--text-main)]"
                   >
                     <X className="w-4 h-4" />
@@ -1255,6 +1422,8 @@ export const Sports: React.FC = () => {
               <button
                 type="button"
                 onClick={() => refetch()}
+                aria-label="Refresh sports schedules"
+                aria-busy={isFetching}
                 className="p-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)] transition-colors"
                 title="Refresh Live Feeds"
               >
@@ -1300,6 +1469,7 @@ export const Sports: React.FC = () => {
                 key={cat.name}
                 type="button"
                 onClick={() => setActiveCategory(cat.name)}
+                aria-pressed={activeCategory === cat.name}
                 className={`shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all ${
                   activeCategory === cat.name
                     ? 'bg-[rgb(var(--primary-color))] border-[rgb(var(--primary-color))] text-white shadow-md'
@@ -1328,7 +1498,7 @@ export const Sports: React.FC = () => {
           <div className="flex flex-col items-center justify-center py-28 text-center">
             <Loader2 className="w-10 h-10 text-[rgb(var(--primary-color))] animate-spin mb-3" />
             <p className="text-xs font-mono font-bold tracking-widest text-[var(--text-muted)] uppercase">
-              Connecting to Live Satellite Feeds...
+              Loading live scores and fixtures...
             </p>
           </div>
         )}
@@ -1390,18 +1560,31 @@ export const Sports: React.FC = () => {
                 <Radio className="w-8 h-8 opacity-40" />
               </div>
               <h3 className="text-lg font-black text-[var(--text-main)] mb-1">
-                No Live Match Data Returned Right Now
+                {hasActiveFilters ? 'No live matches match these filters' : 'No live matches right now'}
               </h3>
               <p className="text-xs text-[var(--text-muted)] mb-5 leading-relaxed">
-                There may be no game in progress, or a sports data provider may be temporarily unavailable. Try the schedule or refresh.
+                {hasActiveFilters
+                  ? 'Clear the search or sport filter to see all live events.'
+                  : 'There may be no game in progress, or a sports data provider may be temporarily unavailable. Try the schedule or refresh.'}
               </p>
-              <button
-                type="button"
-                onClick={() => setTabMode('upcoming')}
-                className="px-6 py-2.5 rounded-xl bg-[rgb(var(--primary-color))] text-white font-bold text-xs shadow-lg hover:scale-105 transition-all"
-              >
-                Browse Full Schedule
-              </button>
+              <div className="flex flex-wrap justify-center gap-2">
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={clearSportsFilters}
+                    className="px-5 py-2.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] font-bold text-xs"
+                  >
+                    Clear Filters
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setTabMode('upcoming')}
+                  className="px-6 py-2.5 rounded-xl bg-[rgb(var(--primary-color))] text-white font-bold text-xs shadow-lg hover:scale-105 transition-all"
+                >
+                  Browse Full Schedule
+                </button>
+              </div>
             </div>
           )
         )}
@@ -1502,8 +1685,31 @@ export const Sports: React.FC = () => {
               )}
             </div>
           ) : (
-            <div className="py-20 text-center text-[var(--text-muted)]">
-              No matches found in the upcoming schedule for this filter.
+            <div className="py-20 text-center flex flex-col items-center text-[var(--text-muted)]">
+              <Calendar className="w-10 h-10 mb-3 opacity-40" />
+              <h3 className="text-base font-bold text-[var(--text-main)] mb-1">
+                {hasActiveFilters ? 'No fixtures match these filters' : 'No upcoming fixtures found'}
+              </h3>
+              <p className="text-xs mb-4">
+                {hasActiveFilters ? 'Try another team, league, or sport.' : 'Check back soon or refresh the sports feeds.'}
+              </p>
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={clearSportsFilters}
+                  className="px-5 py-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] font-bold text-xs"
+                >
+                  Clear Filters
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => refetch()}
+                  className="px-5 py-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] font-bold text-xs"
+                >
+                  Refresh Fixtures
+                </button>
+              )}
             </div>
           )
         )}
@@ -1556,23 +1762,27 @@ export const Sports: React.FC = () => {
               <div className="w-16 h-16 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] flex items-center justify-center mb-4 text-red-400">
                 <Heart className="w-8 h-8" />
               </div>
-              <h3 className="text-base font-bold text-[var(--text-main)] mb-1">No Saved Matches</h3>
+              <h3 className="text-base font-bold text-[var(--text-main)] mb-1">
+                {favorites.length > 0 && hasActiveFilters ? 'No saved matches match these filters' : 'No Saved Matches'}
+              </h3>
               <p className="text-xs text-[var(--text-muted)] leading-relaxed mb-4">
-                Click the heart icon on any live or scheduled fixture to save it to your personal watchlist.
+                {favorites.length > 0 && hasActiveFilters
+                  ? 'Clear the search or sport filter to see the rest of your watchlist.'
+                  : 'Click the heart icon on any live or scheduled fixture to save it to your personal watchlist.'}
               </p>
               <button
                 type="button"
-                onClick={() => setTabMode('live')}
+                onClick={favorites.length > 0 && hasActiveFilters ? clearSportsFilters : () => setTabMode('live')}
                 className="px-5 py-2.5 rounded-xl bg-[rgb(var(--primary-color))] text-white font-bold text-xs"
               >
-                Explore Live Matches
+                {favorites.length > 0 && hasActiveFilters ? 'Clear Filters' : 'Explore Live Matches'}
               </button>
             </div>
           )
         )}
 
         {/* ========================================================================= */}
-        {/* 4. STANDINGS TAB (2026/2027 SEASON - LA LIGA -> PL -> LIGUE 1 -> SERIE A) */}
+        {/* 4. STANDINGS AND TOP SCORERS */}
         {/* ========================================================================= */}
         {tabMode === 'standings' && (
           <div className="space-y-6 animate-fade-in">
@@ -1580,10 +1790,10 @@ export const Sports: React.FC = () => {
               <div>
                 <h2 className="text-xl sm:text-2xl font-black text-[var(--text-main)] flex items-center gap-2">
                   <Trophy className="w-5 h-5 text-amber-400" />
-                  <span>League Tables & Standings (2026 / 2027 Season)</span>
+                  <span>League Tables & Standings</span>
                 </h2>
                 <p className="text-xs text-[var(--text-muted)] mt-1">
-                  Active 2026/2027 campaign — La Liga, Premier League, Ligue 1, Serie A, and Botola Pro Inwi.
+                  Live standings when available; bundled snapshot tables are labeled by source.
                 </p>
               </div>
 
@@ -1631,7 +1841,7 @@ export const Sports: React.FC = () => {
                   }`}
                 >
                   <Flame className="w-3.5 h-3.5 fill-current" />
-                  <span>Top Scorers (Pichichi ⚽)</span>
+                  <span>Top Scorers</span>
                 </button>
               </div>
             </div>
@@ -1641,20 +1851,19 @@ export const Sports: React.FC = () => {
               const currentTable = LEAGUE_TABLES.find(l => l.id === selectedLeague) || LEAGUE_TABLES[0];
               const isBotola = currentTable.id === 'botola';
               const standingsList = liveStandingsData?.standings || currentTable.standings;
-              const isLiveFromApi = liveStandingsData?.isLive;
 
               const sourceBadge = (() => {
                 const src = liveStandingsData?.source;
                 if (src === 'football-data.org') {
-                  return { label: 'Football-Data.org (Official Live v4 ⚡)', badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' };
+                  return { label: 'Football-Data.org · Live', badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' };
                 }
                 if (src === 'espn') {
-                  return { label: 'ESPN Radar (Live Fallback)', badgeClass: 'bg-blue-500/15 text-blue-400 border-blue-500/30' };
+                  return { label: 'ESPN · Live', badgeClass: 'bg-blue-500/15 text-blue-400 border-blue-500/30' };
                 }
                 if (src === 'botola-inwi') {
-                  return { label: 'Botola Pro Inwi (Morocco Official)', badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' };
+                  return { label: 'Botola Pro Inwi · Snapshot', badgeClass: 'bg-purple-500/15 text-purple-300 border-purple-500/30' };
                 }
-                return { label: '2026/2027 Season', badgeClass: 'bg-purple-500/15 text-purple-400 border-purple-500/30' };
+                return { label: 'Bundled season snapshot · May be out of date', badgeClass: 'bg-purple-500/15 text-purple-300 border-purple-500/30' };
               })();
 
               return (
@@ -1671,9 +1880,9 @@ export const Sports: React.FC = () => {
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[rgb(var(--primary-color))]/20 text-[rgb(var(--primary-color))] border border-[rgb(var(--primary-color))]/30">
                             {liveStandingsData?.season || currentTable.season || '2026 / 2027'} Season
                           </span>
-                          {isLiveFromApi && (
+                          {liveStandingsData && (
                             <span className={`flex items-center gap-1.5 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border ${sourceBadge.badgeClass}`}>
-                              <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                              <span className={`w-1.5 h-1.5 rounded-full bg-current ${liveStandingsData.isLive ? 'animate-pulse' : ''}`} />
                               <span>{sourceBadge.label}</span>
                             </span>
                           )}
@@ -1690,7 +1899,7 @@ export const Sports: React.FC = () => {
                           </button>
                         </div>
                         <span className="text-[10px] text-[var(--text-muted)] font-mono uppercase">
-                          {standingsSubTab === 'table' ? `Official Ranking Table · ${currentTable.country}` : `Golden Boot & Pichichi Rankings · ${currentTable.country}`}
+                          {standingsSubTab === 'table' ? `League standings · ${currentTable.country}` : `Top scorer rankings · ${currentTable.country}`}
                         </span>
                       </div>
                     </div>
@@ -1712,7 +1921,7 @@ export const Sports: React.FC = () => {
                     ) : (
                       <div className="flex items-center gap-2 text-xs font-mono font-bold text-amber-400 bg-amber-500/10 px-3 py-1 rounded-xl border border-amber-500/20">
                         <Award className="w-4 h-4 text-amber-400" />
-                        <span>Pichichi Race 2026/2027</span>
+                        <span>Top Scorer Race · {liveStandingsData?.season || currentTable.season || 'Current season'}</span>
                       </div>
                     )}
                   </div>
@@ -1820,7 +2029,7 @@ export const Sports: React.FC = () => {
                                       <span className="truncate">{scorer.name}</span>
                                       {scorer.rank === 1 && (
                                         <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                                          Pichichi Leader
+                                          Top Scorer Leader
                                         </span>
                                       )}
                                     </div>
@@ -1850,7 +2059,7 @@ export const Sports: React.FC = () => {
                         </table>
                       ) : (
                         <div className="py-16 text-center text-xs text-[var(--text-muted)]">
-                          {isLoadingScorers ? 'Loading official Pichichi rankings...' : 'No top scorers recorded for this tournament.'}
+                          {isLoadingScorers ? 'Loading top scorer rankings...' : 'Top scorer data is unavailable from the current providers.'}
                         </div>
                       )}
                     </div>
@@ -1939,6 +2148,20 @@ export const Sports: React.FC = () => {
                   {formatTimeForTz(previewMatch.date, getScheduleTimezone(selectedRegion))} ({getScheduleOffsetBadge(selectedRegion, previewMatch.date)})
                 </span>
               </div>
+              {previewMatch.competition && (
+                <div className="flex justify-between items-center">
+                  <span className="text-[var(--text-muted)]">Competition:</span>
+                  <span className="font-bold text-[var(--text-main)] text-right">{previewMatch.competition}</span>
+                </div>
+              )}
+              {(previewMatch.venue || previewMatch.venueCity) && (
+                <div className="flex justify-between items-center">
+                  <span className="text-[var(--text-muted)]">Venue:</span>
+                  <span className="font-bold text-[var(--text-main)] text-right">
+                    {[previewMatch.venue, previewMatch.venueCity].filter(Boolean).join(' · ')}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between items-center">
                 <span className="text-[var(--text-muted)]">Local Date:</span>
                 <span className="font-bold text-[var(--text-main)]">
@@ -1947,7 +2170,13 @@ export const Sports: React.FC = () => {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-[var(--text-muted)]">Status:</span>
-                <MatchCountdown date={previewMatch.date} />
+                {isMatchFinished(previewMatch) ? (
+                  <span className="text-xs font-bold text-[var(--text-muted)]">Final</span>
+                ) : isLiveMatchStatus(previewMatch.status) ? (
+                  <span className="text-xs font-bold text-red-400">Live · {previewMatch.minute || 'In progress'}</span>
+                ) : (
+                  <MatchCountdown date={previewMatch.date} />
+                )}
               </div>
             </div>
 
@@ -1955,30 +2184,36 @@ export const Sports: React.FC = () => {
             <div className="mb-5">
               <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2 flex items-center gap-1.5">
                 <Radio className="w-3.5 h-3.5 text-[rgb(var(--primary-color))]" />
-                <span>Available Stream Nodes & Mirrors</span>
+                <span>{previewMatch.sources.length > 0 ? 'Available Broadcast Providers' : 'Broadcast Availability'}</span>
               </p>
               <div className="grid grid-cols-2 gap-2">
-                {previewMatch.sources.map((s, idx) => (
+                {previewMatch.sources.length > 0 ? previewMatch.sources.map((s, idx) => (
                   <div key={idx} className="p-2.5 rounded-xl bg-[var(--bg-main)] border border-[var(--border-subtle)] flex items-center justify-between text-xs">
                     <span className="font-bold text-[var(--text-main)]">Mirror {idx + 1} ({s.source.toUpperCase()})</span>
-                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded">HD Online</span>
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded">Linked</span>
                   </div>
-                ))}
+                )) : (
+                  <p className="col-span-2 text-xs text-[var(--text-muted)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-xl p-3">
+                    No broadcast link is listed for this fixture yet. Kickoff and match data are still available here.
+                  </p>
+                )}
               </div>
             </div>
 
             {/* Action Buttons */}
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  setPreviewMatch(null);
-                  handlePlayMatch(previewMatch);
-                }}
-                className="flex-1 py-3 px-5 rounded-xl bg-[rgb(var(--primary-color))] text-white font-bold text-sm shadow-lg shadow-[rgb(var(--primary-color))]/25 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2"
-              >
-                <Play className="w-4 h-4 fill-white" />
-                <span>Watch Live Match</span>
-              </button>
+              {previewMatch.sources.length > 0 && (
+                <button
+                  onClick={() => {
+                    setPreviewMatch(null);
+                    handlePlayMatch(previewMatch);
+                  }}
+                  className="flex-1 py-3 px-5 rounded-xl bg-[rgb(var(--primary-color))] text-white font-bold text-sm shadow-lg shadow-[rgb(var(--primary-color))]/25 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  <Play className="w-4 h-4 fill-white" />
+                  <span>Watch Live Match</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   toggleFavorite(previewMatch);

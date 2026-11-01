@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { SportsMatch, SportsMatchSource, SportsStream, SportsChannel247, LiveMatchScoreboard } from '../types';
-import { getMatchStreams, getAllMatches, getLiveScoreboard } from '../services/sports';
+import { getMatchStreams, getAllMatches, getExpectedMatchDurationMs, getLiveScoreboard, isLiveMatchStatus, isMatchFinished } from '../services/sports';
 import {
   ArrowLeft, RotateCw, ExternalLink, Expand,
   AlertCircle, Loader2, Radio, Zap, Globe, Calendar, Clock,
@@ -89,7 +89,9 @@ export const SportsPlayer: React.FC = () => {
   const [isFav, setIsFav] = useState(false);
 
   // Time / Live calculation
-  const [isUpcoming, setIsUpcoming] = useState(false);
+  const [isUpcoming, setIsUpcoming] = useState(() => Boolean(
+    match && !isMatchFinished(match) && !isLiveMatchStatus(match.status) && match.date - Date.now() > 15 * 60 * 1000
+  ));
   const [timeToStart, setTimeToStart] = useState<string>('');
 
   // Live Scoreboard & Commentary Switcher States
@@ -151,7 +153,9 @@ export const SportsPlayer: React.FC = () => {
     return allMatches.filter(m => {
       if (m.id === match.id || m.title === match.title) return false;
       const diff = m.date - now;
-      return diff < 15 * 60 * 1000 && diff > -4 * 60 * 60 * 1000;
+      return !isMatchFinished(m) && (
+        isLiveMatchStatus(m.status) || (diff < 15 * 60 * 1000 && diff > -getExpectedMatchDurationMs(m.category))
+      );
     }).slice(0, 6);
   }, [allMatches, match]);
 
@@ -167,7 +171,7 @@ export const SportsPlayer: React.FC = () => {
 
     // Check upcoming status
     const diff = match.date - Date.now();
-    if (diff > 15 * 60 * 1000) {
+    if (!isMatchFinished(match) && !isLiveMatchStatus(match.status) && diff > 15 * 60 * 1000) {
       setIsUpcoming(true);
       const updateTimer = () => {
         const d = match.date - Date.now();
@@ -190,6 +194,7 @@ export const SportsPlayer: React.FC = () => {
       return () => clearInterval(interval);
     } else {
       setIsUpcoming(false);
+      setTimeToStart('');
     }
 
     // Auto-select and fetch first source if available
@@ -310,6 +315,11 @@ export const SportsPlayer: React.FC = () => {
 
   const sportIcon = getSportIcon(match.category);
   const hasTeams = match.teams?.home && match.teams?.away;
+  const matchIsFinished = isMatchFinished(match);
+  const matchIsLive = !matchIsFinished && (
+    isLiveMatchStatus(match.status) ||
+    (match.date - Date.now() <= 15 * 60 * 1000 && match.date - Date.now() >= -getExpectedMatchDurationMs(match.category))
+  );
 
   return (
     <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] flex flex-col transition-colors duration-300">
@@ -340,6 +350,12 @@ export const SportsPlayer: React.FC = () => {
                 <span className="text-[rgb(var(--primary-color))] font-bold uppercase tracking-wider text-[10px]">
                   {match.category}
                 </span>
+                {match.competition && (
+                  <>
+                    <span>•</span>
+                    <span className="max-w-[180px] truncate text-[10px]">{match.competition}</span>
+                  </>
+                )}
                 <span>•</span>
                 {regionTimeStr && (
                   <>
@@ -353,10 +369,14 @@ export const SportsPlayer: React.FC = () => {
                   <span className="flex items-center gap-1 text-amber-400 font-bold text-[10px]">
                     <Clock className="w-3 h-3" /> UPCOMING ({timeToStart})
                   </span>
-                ) : (
+                ) : matchIsFinished ? (
+                  <span className="text-[10px] font-bold text-[var(--text-muted)]">FINAL</span>
+                ) : matchIsLive ? (
                   <span className="flex items-center gap-1 text-red-500 font-bold text-[10px] animate-pulse">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> LIVE NOW
                   </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-[var(--text-muted)]">MATCH STATUS UNKNOWN</span>
                 )}
                 {activeStream && (
                   <>
@@ -458,16 +478,18 @@ export const SportsPlayer: React.FC = () => {
                 Live streaming nodes connect approximately 15 minutes before official kickoff. You can test available mirrors below.
               </p>
               
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsUpcoming(false)}
-                  className="px-6 py-2.5 rounded-xl bg-[rgb(var(--primary-color))] text-white font-bold text-xs hover:scale-105 transition-transform shadow-lg shadow-[rgb(var(--primary-color))]/30 flex items-center gap-2"
-                >
-                  <Play className="w-4 h-4 fill-white" />
-                  Try Live Feeds Now
-                </button>
-              </div>
+              {match.sources.length > 0 && (
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsUpcoming(false)}
+                    className="px-6 py-2.5 rounded-xl bg-[rgb(var(--primary-color))] text-white font-bold text-xs hover:scale-105 transition-transform shadow-lg shadow-[rgb(var(--primary-color))]/30 flex items-center gap-2"
+                  >
+                    <Play className="w-4 h-4 fill-white" />
+                    Try Live Feeds Now
+                  </button>
+                </div>
+              )}
             </div>
           ) : activeStream ? (
             <div className="relative w-full h-full">
@@ -494,9 +516,13 @@ export const SportsPlayer: React.FC = () => {
               ) : (
                 <>
                   <Radio className="w-12 h-12 text-[var(--text-muted)] opacity-30 mb-3" />
-                  <p className="text-sm font-bold text-white">Select a Stream Server</p>
+                  <p className="text-sm font-bold text-white">
+                    {match.sources.length > 0 ? 'Select a Stream Server' : 'No Broadcast Link Listed'}
+                  </p>
                   <p className="text-xs text-[var(--text-muted)] mt-1">
-                    Pick a broadcast provider from the list below to start streaming.
+                    {match.sources.length > 0
+                      ? 'Pick a broadcast provider from the list below to start streaming.'
+                      : 'Match information and live scoreboard data are available, but no stream provider is attached to this fixture.'}
                   </p>
                 </>
               )}
@@ -539,15 +565,15 @@ export const SportsPlayer: React.FC = () => {
             <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
               <div className="flex items-center gap-2">
                 <span className="flex h-2 w-2 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                  {matchIsLive && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />}
+                  <span className={`relative inline-flex rounded-full h-2 w-2 ${matchIsLive ? 'bg-red-500' : matchIsFinished ? 'bg-zinc-500' : 'bg-amber-400'}`} />
                 </span>
-                <span className="text-xs font-black uppercase tracking-wider text-red-400 font-mono">
-                  LIVE SCOREBOARD
+                <span className={`text-xs font-black uppercase tracking-wider font-mono ${matchIsLive ? 'text-red-400' : matchIsFinished ? 'text-[var(--text-muted)]' : 'text-amber-400'}`}>
+                  {matchIsLive ? 'LIVE SCOREBOARD' : matchIsFinished ? 'FINAL SCORE' : 'MATCH SCORE'}
                 </span>
                 <span className="text-xs text-[var(--text-muted)]">•</span>
                 <span className="text-xs font-bold text-white bg-white/10 px-2 py-0.5 rounded-md font-mono">
-                  {scoreboard.period} · {scoreboard.minute}'
+                  {scoreboard.period}{scoreboard.minute ? ` · ${scoreboard.minute}` : ''}
                 </span>
               </div>
 
@@ -580,7 +606,7 @@ export const SportsPlayer: React.FC = () => {
                 )}
               </div>
 
-              {match.score ? (
+              {match.score && (matchIsLive || matchIsFinished) ? (
                 <div className="px-5 py-1.5 rounded-2xl bg-black/60 border border-white/15 flex items-center gap-3 shadow-inner">
                   <span className="text-2xl sm:text-4xl font-mono font-black text-white">
                     {scoreboard.homeScore}
@@ -590,7 +616,7 @@ export const SportsPlayer: React.FC = () => {
                     {scoreboard.awayScore}
                   </span>
                 </div>
-              ) : (
+              ) : matchIsLive ? (
                 <div className="px-4 py-1.5 rounded-2xl bg-black/60 border border-white/10 flex items-center gap-2">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
@@ -600,6 +626,8 @@ export const SportsPlayer: React.FC = () => {
                     LIVE
                   </span>
                 </div>
+              ) : (
+                <span className="text-lg font-black text-[var(--text-muted)] italic">VS</span>
               )}
 
               <div className="flex items-center gap-3 flex-1 justify-start text-left">
@@ -697,6 +725,9 @@ export const SportsPlayer: React.FC = () => {
                   </button>
                 );
               })}
+              {match.sources.length === 0 && (
+                <span className="text-xs text-[var(--text-muted)]">No providers listed</span>
+              )}
             </div>
 
             {/* Stream Protection Tip */}

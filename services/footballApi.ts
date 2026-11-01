@@ -332,7 +332,8 @@ export const fetchEspnLiveScoreboard = async (): Promise<SportsMatch[]> => {
   const leagues = [
     'eng.1', 'esp.1', 'ita.1', 'ger.1', 'fra.1',
     'ned.1', 'eng.2', 'esp.2', 'por.1', 'bel.1', 'tur.1', 'sco.1',
-    'uefa.champions', 'uefa.europa', 'uefa.europa.conf'
+    'uefa.champions', 'uefa.europa', 'uefa.europa.conf',
+    'usa.1', 'bra.1', 'mex.1'
   ];
   const matches: SportsMatch[] = [];
 
@@ -348,6 +349,7 @@ export const fetchEspnLiveScoreboard = async (): Promise<SportsMatch[]> => {
       const data = await res.json();
       const events = data?.events;
       if (!Array.isArray(events)) return;
+      const competition = data?.leagues?.[0]?.name || slug.replace('.', ' ');
 
       for (const ev of events) {
         const comp = ev.competitions?.[0];
@@ -416,14 +418,15 @@ export const fetchEspnLiveScoreboard = async (): Promise<SportsMatch[]> => {
           title: `${homeName} vs ${awayName}`,
           date,
           category: 'football',
+          competition,
+          venue: comp.venue?.fullName || ev.venue?.fullName,
+          venueCity: comp.venue?.address?.city || ev.venue?.address?.city,
           teams: {
             home: { name: homeName, logo: homeLogo },
             away: { name: awayName, logo: awayLogo }
           },
-          sources: [
-            { source: 'streamfree', id: `espn-${ev.id}` }
-          ],
-          popular: true,
+          sources: [],
+          popular: ['eng.1', 'esp.1', 'ita.1', 'ger.1', 'fra.1', 'uefa.champions', 'uefa.europa', 'usa.1', 'bra.1', 'mex.1'].includes(slug),
           score,
           status: isFinished ? 'FINISHED' : (isLive ? 'IN_PLAY' : 'SCHEDULED'),
           minute: displayClock,
@@ -437,10 +440,14 @@ export const fetchEspnLiveScoreboard = async (): Promise<SportsMatch[]> => {
 
   await Promise.allSettled(promises);
 
-  // Also fetch NBA and College Football scoreboards for American sports
+  // Expand live coverage across popular sports with ESPN's free public scoreboards.
   const multiSportUrls = [
     { url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard', cat: 'basketball' },
-    { url: 'https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard', cat: 'american football' }
+    { url: 'https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard', cat: 'american football' },
+    { url: 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard', cat: 'american football' },
+    { url: 'https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard', cat: 'ice hockey' },
+    { url: 'https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard', cat: 'baseball' },
+    { url: 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard', cat: 'basketball' }
   ];
 
   const extraPromises = multiSportUrls.map(async ({ url, cat }) => {
@@ -454,6 +461,7 @@ export const fetchEspnLiveScoreboard = async (): Promise<SportsMatch[]> => {
       const data = await res.json();
       const events = data?.events;
       if (!Array.isArray(events)) return;
+      const competition = data?.leagues?.[0]?.name || cat;
 
       for (const ev of events) {
         const comp = ev.competitions?.[0];
@@ -490,14 +498,15 @@ export const fetchEspnLiveScoreboard = async (): Promise<SportsMatch[]> => {
           title: `${homeName} vs ${awayName}`,
           date,
           category: cat,
+          competition,
+          venue: comp.venue?.fullName || ev.venue?.fullName,
+          venueCity: comp.venue?.address?.city || ev.venue?.address?.city,
           teams: {
             home: { name: homeName, logo: homeLogo },
             away: { name: awayName, logo: awayLogo }
           },
-          sources: [
-            { source: 'streamfree', id: `espn-${ev.id}` }
-          ],
-          popular: true,
+          sources: [],
+          popular: /\/(?:basketball\/nba|football\/nfl|hockey\/nhl|baseball\/mlb)\//.test(url),
           score,
           status: isFinished ? 'FINISHED' : (isLive ? 'IN_PLAY' : 'SCHEDULED'),
           minute: displayClock
@@ -557,10 +566,10 @@ export const getLiveMatchesFromApi = async (): Promise<SportsMatch[]> => {
                 logo: m.awayTeam?.crest || getTeamLogoUrl(awayName)
               }
             },
-            sources: [
-              { source: 'streamfree', id: `match-${m.id}` }
-            ],
+            sources: [],
             popular: m.competition?.code === 'PD' || m.competition?.code === 'PL' || m.competition?.code === 'CL',
+            competition: m.competition?.name,
+            venue: m.venue,
             score: (isLive || m.status === 'FINISHED') ? {
               home: m.score?.fullTime?.home ?? m.score?.halfTime?.home ?? 0,
               away: m.score?.fullTime?.away ?? m.score?.halfTime?.away ?? 0

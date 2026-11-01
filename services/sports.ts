@@ -59,6 +59,20 @@ interface StreamFreeMetadata {
 const ppvMetadataStore = new Map<string, PpvMetadata>();
 const streamFreeMetadataStore = new Map<string, StreamFreeMetadata>();
 
+const LIVE_MATCH_STATUSES = new Set(['IN_PLAY', 'LIVE', 'PAUSED', 'HALFTIME', 'HALF_TIME']);
+export const isLiveMatchStatus = (status?: string): boolean => LIVE_MATCH_STATUSES.has((status || '').toUpperCase());
+
+export const getExpectedMatchDurationMs = (category?: string): number => {
+  const sport = (category || '').toLowerCase();
+  if (sport.includes('soccer') || (sport.includes('football') && !sport.includes('american'))) return 135 * 60 * 1000;
+  if (sport.includes('american') || sport.includes('nfl')) return 5 * 60 * 60 * 1000;
+  if (sport.includes('basketball') || sport.includes('nba')) return 4 * 60 * 60 * 1000;
+  if (sport.includes('baseball') || sport.includes('cricket')) return 7 * 60 * 60 * 1000;
+  if (sport.includes('hockey')) return 4 * 60 * 60 * 1000;
+  if (sport.includes('tennis') || sport.includes('fight') || sport.includes('motor')) return 7 * 60 * 60 * 1000;
+  return 4 * 60 * 60 * 1000;
+};
+
 let cachedMatches: SportsMatch[] = [];
 let lastMatchesFetchTime = 0;
 const MATCHES_CACHE_TTL = 30 * 1000; // 30 seconds cache
@@ -166,6 +180,7 @@ export const fetchPpvStreams = async (): Promise<SportsMatch[]> => {
             id: `ppv-${s.id}`,
             title: cleanName,
             category: normalizeCategory(s.category_name || catName),
+            competition: s.league || s.competition || undefined,
             date: startMs,
             ends_at: endMs,
             poster: s.poster || undefined,
@@ -251,6 +266,7 @@ export const fetchStreamFreeStreams = async (): Promise<SportsMatch[]> => {
             id: `sf-${s.stream_key}`,
             title: s.name,
             category: normalizeCategory(s.category),
+            competition: s.league || s.competition || undefined,
             date: startMs,
             ends_at: endMs,
             poster: s.thumbnail_url || undefined,
@@ -505,14 +521,9 @@ export const isMatchFinished = (m: SportsMatch): boolean => {
     return true;
   }
 
-  // If match started > 135 minutes ago, standard football match is over
-  const diff = m.date - Date.now();
-  if (diff < -135 * 60 * 1000) {
-    return true;
-  }
-  if (diff < -115 * 60 * 1000 && m.status !== 'IN_PLAY') {
-    return true;
-  }
+  // Bound stale events by sport while allowing extra time and long-format games.
+  const elapsedMs = Date.now() - m.date;
+  if (elapsedMs > getExpectedMatchDurationMs(m.category) && !isLiveMatchStatus(m.status)) return true;
 
   return false;
 };
@@ -606,6 +617,19 @@ const getMatchFingerprint = (match: SportsMatch): string => {
  * Merges match data from candidate into target (logos, sources, scores, real status)
  */
 const mergeMatchData = (target: SportsMatch, incoming: SportsMatch) => {
+  const hasOfficialTiming = incoming.id.startsWith('espn-') || incoming.id.startsWith('fd-');
+  let incomingTeamsReversed = false;
+  if (hasOfficialTiming && Number.isFinite(incoming.date) && incoming.date > 0) {
+    target.date = incoming.date;
+  }
+
+  if (incoming.competition && (!target.competition || hasOfficialTiming)) {
+    target.competition = incoming.competition;
+  }
+  if (incoming.venue && (!target.venue || hasOfficialTiming)) target.venue = incoming.venue;
+  if (incoming.venueCity && (!target.venueCity || hasOfficialTiming)) target.venueCity = incoming.venueCity;
+  if (!target.poster && incoming.poster) target.poster = incoming.poster;
+
   // 1. Teams & Logos: Accurately map by canonical team token
   if (incoming.teams?.home?.name && incoming.teams?.away?.name) {
     const inHomeToken = normalizeTeamToken(incoming.teams.home.name);
@@ -622,17 +646,26 @@ const mergeMatchData = (target: SportsMatch, incoming: SportsMatch) => {
         const tAwayToken = normalizeTeamToken(target.teams.away.name);
 
         if (inHomeToken === tHomeToken && inAwayToken === tAwayToken) {
-          if (!target.teams.home.logo && incoming.teams.home.logo) {
+          if (hasOfficialTiming) {
+            target.teams.home.name = incoming.teams.home.name;
+            target.teams.away.name = incoming.teams.away.name;
+          }
+          if ((!target.teams.home.logo || hasOfficialTiming) && incoming.teams.home.logo) {
             target.teams.home.logo = incoming.teams.home.logo;
           }
-          if (!target.teams.away.logo && incoming.teams.away.logo) {
+          if ((!target.teams.away.logo || hasOfficialTiming) && incoming.teams.away.logo) {
             target.teams.away.logo = incoming.teams.away.logo;
           }
         } else if (inHomeToken === tAwayToken && inAwayToken === tHomeToken) {
-          if (!target.teams.away.logo && incoming.teams.home.logo) {
+          incomingTeamsReversed = true;
+          if (hasOfficialTiming) {
+            target.teams.home.name = incoming.teams.away.name;
+            target.teams.away.name = incoming.teams.home.name;
+          }
+          if ((!target.teams.away.logo || hasOfficialTiming) && incoming.teams.home.logo) {
             target.teams.away.logo = incoming.teams.home.logo;
           }
-          if (!target.teams.home.logo && incoming.teams.away.logo) {
+          if ((!target.teams.home.logo || hasOfficialTiming) && incoming.teams.away.logo) {
             target.teams.home.logo = incoming.teams.away.logo;
           }
         }
@@ -674,7 +707,9 @@ const mergeMatchData = (target: SportsMatch, incoming: SportsMatch) => {
 
   // 5. Real Score & Real Events
   if (incoming.score) {
-    target.score = incoming.score;
+    target.score = incomingTeamsReversed
+      ? { home: incoming.score.away, away: incoming.score.home }
+      : incoming.score;
   }
   if (Array.isArray(incoming.events) && incoming.events.length > 0) {
     target.events = incoming.events;
@@ -684,9 +719,9 @@ const mergeMatchData = (target: SportsMatch, incoming: SportsMatch) => {
   if (isMatchFinished(incoming)) {
     target.status = 'FINISHED';
     target.minute = incoming.minute || 'FT';
-  } else if (incoming.status === 'IN_PLAY' || incoming.status === 'LIVE') {
+  } else if (isLiveMatchStatus(incoming.status)) {
     if (!isMatchFinished(target)) {
-      target.status = 'IN_PLAY';
+      target.status = incoming.status?.toUpperCase() === 'PAUSED' ? 'PAUSED' : 'IN_PLAY';
       if (incoming.minute) target.minute = incoming.minute;
     }
   }
@@ -752,7 +787,7 @@ export const getAllMatches = async (): Promise<SportsMatch[]> => {
       const mFp = getMatchFingerprint(m);
       if (mFp !== fp) return false;
       const diff = Math.abs(m.date - candidate.date);
-      return diff < 8 * 3600 * 1000 || m.status === 'IN_PLAY' || candidate.status === 'IN_PLAY';
+      return diff < 8 * 3600 * 1000 || isLiveMatchStatus(m.status) || isLiveMatchStatus(candidate.status);
     });
 
     if (existing) {
@@ -799,10 +834,11 @@ export const getAllMatches = async (): Promise<SportsMatch[]> => {
     const diff = m.date - now;
     const isFinished = isMatchFinished(m);
 
-    // If finished and started > 2.5 hours ago, prune
-    if (isFinished && diff < -2.5 * 3600 * 1000) return false;
-    // If started > 3.5 hours ago without live signal, prune
-    if (diff < -3.5 * 3600 * 1000) return false;
+    const elapsedMs = -diff;
+    // Keep recent finals briefly, then prune them from the live page.
+    if (isFinished && elapsedMs > 2.5 * 3600 * 1000) return false;
+    // Long games should not disappear just because they exceed a football-sized window.
+    if (elapsedMs > getExpectedMatchDurationMs(m.category) + 30 * 60 * 1000 && !isLiveMatchStatus(m.status)) return false;
 
     return true;
   });
@@ -817,8 +853,8 @@ export const getAllMatches = async (): Promise<SportsMatch[]> => {
 
   // Sort: Active live events first, then upcoming chronologically
   combined.sort((a, b) => {
-    const aLive = a.status === 'IN_PLAY';
-    const bLive = b.status === 'IN_PLAY';
+    const aLive = isLiveMatchStatus(a.status);
+    const bLive = isLiveMatchStatus(b.status);
     if (aLive && !bLive) return -1;
     if (!aLive && bLive) return 1;
     return a.date - b.date;
@@ -978,16 +1014,34 @@ export const get247SportsChannels = (): SportsChannel247[] => {
 export const getLiveScoreboard = (match: SportsMatch): LiveMatchScoreboard => {
   const now = Date.now();
   const elapsedMs = now - match.date;
-  const elapsedMins = Math.max(1, Math.min(95, Math.floor(elapsedMs / (60 * 1000))));
-
-  let period: '1st Half' | 'Halftime' | '2nd Half' | 'Full Time' | 'Live' = '1st Half';
+  const category = (match.category || '').toLowerCase();
+  const isSoccer = category.includes('soccer') || (category.includes('football') && !category.includes('american'));
+  const elapsedMins = Math.max(1, Math.floor(elapsedMs / (60 * 1000)));
+  const isFinished = isMatchFinished(match);
+  const isLive = isLiveMatchStatus(match.status);
+  const isStartingSoon = !isFinished && !isLive && elapsedMs < 0 && elapsedMs >= -15 * 60 * 1000;
   const minStr = (match.minute || '').toLowerCase();
-  if (match.status === 'FINISHED' || minStr.includes('ft') || minStr.includes('full') || elapsedMins > 95) {
-    period = 'Full Time';
-  } else if (elapsedMins > 45 && elapsedMins <= 50) {
-    period = 'Halftime';
-  } else if (elapsedMins > 50) {
-    period = '2nd Half';
+  let period = isFinished ? 'Final' : isLive ? 'Live' : isStartingSoon ? 'Kickoff soon' : 'Scheduled';
+  let minute = isStartingSoon
+    ? `in ${Math.max(1, Math.ceil(-elapsedMs / (60 * 1000)))}m`
+    : match.minute || '';
+
+  if (isSoccer && !isStartingSoon) {
+    if (isFinished || minStr.includes('ft') || minStr.includes('full') || elapsedMins > 95) {
+      period = 'Full Time';
+      minute ||= 'FT';
+    } else if (elapsedMins > 45 && elapsedMins <= 50) {
+      period = 'Halftime';
+      minute ||= 'HT';
+    } else if (elapsedMins > 50) {
+      period = '2nd Half';
+      minute ||= `${elapsedMins - 15}'`;
+    } else {
+      period = '1st Half';
+      minute ||= `${elapsedMins}'`;
+    }
+  } else if (!isFinished && isLive) {
+    period = match.status?.toUpperCase() === 'PAUSED' ? 'Paused' : match.category;
   }
 
   // ONLY use real verified score from match.score if available! Never fabricate fake seed numbers
@@ -999,7 +1053,7 @@ export const getLiveScoreboard = (match: SportsMatch): LiveMatchScoreboard => {
   const events = Array.isArray(match.events) ? match.events : [];
 
   return {
-    minute: elapsedMins,
+    minute,
     period,
     homeScore,
     awayScore,

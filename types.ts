@@ -240,6 +240,9 @@ export interface SportsMatch {
   title: string;
   date: number; // Timestamp
   category: string;
+  competition?: string;
+  venue?: string;
+  venueCity?: string;
   poster?: string;
   teams?: { home: SportsTeam; away: SportsTeam };
   sources: SportsMatchSource[];
@@ -293,8 +296,8 @@ export interface MatchEvent {
 export interface LiveMatchScoreboard {
   homeScore: number;
   awayScore: number;
-  period: '1st Half' | 'Halftime' | '2nd Half' | 'Full Time' | 'Live';
-  minute: number;
+  period: string;
+  minute: string;
   possession?: { home: number; away: number };
   shots?: { home: number; away: number };
   stats?: {
