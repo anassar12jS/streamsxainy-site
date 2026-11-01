@@ -30,6 +30,23 @@ const getSportIcon = (cat?: string) => {
   return '🏆';
 };
 
+const getScheduleTimezone = (region: RegionOption): string =>
+  region.scheduleTz || region.tz;
+
+const getTimezoneOffset = (dateNum: number, timeZone: string): string => {
+  try {
+    const offset = new Intl.DateTimeFormat('en', {
+      timeZone,
+      timeZoneName: 'shortOffset'
+    } as unknown as Intl.DateTimeFormatOptions)
+      .formatToParts(new Date(dateNum))
+      .find(part => part.type === 'timeZoneName')?.value;
+    return offset || 'GMT';
+  } catch {
+    return 'GMT';
+  }
+};
+
 export const SportsPlayer: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -103,22 +120,22 @@ export const SportsPlayer: React.FC = () => {
   const regionTimeStr = useMemo(() => {
     if (!match?.date) return '';
     return new Intl.DateTimeFormat('en-GB', {
-      timeZone: selectedRegion.tz,
+      timeZone: getScheduleTimezone(selectedRegion),
       hour: '2-digit',
       minute: '2-digit',
       hour12: false
     }).format(new Date(match.date));
-  }, [match?.date, selectedRegion.tz]);
+  }, [match?.date, selectedRegion]);
 
   const regionDateStr = useMemo(() => {
     if (!match?.date) return '';
     return new Intl.DateTimeFormat('en-GB', {
-      timeZone: selectedRegion.tz,
+      timeZone: getScheduleTimezone(selectedRegion),
       weekday: 'short',
       day: 'numeric',
       month: 'short'
     }).format(new Date(match.date));
-  }, [match?.date, selectedRegion.tz]);
+  }, [match?.date, selectedRegion]);
 
   // Fetch all matches for the "Other Live Matches" row
   const { data: allMatches = [] } = useQuery({
@@ -327,7 +344,7 @@ export const SportsPlayer: React.FC = () => {
                 {regionTimeStr && (
                   <>
                     <span className="text-[10px] font-mono font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
-                      {selectedRegion.flag} {regionTimeStr} ({selectedRegion.offsetBadge}) · {regionDateStr}
+                      {selectedRegion.flag} {regionTimeStr} ({getTimezoneOffset(match.date, getScheduleTimezone(selectedRegion))}) · {regionDateStr}
                     </span>
                     <span>•</span>
                   </>
@@ -854,7 +871,7 @@ export const SportsPlayer: React.FC = () => {
               <div className="flex items-center gap-1.5 mt-1 font-mono">
                 <Clock className="w-3.5 h-3.5 text-cyan-400" />
                 <span className="font-bold text-[var(--text-main)]">
-                  {selectedRegion.flag} {regionTimeStr || new Date(match.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({selectedRegion.offsetBadge})
+                  {selectedRegion.flag} {regionTimeStr || new Date(match.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({getTimezoneOffset(match.date, getScheduleTimezone(selectedRegion))})
                 </span>
               </div>
               <span className="mt-2 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-[var(--bg-input)] border border-[var(--border-subtle)]">

@@ -4,11 +4,12 @@ export interface RegionOption {
   country: string;
   flag: string;
   tz: string;
+  scheduleTz?: string;
   offsetBadge: string;
 }
 
 export const REGIONS: RegionOption[] = [
-  { id: 'morocco', name: 'Morocco / Maroc', country: 'Casablanca & Rabat', flag: '🇲🇦', tz: 'UTC', offsetBadge: 'GMT (UTC+0)' },
+  { id: 'morocco', name: 'Morocco / Maroc', country: 'Casablanca & Rabat', flag: '🇲🇦', tz: 'UTC', scheduleTz: 'Africa/Casablanca', offsetBadge: 'GMT (UTC+0)' },
   { id: 'spain', name: 'Spain / España', country: 'Madrid & Barcelona', flag: '🇪🇸', tz: 'Europe/Madrid', offsetBadge: 'CET (GMT+2)' },
   { id: 'uk', name: 'United Kingdom', country: 'London & Manchester', flag: '🇬🇧', tz: 'Europe/London', offsetBadge: 'BST (GMT+1)' },
   { id: 'france', name: 'France', country: 'Paris & Marseille', flag: '🇫🇷', tz: 'Europe/Paris', offsetBadge: 'CET (GMT+2)' },

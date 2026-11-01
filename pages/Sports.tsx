@@ -27,11 +27,31 @@ const generateColor = (name: string) => {
   return '#' + '00000'.substring(0, 6 - c.length) + c;
 };
 
-// Normalizes timezones to resolve Moroccan local time (UTC+0 / GMT 0 as set by local decree)
+// Keep the Morocco ticker on UTC while allowing fixtures to use their own local timezone.
 export const normalizeTimezone = (tz?: string): string => {
-  if (!tz || tz === 'Africa/Casablanca' || tz === 'Etc/GMT-1' || tz === 'UTC') return 'UTC';
+  if (!tz || tz === 'Etc/GMT-1' || tz === 'UTC') return 'UTC';
   return tz;
 };
+
+const getScheduleTimezone = (region: RegionOption): string =>
+  normalizeTimezone(region.scheduleTz || region.tz);
+
+const formatTimezoneOffset = (dateNum: number, tz: string): string => {
+  try {
+    const offset = new Intl.DateTimeFormat('en', {
+      timeZone: normalizeTimezone(tz),
+      timeZoneName: 'shortOffset'
+    } as unknown as Intl.DateTimeFormatOptions)
+      .formatToParts(new Date(dateNum))
+      .find(part => part.type === 'timeZoneName')?.value;
+    return offset || 'GMT';
+  } catch {
+    return 'GMT';
+  }
+};
+
+const getScheduleOffsetBadge = (region: RegionOption, dateNum = Date.now()): string =>
+  formatTimezoneOffset(dateNum, getScheduleTimezone(region));
 
 export const formatTimeForTz = (dateNum: number, tz: string) => {
   const safeTz = normalizeTimezone(tz);
@@ -65,16 +85,18 @@ export const formatDateFullForTz = (dateNum: number, tz: string) => {
 export const getDayLabelForTz = (dateNum: number, tz: string, regionFlag: string) => {
   const safeTz = normalizeTimezone(tz);
   try {
-    const matchDate = new Intl.DateTimeFormat('en-CA', { timeZone: safeTz }).format(new Date(dateNum));
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: safeTz }).format(new Date());
-
-    const tomorrowObj = new Date();
-    tomorrowObj.setDate(tomorrowObj.getDate() + 1);
-    const tomorrow = new Intl.DateTimeFormat('en-CA', { timeZone: safeTz }).format(tomorrowObj);
-
-    const yesterdayObj = new Date();
-    yesterdayObj.setDate(yesterdayObj.getDate() - 1);
-    const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: safeTz }).format(yesterdayObj);
+    const dateKey = (value: Date) => new Intl.DateTimeFormat('en-CA', {
+      timeZone: safeTz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(value);
+    const matchDate = dateKey(new Date(dateNum));
+    const today = dateKey(new Date());
+    const [year, month, day] = today.split('-').map(Number);
+    const todayCalendarDate = Date.UTC(year, month - 1, day);
+    const tomorrow = new Date(todayCalendarDate + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const yesterday = new Date(todayCalendarDate - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
     if (matchDate === today) return `Today · Aujourd’hui (${regionFlag})`;
     if (matchDate === tomorrow) return `Tomorrow · Demain (${regionFlag})`;
@@ -301,7 +323,7 @@ const MatchGridCard = React.memo(({
   );
   const sportEmoji = getSportIcon(match.category);
   const isMorocco = isMoroccanMatch(match);
-  const timeFormatted = formatTimeForTz(match.date, selectedRegion.tz);
+  const timeFormatted = formatTimeForTz(match.date, getScheduleTimezone(selectedRegion));
   const liveMinute = isLive ? getLiveMatchMinute(match.date, match.category) : null;
 
   return (
@@ -435,7 +457,7 @@ const MatchGridCard = React.memo(({
               {selectedRegion.flag} {timeFormatted}
             </span>
             <span className="text-[10px] text-cyan-400/90 font-medium font-sans px-1.5 py-0.2 rounded bg-cyan-500/10 border border-cyan-500/20 shrink-0">
-              {selectedRegion.offsetBadge}
+              {getScheduleOffsetBadge(selectedRegion, match.date)}
             </span>
           </div>
 
@@ -508,7 +530,7 @@ const MatchListRow = React.memo(({
   const hasTeams = match.teams?.home && match.teams?.away;
   const isMorocco = isMoroccanMatch(match);
   const sportEmoji = getSportIcon(match.category);
-  const timeFormatted = formatTimeForTz(match.date, selectedRegion.tz);
+  const timeFormatted = formatTimeForTz(match.date, getScheduleTimezone(selectedRegion));
   const liveMinute = isLive ? getLiveMatchMinute(match.date, match.category) : null;
 
   return (
@@ -541,7 +563,7 @@ const MatchListRow = React.memo(({
               </span>
               <span className="text-[9px] text-[var(--text-muted)] uppercase font-semibold flex items-center gap-0.5">
                 <span>{selectedRegion.flag}</span>
-                <span>{selectedRegion.offsetBadge}</span>
+                <span>{getScheduleOffsetBadge(selectedRegion, match.date)}</span>
               </span>
             </>
           )}
@@ -670,7 +692,8 @@ export const Sports: React.FC = () => {
     const found = REGIONS.find(r => r.id === selectedRegionId) || REGIONS[0];
     return {
       ...found,
-      tz: normalizeTimezone(found.tz)
+      tz: normalizeTimezone(found.tz),
+      scheduleTz: normalizeTimezone(found.scheduleTz || found.tz)
     };
   }, [selectedRegionId]);
 
@@ -847,7 +870,7 @@ export const Sports: React.FC = () => {
     // Group upcoming matches by date in the selected region
     const grouped: Record<string, SportsMatch[]> = {};
     upcomingList.forEach(m => {
-      const key = getDayLabelForTz(m.date, selectedRegion.tz, selectedRegion.flag);
+      const key = getDayLabelForTz(m.date, getScheduleTimezone(selectedRegion), selectedRegion.flag);
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(m);
     });
@@ -926,7 +949,7 @@ export const Sports: React.FC = () => {
             <span className="flex items-center gap-1.5 font-black text-cyan-400 bg-cyan-500/15 border border-cyan-500/30 px-3 py-1 rounded-full shadow-sm">
               <span className="text-base leading-none">{selectedRegion.flag}</span>
               <span className="uppercase">{selectedRegion.name.split(' /')[0]}</span>
-              <span className="text-[10px] text-cyan-300 font-mono">({selectedRegion.offsetBadge})</span>
+              <span className="text-[10px] text-cyan-300 font-mono">(clock · {selectedRegion.offsetBadge})</span>
             </span>
 
             <div className="flex items-center gap-2 font-mono font-bold text-white text-sm">
@@ -954,7 +977,7 @@ export const Sports: React.FC = () => {
               <span className="text-sm">{selectedRegion.flag}</span>
               <span className="truncate max-w-[130px] sm:max-w-none">{selectedRegion.name}</span>
               <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-1.5 py-0.2 rounded border border-cyan-500/20">
-                {selectedRegion.offsetBadge}
+                {getScheduleOffsetBadge(selectedRegion)}
               </span>
               <ChevronDown className={`w-3.5 h-3.5 text-[var(--text-muted)] transition-transform ${isRegionDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -986,7 +1009,7 @@ export const Sports: React.FC = () => {
                       }`}
                     >
                       <span>🇲🇦</span>
-                      <span className="truncate">Morocco (GMT+1)</span>
+                      <span className="truncate">Morocco fixtures ({formatTimezoneOffset(Date.now(), 'Africa/Casablanca')})</span>
                     </button>
                     <button
                       onClick={() => handleRegionChange('spain')}
@@ -995,7 +1018,7 @@ export const Sports: React.FC = () => {
                       }`}
                     >
                       <span>🇪🇸</span>
-                      <span className="truncate">Spain (CET)</span>
+                      <span className="truncate">Spain ({formatTimezoneOffset(Date.now(), 'Europe/Madrid')})</span>
                     </button>
                     <button
                       onClick={() => handleRegionChange('uk')}
@@ -1004,7 +1027,7 @@ export const Sports: React.FC = () => {
                       }`}
                     >
                       <span>🇬🇧</span>
-                      <span className="truncate">UK (London)</span>
+                      <span className="truncate">UK ({formatTimezoneOffset(Date.now(), 'Europe/London')})</span>
                     </button>
                     <button
                       onClick={() => handleRegionChange('france')}
@@ -1013,7 +1036,7 @@ export const Sports: React.FC = () => {
                       }`}
                     >
                       <span>🇫🇷</span>
-                      <span className="truncate">France (Paris)</span>
+                      <span className="truncate">France ({formatTimezoneOffset(Date.now(), 'Europe/Paris')})</span>
                     </button>
                   </div>
 
@@ -1038,7 +1061,7 @@ export const Sports: React.FC = () => {
                           </div>
                         </div>
                         <span className="text-[10px] font-mono shrink-0 px-2 py-0.5 rounded bg-white/10 text-white/70 ml-2 font-bold">
-                          {reg.offsetBadge}
+                          {formatTimezoneOffset(Date.now(), reg.scheduleTz || reg.tz)}
                         </span>
                       </button>
                     );
@@ -1072,7 +1095,7 @@ export const Sports: React.FC = () => {
                 <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mt-3 text-xs">
                   <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[var(--bg-main)]/80 border border-[var(--border-subtle)] font-mono font-bold text-cyan-400">
                     <Clock className="w-3.5 h-3.5" />
-                    <span>{selectedRegion.flag} Kickoff: {formatTimeForTz(featuredMatch.date, selectedRegion.tz)} ({selectedRegion.offsetBadge})</span>
+                    <span>{selectedRegion.flag} Kickoff: {formatTimeForTz(featuredMatch.date, getScheduleTimezone(selectedRegion))} ({getScheduleOffsetBadge(selectedRegion, featuredMatch.date)})</span>
                   </span>
                   <span className="px-3 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold">
                     HD 1080p Commentary
@@ -1325,7 +1348,7 @@ export const Sports: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2 text-xs font-mono text-cyan-400 font-bold">
                   <Globe className="w-3.5 h-3.5" />
-                  <span>{selectedRegion.flag} {selectedRegion.name.split(' /')[0]} ({selectedRegion.offsetBadge})</span>
+                  <span>{selectedRegion.flag} {selectedRegion.name.split(' /')[0]} ({getScheduleOffsetBadge(selectedRegion)})</span>
                 </div>
               </div>
 
@@ -1397,7 +1420,7 @@ export const Sports: React.FC = () => {
                   <span className="text-xl">{selectedRegion.flag}</span>
                   <div>
                     <p className="text-xs font-bold text-[var(--text-main)]">
-                      Showing schedules in {selectedRegion.name} ({selectedRegion.offsetBadge})
+                      Showing schedules in {selectedRegion.name} ({getScheduleOffsetBadge(selectedRegion)})
                     </p>
                     <p className="text-[10px] text-[var(--text-muted)]">
                       Kickoff times and calendar dates update automatically with each region
@@ -1424,7 +1447,7 @@ export const Sports: React.FC = () => {
                     </h3>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-mono">
-                        {selectedRegion.flag} {selectedRegion.offsetBadge}
+                        {selectedRegion.flag} {getScheduleOffsetBadge(selectedRegion, groupMatches[0]?.date)}
                       </span>
                       <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-muted)]">
                         {groupMatches.length} Matches
@@ -1913,13 +1936,13 @@ export const Sports: React.FC = () => {
                   <span>Time ({selectedRegion.name.split(' /')[0]}):</span>
                 </span>
                 <span className="font-bold text-cyan-400 font-mono text-sm">
-                  {formatTimeForTz(previewMatch.date, selectedRegion.tz)} ({selectedRegion.offsetBadge})
+                  {formatTimeForTz(previewMatch.date, getScheduleTimezone(selectedRegion))} ({getScheduleOffsetBadge(selectedRegion, previewMatch.date)})
                 </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-[var(--text-muted)]">Local Date:</span>
                 <span className="font-bold text-[var(--text-main)]">
-                  {formatDateFullForTz(previewMatch.date, selectedRegion.tz)}
+                  {formatDateFullForTz(previewMatch.date, getScheduleTimezone(selectedRegion))}
                 </span>
               </div>
               <div className="flex justify-between items-center">
