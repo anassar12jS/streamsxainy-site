@@ -147,9 +147,9 @@ const getScheduleOffsetBadge = (region: RegionOption, dateNum = Date.now()): str
   return formatTimezoneOffset(dateNum, getScheduleTimezone(region));
 };
 
-export const formatTimeForTz = (dateNum: number, tz: string) => {
+export const formatTimeForTz = (dateNum: number, tz: string, offsetMs = 3600 * 1000) => {
   const isMorocco = tz === 'Africa/Casablanca' || tz === 'morocco';
-  const effectiveDateNum = isMorocco ? dateNum + 3600 * 1000 : dateNum;
+  const effectiveDateNum = isMorocco ? dateNum + offsetMs : dateNum;
   const safeTz = isMorocco ? 'UTC' : normalizeTimezone(tz);
   try {
     return new Intl.DateTimeFormat('en-GB', {
@@ -163,9 +163,9 @@ export const formatTimeForTz = (dateNum: number, tz: string) => {
   }
 };
 
-export const formatDateFullForTz = (dateNum: number, tz: string) => {
+export const formatDateFullForTz = (dateNum: number, tz: string, offsetMs = 3600 * 1000) => {
   const isMorocco = tz === 'Africa/Casablanca' || tz === 'morocco';
-  const effectiveDateNum = isMorocco ? dateNum + 3600 * 1000 : dateNum;
+  const effectiveDateNum = isMorocco ? dateNum + offsetMs : dateNum;
   const safeTz = isMorocco ? 'UTC' : normalizeTimezone(tz);
   try {
     return new Intl.DateTimeFormat('en-GB', {
@@ -180,9 +180,9 @@ export const formatDateFullForTz = (dateNum: number, tz: string) => {
   }
 };
 
-export const getDayLabelForTz = (dateNum: number, tz: string, regionFlag: string) => {
+export const getDayLabelForTz = (dateNum: number, tz: string, regionFlag: string, offsetMs = 3600 * 1000) => {
   const isMorocco = tz === 'Africa/Casablanca' || tz === 'morocco';
-  const effectiveDateNum = isMorocco ? dateNum + 3600 * 1000 : dateNum;
+  const effectiveDateNum = isMorocco ? dateNum + offsetMs : dateNum;
   const safeTz = isMorocco ? 'UTC' : normalizeTimezone(tz);
   try {
     const dateKey = (value: Date) => new Intl.DateTimeFormat('en-CA', {
@@ -192,7 +192,7 @@ export const getDayLabelForTz = (dateNum: number, tz: string, regionFlag: string
       day: '2-digit'
     }).format(value);
     const matchDate = dateKey(new Date(effectiveDateNum));
-    const nowEffective = new Date(isMorocco ? Date.now() + 3600 * 1000 : Date.now());
+    const nowEffective = new Date(isMorocco ? Date.now() + offsetMs : Date.now());
     const today = dateKey(nowEffective);
     const [year, month, day] = today.split('-').map(Number);
     const todayCalendarDate = Date.UTC(year, month - 1, day);
@@ -254,13 +254,19 @@ const isMoroccanMatch = (m: SportsMatch): boolean => {
   return false;
 };
 
+const getEffectiveMatchDate = (dateNum: number, regionId: string, offsetMs: number) => {
+  if (regionId === 'morocco') return dateNum + offsetMs;
+  return dateNum;
+};
+
 // Dynamic Countdown Badge
-const MatchCountdown = React.memo(({ date }: { date: number }) => {
+const MatchCountdown = React.memo(({ date, regionId, offsetMs = 3600 * 1000 }: { date: number; regionId?: string; offsetMs?: number }) => {
   const [timeLeft, setTimeLeft] = useState('');
 
   useEffect(() => {
     const update = () => {
-      const diff = date - Date.now();
+      const effectiveDate = regionId === 'morocco' ? date + (offsetMs ?? 3600 * 1000) : date;
+      const diff = effectiveDate - Date.now();
       if (diff <= 0) {
         setTimeLeft('Starting Soon');
         return;
@@ -282,7 +288,7 @@ const MatchCountdown = React.memo(({ date }: { date: number }) => {
     update();
     const timer = setInterval(update, 60000);
     return () => clearInterval(timer);
-  }, [date]);
+  }, [date, regionId, offsetMs]);
 
   if (!timeLeft) return null;
 
@@ -437,6 +443,7 @@ const getWinProbability = (match: SportsMatch): { home: number; draw: number; aw
 const LiveScoresTicker: React.FC<{
   matches: SportsMatch[];
   selectedRegion: RegionOption;
+  moroccoOffsetMs: number;
   onPlay: (match: SportsMatch) => void;
   onOpenMatchCenter: (match: SportsMatch) => void;
   soundAlertsEnabled: boolean;
@@ -444,6 +451,7 @@ const LiveScoresTicker: React.FC<{
 }> = React.memo(({
   matches,
   selectedRegion,
+  moroccoOffsetMs,
   onPlay,
   onOpenMatchCenter,
   soundAlertsEnabled,
@@ -452,18 +460,22 @@ const LiveScoresTicker: React.FC<{
   const now = Date.now();
   const liveMatches = useMemo(() => {
     return matches.filter(m => {
-      const diff = m.date - now;
+      const effDate = getEffectiveMatchDate(m.date, selectedRegion.id, moroccoOffsetMs);
+      const diff = effDate - now;
       const finished = isMatchFinished(m);
       return !finished && (isLiveMatchStatus(m.status) || (diff <= 15 * 60 * 1000 && diff >= -getExpectedMatchDurationMs(m.category)));
     });
-  }, [matches, now]);
+  }, [matches, now, selectedRegion.id, moroccoOffsetMs]);
 
   const marqueeToday = useMemo(() => {
     if (liveMatches.length > 0) return [];
     return matches
-      .filter(m => !isMatchFinished(m) && m.date > now && m.date - now < 14 * 60 * 60 * 1000)
+      .filter(m => {
+        const effDate = getEffectiveMatchDate(m.date, selectedRegion.id, moroccoOffsetMs);
+        return !isMatchFinished(m) && effDate > now && effDate - now < 14 * 60 * 60 * 1000;
+      })
       .slice(0, 8);
-  }, [matches, liveMatches, now]);
+  }, [matches, liveMatches, now, selectedRegion.id, moroccoOffsetMs]);
 
   const items = liveMatches.length > 0 ? liveMatches : marqueeToday;
   if (items.length === 0) return null;
@@ -503,8 +515,9 @@ const LiveScoresTicker: React.FC<{
         <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar scroll-smooth py-0.5 min-w-0">
           {items.map((m) => {
             const hasTeams = Boolean(m.teams?.home?.name && m.teams?.away?.name);
-            const isLive = isLiveMatchStatus(m.status) || (m.date - now <= 15 * 60 * 1000 && m.date - now >= -getExpectedMatchDurationMs(m.category));
-            const minute = isLive ? (m.minute || getLiveMatchMinute(m.date, m.category)) : formatTimeForTz(m.date, getScheduleTimezone(selectedRegion));
+            const effDate = getEffectiveMatchDate(m.date, selectedRegion.id, moroccoOffsetMs);
+            const isLive = isLiveMatchStatus(m.status) || (effDate - now <= 15 * 60 * 1000 && effDate - now >= -getExpectedMatchDurationMs(m.category));
+            const minute = isLive ? (m.minute || getLiveMatchMinute(m.date, m.category)) : formatTimeForTz(m.date, getScheduleTimezone(selectedRegion), moroccoOffsetMs);
             const isMorocco = isMoroccanMatch(m);
 
             return (
@@ -1184,6 +1197,34 @@ export const Sports: React.FC = () => {
     window.dispatchEvent(new CustomEvent('streamhub_region_changed', { detail: regionId }));
     setIsRegionDropdownOpen(false);
   };
+
+  const [moroccoOffsetMs, setMoroccoOffsetMs] = useState<number>(3600 * 1000);
+
+  useEffect(() => {
+    let active = true;
+    if (selectedRegion.id === 'morocco') {
+      fetch('https://time.now/developer/api/time?timezone=Africa/Casablanca')
+        .then(res => res.json())
+        .then(data => {
+          if (!active) return;
+          if (data && data.unixtime) {
+            const apiTimeMs = data.unixtime * 1000;
+            const offset = apiTimeMs - Date.now();
+            if (!isNaN(offset)) {
+              setMoroccoOffsetMs(offset);
+            }
+          }
+        })
+        .catch(() => {
+          if (active) setMoroccoOffsetMs(3600 * 1000);
+        });
+    }
+    return () => { active = false; };
+  }, [selectedRegion.id]);
+
+  const effectiveMatchDate = useCallback((dateNum: number) => {
+    return getEffectiveMatchDate(dateNum, selectedRegion.id, moroccoOffsetMs);
+  }, [selectedRegion.id, moroccoOffsetMs]);
 
   // Match Center Modal State
   const [previewMatch, setPreviewMatch] = useState<SportsMatch | null>(null);
