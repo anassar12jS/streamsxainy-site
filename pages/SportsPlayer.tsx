@@ -30,10 +30,13 @@ const getSportIcon = (cat?: string) => {
   return '🏆';
 };
 
-const getScheduleTimezone = (region: RegionOption): string =>
-  region.scheduleTz || region.tz;
+const getScheduleTimezone = (region: RegionOption): string => {
+  if (region.id === 'morocco' || region.tz === 'UTC' || region.scheduleTz === 'Africa/Casablanca') return 'UTC';
+  return region.scheduleTz || region.tz || 'UTC';
+};
 
 const getTimezoneOffset = (dateNum: number, timeZone: string): string => {
+  if (timeZone === 'UTC' || timeZone === 'Africa/Casablanca') return 'UTC';
   try {
     const offset = new Intl.DateTimeFormat('en', {
       timeZone,
@@ -41,9 +44,9 @@ const getTimezoneOffset = (dateNum: number, timeZone: string): string => {
     } as unknown as Intl.DateTimeFormatOptions)
       .formatToParts(new Date(dateNum))
       .find(part => part.type === 'timeZoneName')?.value;
-    return offset || 'GMT';
+    return offset || 'UTC';
   } catch {
-    return 'GMT';
+    return 'UTC';
   }
 };
 
@@ -197,10 +200,13 @@ export const SportsPlayer: React.FC = () => {
       setTimeToStart('');
     }
 
-    // Auto-select and fetch first source if available
+    // Auto-select and fetch requested or first source if available
     if (match.sources && match.sources.length > 0) {
-      const firstSource = match.sources[0];
-      loadSource(firstSource);
+      const initialIdx = (typeof location.state?.initialSourceIndex === 'number' && location.state.initialSourceIndex < match.sources.length)
+        ? location.state.initialSourceIndex
+        : 0;
+      const targetSource = match.sources[initialIdx] || match.sources[0];
+      loadSource(targetSource);
     }
   }, [match, navigate]);
 
