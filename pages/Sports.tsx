@@ -143,30 +143,25 @@ const formatTimezoneOffset = (dateNum: number, tz: string): string => {
 };
 
 const getScheduleOffsetBadge = (region: RegionOption, dateNum = Date.now()): string => {
-  if (region.id === 'morocco') return 'GMT+1';
   return formatTimezoneOffset(dateNum, getScheduleTimezone(region));
 };
 
-export const formatTimeForTz = (dateNum: number, tz: string, offsetMs = 3600 * 1000) => {
-  const isMorocco = tz === 'Africa/Casablanca' || tz === 'morocco';
-  const effectiveDateNum = isMorocco ? dateNum + offsetMs : dateNum;
-  const safeTz = isMorocco ? 'UTC' : normalizeTimezone(tz);
+export const formatTimeForTz = (dateNum: number, tz: string) => {
+  const safeTz = normalizeTimezone(tz);
   try {
     return new Intl.DateTimeFormat('en-GB', {
       timeZone: safeTz,
       hour: '2-digit',
       minute: '2-digit',
       hour12: false
-    }).format(new Date(effectiveDateNum));
+    }).format(new Date(dateNum));
   } catch {
-    return new Date(effectiveDateNum).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return new Date(dateNum).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 };
 
-export const formatDateFullForTz = (dateNum: number, tz: string, offsetMs = 3600 * 1000) => {
-  const isMorocco = tz === 'Africa/Casablanca' || tz === 'morocco';
-  const effectiveDateNum = isMorocco ? dateNum + offsetMs : dateNum;
-  const safeTz = isMorocco ? 'UTC' : normalizeTimezone(tz);
+export const formatDateFullForTz = (dateNum: number, tz: string) => {
+  const safeTz = normalizeTimezone(tz);
   try {
     return new Intl.DateTimeFormat('en-GB', {
       timeZone: safeTz,
@@ -174,16 +169,14 @@ export const formatDateFullForTz = (dateNum: number, tz: string, offsetMs = 3600
       day: 'numeric',
       month: 'long',
       year: 'numeric'
-    }).format(new Date(effectiveDateNum));
+    }).format(new Date(dateNum));
   } catch {
-    return new Date(effectiveDateNum).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
+    return new Date(dateNum).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
   }
 };
 
-export const getDayLabelForTz = (dateNum: number, tz: string, regionFlag: string, offsetMs = 3600 * 1000) => {
-  const isMorocco = tz === 'Africa/Casablanca' || tz === 'morocco';
-  const effectiveDateNum = isMorocco ? dateNum + offsetMs : dateNum;
-  const safeTz = isMorocco ? 'UTC' : normalizeTimezone(tz);
+export const getDayLabelForTz = (dateNum: number, tz: string, regionFlag: string) => {
+  const safeTz = normalizeTimezone(tz);
   try {
     const dateKey = (value: Date) => new Intl.DateTimeFormat('en-CA', {
       timeZone: safeTz,
@@ -191,8 +184,8 @@ export const getDayLabelForTz = (dateNum: number, tz: string, regionFlag: string
       month: '2-digit',
       day: '2-digit'
     }).format(value);
-    const matchDate = dateKey(new Date(effectiveDateNum));
-    const nowEffective = new Date(isMorocco ? Date.now() + offsetMs : Date.now());
+    const matchDate = dateKey(new Date(dateNum));
+    const nowEffective = new Date();
     const today = dateKey(nowEffective);
     const [year, month, day] = today.split('-').map(Number);
     const todayCalendarDate = Date.UTC(year, month - 1, day);
@@ -208,9 +201,9 @@ export const getDayLabelForTz = (dateNum: number, tz: string, regionFlag: string
       weekday: 'long',
       month: 'short',
       day: 'numeric'
-    }).format(new Date(effectiveDateNum));
+    }).format(new Date(dateNum));
   } catch {
-    return new Date(effectiveDateNum).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+    return new Date(dateNum).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
   }
 };
 
@@ -254,19 +247,15 @@ const isMoroccanMatch = (m: SportsMatch): boolean => {
   return false;
 };
 
-const getEffectiveMatchDate = (dateNum: number, regionId: string, offsetMs: number) => {
-  if (regionId === 'morocco') return dateNum + offsetMs;
-  return dateNum;
-};
+const getEffectiveMatchDate = (dateNum: number) => dateNum;
 
 // Dynamic Countdown Badge
-const MatchCountdown = React.memo(({ date, regionId, offsetMs = 3600 * 1000 }: { date: number; regionId?: string; offsetMs?: number }) => {
+const MatchCountdown = React.memo(({ date }: { date: number }) => {
   const [timeLeft, setTimeLeft] = useState('');
 
   useEffect(() => {
     const update = () => {
-      const effectiveDate = regionId === 'morocco' ? date + (offsetMs ?? 3600 * 1000) : date;
-      const diff = effectiveDate - Date.now();
+      const diff = date - Date.now();
       if (diff <= 0) {
         setTimeLeft('Starting Soon');
         return;
@@ -288,7 +277,7 @@ const MatchCountdown = React.memo(({ date, regionId, offsetMs = 3600 * 1000 }: {
     update();
     const timer = setInterval(update, 60000);
     return () => clearInterval(timer);
-  }, [date, regionId, offsetMs]);
+  }, [date]);
 
   if (!timeLeft) return null;
 
@@ -443,7 +432,6 @@ const getWinProbability = (match: SportsMatch): { home: number; draw: number; aw
 const LiveScoresTicker: React.FC<{
   matches: SportsMatch[];
   selectedRegion: RegionOption;
-  moroccoOffsetMs: number;
   onPlay: (match: SportsMatch) => void;
   onOpenMatchCenter: (match: SportsMatch) => void;
   soundAlertsEnabled: boolean;
@@ -451,7 +439,6 @@ const LiveScoresTicker: React.FC<{
 }> = React.memo(({
   matches,
   selectedRegion,
-  moroccoOffsetMs,
   onPlay,
   onOpenMatchCenter,
   soundAlertsEnabled,
@@ -460,22 +447,22 @@ const LiveScoresTicker: React.FC<{
   const now = Date.now();
   const liveMatches = useMemo(() => {
     return matches.filter(m => {
-      const effDate = getEffectiveMatchDate(m.date, selectedRegion.id, moroccoOffsetMs);
+      const effDate = getEffectiveMatchDate(m.date);
       const diff = effDate - now;
       const finished = isMatchFinished(m);
       return !finished && (isLiveMatchStatus(m.status) || (diff <= 15 * 60 * 1000 && diff >= -getExpectedMatchDurationMs(m.category)));
     });
-  }, [matches, now, selectedRegion.id, moroccoOffsetMs]);
+  }, [matches, now]);
 
   const marqueeToday = useMemo(() => {
     if (liveMatches.length > 0) return [];
     return matches
       .filter(m => {
-        const effDate = getEffectiveMatchDate(m.date, selectedRegion.id, moroccoOffsetMs);
+        const effDate = getEffectiveMatchDate(m.date);
         return !isMatchFinished(m) && effDate > now && effDate - now < 14 * 60 * 60 * 1000;
       })
       .slice(0, 8);
-  }, [matches, liveMatches, now, selectedRegion.id, moroccoOffsetMs]);
+  }, [matches, liveMatches, now]);
 
   const items = liveMatches.length > 0 ? liveMatches : marqueeToday;
   if (items.length === 0) return null;
@@ -515,9 +502,9 @@ const LiveScoresTicker: React.FC<{
         <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar scroll-smooth py-0.5 min-w-0">
           {items.map((m) => {
             const hasTeams = Boolean(m.teams?.home?.name && m.teams?.away?.name);
-            const effDate = getEffectiveMatchDate(m.date, selectedRegion.id, moroccoOffsetMs);
+            const effDate = getEffectiveMatchDate(m.date);
             const isLive = isLiveMatchStatus(m.status) || (effDate - now <= 15 * 60 * 1000 && effDate - now >= -getExpectedMatchDurationMs(m.category));
-            const minute = isLive ? (m.minute || getLiveMatchMinute(m.date, m.category)) : formatTimeForTz(m.date, getScheduleTimezone(selectedRegion), moroccoOffsetMs);
+            const minute = isLive ? (m.minute || getLiveMatchMinute(m.date, m.category)) : formatTimeForTz(m.date, getScheduleTimezone(selectedRegion));
             const isMorocco = isMoroccanMatch(m);
 
             return (
@@ -627,7 +614,7 @@ const MatchGridCard = React.memo(({
       role="group"
       tabIndex={0}
       aria-label={`Match: ${match.title}. Press Enter to open.`}
-      className={`group relative flex flex-col justify-between rounded-2xl bg-[var(--bg-card)] border cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl min-h-[300px] h-full p-4 ${
+      className={`group relative flex flex-col justify-between rounded-2xl bg-[var(--bg-card)] border cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl min-h-[340px] h-full p-4 ${
         isLive 
           ? 'border-red-500/50 hover:border-red-500 shadow-lg shadow-red-900/20' 
           : isMorocco
@@ -728,8 +715,8 @@ const MatchGridCard = React.memo(({
           <div className="flex items-center justify-between gap-3">
             {/* Home Team */}
             <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0 group-hover:scale-105 transition-transform text-center">
-              <TeamLogo name={match.teams!.home.name} logo={match.teams!.home.logo} className="w-12 h-12" />
-              <span className="text-xs font-bold text-[var(--text-main)] text-center leading-tight line-clamp-2 w-full min-h-[30px] flex items-center justify-center">
+              <TeamLogo name={match.teams!.home.name} logo={match.teams!.home.logo} className="w-14 h-14 sm:w-16 sm:h-16" />
+              <span className="text-sm font-bold text-[var(--text-main)] text-center leading-tight line-clamp-2 w-full min-h-[34px] flex items-center justify-center">
                 {match.teams!.home.name}
               </span>
             </div>
@@ -767,8 +754,8 @@ const MatchGridCard = React.memo(({
 
             {/* Away Team */}
             <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0 group-hover:scale-105 transition-transform text-center">
-              <TeamLogo name={match.teams!.away.name} logo={match.teams!.away.logo} className="w-12 h-12" />
-              <span className="text-xs font-bold text-[var(--text-main)] text-center leading-tight line-clamp-2 w-full min-h-[30px] flex items-center justify-center">
+              <TeamLogo name={match.teams!.away.name} logo={match.teams!.away.logo} className="w-14 h-14 sm:w-16 sm:h-16" />
+              <span className="text-sm font-bold text-[var(--text-main)] text-center leading-tight line-clamp-2 w-full min-h-[34px] flex items-center justify-center">
                 {match.teams!.away.name}
               </span>
             </div>
@@ -1182,12 +1169,10 @@ export const Sports: React.FC = () => {
 
   const selectedRegion = useMemo(() => {
     const found = REGIONS.find(r => r.id === selectedRegionId) || REGIONS[0];
-    const isMorocco = found.id === 'morocco';
     return {
       ...found,
-      tz: isMorocco ? 'UTC' : normalizeTimezone(found.tz),
-      scheduleTz: isMorocco ? 'UTC' : normalizeTimezone(found.scheduleTz || found.tz),
-      offsetBadge: isMorocco ? 'UTC (GMT+0)' : found.offsetBadge
+      tz: normalizeTimezone(found.tz),
+      scheduleTz: normalizeTimezone(found.scheduleTz || found.tz)
     };
   }, [selectedRegionId]);
 
@@ -1198,33 +1183,9 @@ export const Sports: React.FC = () => {
     setIsRegionDropdownOpen(false);
   };
 
-  const [moroccoOffsetMs, setMoroccoOffsetMs] = useState<number>(3600 * 1000);
-
-  useEffect(() => {
-    let active = true;
-    if (selectedRegion.id === 'morocco') {
-      fetch('https://time.now/developer/api/time?timezone=Africa/Casablanca')
-        .then(res => res.json())
-        .then(data => {
-          if (!active) return;
-          if (data && data.unixtime) {
-            const apiTimeMs = data.unixtime * 1000;
-            const offset = apiTimeMs - Date.now();
-            if (!isNaN(offset)) {
-              setMoroccoOffsetMs(offset);
-            }
-          }
-        })
-        .catch(() => {
-          if (active) setMoroccoOffsetMs(3600 * 1000);
-        });
-    }
-    return () => { active = false; };
-  }, [selectedRegion.id]);
-
   const effectiveMatchDate = useCallback((dateNum: number) => {
-    return getEffectiveMatchDate(dateNum, selectedRegion.id, moroccoOffsetMs);
-  }, [selectedRegion.id, moroccoOffsetMs]);
+    return getEffectiveMatchDate(dateNum);
+  }, []);
 
   // Match Center Modal State
   const [previewMatch, setPreviewMatch] = useState<SportsMatch | null>(null);
@@ -1235,48 +1196,24 @@ export const Sports: React.FC = () => {
 
   useEffect(() => {
     let active = true;
-    const updateTime = async () => {
-      let timeStr = '';
-      let dateStr = '';
+    const updateTime = () => {
+      const now = new Date();
+      const safeTz = normalizeTimezone(selectedRegion.tz);
+      const timeStr = new Intl.DateTimeFormat('en-GB', {
+        timeZone: safeTz,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      }).format(now);
 
-      if (selectedRegion.id === 'morocco') {
-        try {
-          const res = await fetch('https://time.now/developer/api/time?timezone=Africa/Casablanca');
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.datetime) {
-              const dt = new Date(data.datetime);
-              timeStr = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-              dateStr = dt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-            }
-          }
-        } catch {
-          // fallback
-        }
-        if (!timeStr) {
-          const moroccoNow = new Date(Date.now() + 3600 * 1000);
-          timeStr = moroccoNow.toLocaleTimeString('en-GB', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-          dateStr = moroccoNow.toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-        }
-      } else {
-        const now = new Date();
-        const safeTz = normalizeTimezone(selectedRegion.tz);
-        timeStr = new Intl.DateTimeFormat('en-GB', {
-          timeZone: safeTz,
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false
-        }).format(now);
-
-        dateStr = new Intl.DateTimeFormat('en-GB', {
-          timeZone: safeTz,
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric'
-        }).format(now);
-      }
+      const dateStr = new Intl.DateTimeFormat('en-GB', {
+        timeZone: safeTz,
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      }).format(now);
 
       if (!active) return;
       setCurrentRegionTime(timeStr);
@@ -1613,7 +1550,7 @@ export const Sports: React.FC = () => {
                       }`}
                     >
                       <span>🇲🇦</span>
-                      <span className="truncate">Morocco (UTC+0)</span>
+                      <span className="truncate">Morocco ({formatTimezoneOffset(Date.now(), 'Africa/Casablanca')})</span>
                     </button>
                     <button
                       onClick={() => handleRegionChange('spain')}
@@ -1665,7 +1602,7 @@ export const Sports: React.FC = () => {
                           </div>
                         </div>
                         <span className="text-[10px] font-mono shrink-0 px-2 py-0.5 rounded bg-white/10 text-white/70 ml-2 font-bold">
-                          {reg.id === 'morocco' ? 'UTC' : formatTimezoneOffset(Date.now(), reg.scheduleTz || reg.tz)}
+                          {formatTimezoneOffset(Date.now(), reg.scheduleTz || reg.tz)}
                         </span>
                       </button>
                     );
@@ -2164,7 +2101,7 @@ export const Sports: React.FC = () => {
                   </div>
 
                   {layoutMode === 'grid' ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 xl:gap-6">
                       {groupMatches.map(match => (
                         <MatchGridCard
                           key={getMatchUniqueId(match)}
