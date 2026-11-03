@@ -122,6 +122,24 @@ export const normalizeTimezone = (tz?: string): string => {
   return tz;
 };
 
+const usesDeviceTimezone = (tz: string): boolean => {
+  const deviceTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return deviceTimezone === tz || (tz === 'Africa/Casablanca' && deviceTimezone === 'Morocco Standard Time');
+};
+
+const formatDateInTimezone = (
+  date: Date,
+  tz: string,
+  locale: string,
+  options: Intl.DateTimeFormatOptions
+): string => {
+  const safeTz = normalizeTimezone(tz);
+  return new Intl.DateTimeFormat(locale, {
+    ...options,
+    ...(usesDeviceTimezone(safeTz) ? {} : { timeZone: safeTz })
+  }).format(date);
+};
+
 const getScheduleTimezone = (region: RegionOption): string => {
   return normalizeTimezone(region.scheduleTz || region.tz);
 };
@@ -130,6 +148,14 @@ const formatTimezoneOffset = (dateNum: number, tz: string): string => {
   const safeTz = normalizeTimezone(tz);
   if (safeTz === 'UTC') return 'UTC';
   try {
+    if (usesDeviceTimezone(safeTz)) {
+      const offsetMinutes = -new Date(dateNum).getTimezoneOffset();
+      const sign = offsetMinutes >= 0 ? '+' : '-';
+      const absoluteMinutes = Math.abs(offsetMinutes);
+      const hours = Math.floor(absoluteMinutes / 60);
+      const minutes = absoluteMinutes % 60;
+      return `GMT${sign}${hours}${minutes ? `:${String(minutes).padStart(2, '0')}` : ''}`;
+    }
     const offset = new Intl.DateTimeFormat('en', {
       timeZone: safeTz,
       timeZoneName: 'shortOffset'
@@ -147,43 +173,37 @@ const getScheduleOffsetBadge = (region: RegionOption, dateNum = Date.now()): str
 };
 
 export const formatTimeForTz = (dateNum: number, tz: string) => {
-  const safeTz = normalizeTimezone(tz);
   try {
-    return new Intl.DateTimeFormat('en-GB', {
-      timeZone: safeTz,
+    return formatDateInTimezone(new Date(dateNum), tz, 'en-GB', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false
-    }).format(new Date(dateNum));
+    });
   } catch {
     return new Date(dateNum).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 };
 
 export const formatDateFullForTz = (dateNum: number, tz: string) => {
-  const safeTz = normalizeTimezone(tz);
   try {
-    return new Intl.DateTimeFormat('en-GB', {
-      timeZone: safeTz,
+    return formatDateInTimezone(new Date(dateNum), tz, 'en-GB', {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
       year: 'numeric'
-    }).format(new Date(dateNum));
+    });
   } catch {
     return new Date(dateNum).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
   }
 };
 
 export const getDayLabelForTz = (dateNum: number, tz: string, regionFlag: string) => {
-  const safeTz = normalizeTimezone(tz);
   try {
-    const dateKey = (value: Date) => new Intl.DateTimeFormat('en-CA', {
-      timeZone: safeTz,
+    const dateKey = (value: Date) => formatDateInTimezone(value, tz, 'en-CA', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
-    }).format(value);
+    });
     const matchDate = dateKey(new Date(dateNum));
     const nowEffective = new Date();
     const today = dateKey(nowEffective);
@@ -196,12 +216,11 @@ export const getDayLabelForTz = (dateNum: number, tz: string, regionFlag: string
     if (matchDate === tomorrow) return `Tomorrow · Demain (${regionFlag})`;
     if (matchDate === yesterday) return `Yesterday · Hier (${regionFlag})`;
 
-    return new Intl.DateTimeFormat('en-GB', {
-      timeZone: safeTz,
+    return formatDateInTimezone(new Date(dateNum), tz, 'en-GB', {
       weekday: 'long',
       month: 'short',
       day: 'numeric'
-    }).format(new Date(dateNum));
+    });
   } catch {
     return new Date(dateNum).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
   }
@@ -1215,22 +1234,19 @@ export const Sports: React.FC = () => {
     let active = true;
     const updateTime = () => {
       const now = new Date();
-      const safeTz = normalizeTimezone(selectedRegion.tz);
-      const timeStr = new Intl.DateTimeFormat('en-GB', {
-        timeZone: safeTz,
+      const timeStr = formatDateInTimezone(now, selectedRegion.tz, 'en-GB', {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
         hour12: false
-      }).format(now);
+      });
 
-      const dateStr = new Intl.DateTimeFormat('en-GB', {
-        timeZone: safeTz,
+      const dateStr = formatDateInTimezone(now, selectedRegion.tz, 'en-GB', {
         weekday: 'long',
         day: 'numeric',
         month: 'long',
         year: 'numeric'
-      }).format(now);
+      });
 
       if (!active) return;
       setCurrentRegionTime(timeStr);
