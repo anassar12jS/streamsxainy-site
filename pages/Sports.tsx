@@ -116,14 +116,13 @@ const getDynamicTeamLogo = (teamName: string): Promise<string | undefined> => {
   return request;
 };
 
-// Keep Morocco strictly on UTC per user requirements: "morocco is UTC and now its 19:xx not 18:xx"
 export const normalizeTimezone = (tz?: string): string => {
-  if (!tz || tz === 'Etc/GMT-1' || tz === 'Etc/GMT+1' || tz === 'UTC' || tz === 'Africa/Casablanca' || tz === 'morocco') return 'UTC';
+  if (!tz || tz === 'Etc/GMT-1' || tz === 'Etc/GMT+1' || tz === 'UTC') return 'UTC';
+  if (tz === 'morocco') return 'Africa/Casablanca';
   return tz;
 };
 
 const getScheduleTimezone = (region: RegionOption): string => {
-  if (region.id === 'morocco') return 'UTC';
   return normalizeTimezone(region.scheduleTz || region.tz);
 };
 
@@ -245,14 +244,7 @@ const getMatchUniqueId = (match: SportsMatch): string => {
 
 // Check if match involves Moroccan clubs or Atlas Lions
 const isMoroccanMatch = (m: SportsMatch): boolean => {
-  const text = `${m.title} ${m.category} ${m.teams?.home?.name || ''} ${m.teams?.away?.name || ''}`.toLowerCase();
-  const moroccanKeywords = [
-    'morocco', 'maroc', 'raja', 'wydad', 'as far', 'far rabat', 'berkane', 
-    'fus rabat', 'mas fes', 'mas fès', 'irt tanger', 'tanger', 'olympic safi', 'ocs safi', 
-    'mat tetouan', 'tetouan', 'hassania agadir', 'husa', 'renaissance zemamra', 'chabab mohammedia', 
-    'jeunesse soualem', 'touarga', 'uts', 'mco oujda', 'maghreb fez', 'atlas lions', 'mar'
-  ];
-  return moroccanKeywords.some(k => text.includes(k));
+  return false;
 };
 
 // Dynamic Countdown Badge
@@ -1040,10 +1032,9 @@ const matchesCompetition = (m: SportsMatch, compKey: string): boolean => {
   const title = m.title.toLowerCase();
 
   switch (compKey) {
-    case 'MOROCCO':
-      return isMoroccanMatch(m);
     case 'UCL':
-      return comp.includes('champion') || title.includes('champions');
+      return (comp.includes('champions league') || comp.includes('uefa champions') || comp === 'ucl' || title.includes('champions league') || title.includes('uefa champions')) &&
+             !comp.includes('efl') && !comp.includes('championship') && !title.includes('championship');
     case 'PL':
       return comp.includes('premier') || title.includes('premier league');
     case 'LALIGA':
@@ -1104,7 +1095,6 @@ const matchesScheduleDay = (m: SportsMatch, dayFilter: string, tz: string): bool
 
 const COMPETITION_FILTERS = [
   { id: 'ALL', label: 'All Leagues', icon: '🏆' },
-  { id: 'MOROCCO', label: 'Maroc & Atlas Lions', icon: '🇲🇦' },
   { id: 'UCL', label: 'Champions League', icon: '⭐' },
   { id: 'PL', label: 'Premier League', icon: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
   { id: 'LALIGA', label: 'La Liga', icon: '🇪🇸' },
