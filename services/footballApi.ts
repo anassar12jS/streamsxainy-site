@@ -40,9 +40,14 @@ const standingsMemoryCache: Record<string, { data: LiveStandingsResult; timestam
 const scorersMemoryCache: Record<string, { data: LeagueTopScorer[]; timestamp: number }> = {};
 let liveMatchesCache: { data: SportsMatch[]; timestamp: number } | null = null;
 
-const STANDINGS_CACHE_TTL = 15 * 60 * 1000; // 15 mins
+const STANDINGS_CACHE_TTL = 5 * 60 * 1000; // 5 mins
 const SCORERS_CACHE_TTL = 30 * 60 * 1000;   // 30 mins
 const MATCHES_CACHE_TTL = 2 * 60 * 1000;    // 2 mins
+
+const parseRecentForm = (value: unknown): ('W' | 'D' | 'L')[] => {
+  if (typeof value !== 'string') return [];
+  return (value.toUpperCase().match(/[WDL]/g) || []).slice(-5) as ('W' | 'D' | 'L')[];
+};
 
 /**
  * Fetch from the same-origin Vercel proxy; credentials stay on the server.
@@ -94,14 +99,7 @@ const parseFootballDataStandings = (data: any, fallbackTable: LeagueTable): Leag
     else if (rank === 6) zone = 'conf';
     else if (rank >= (table.length - 2)) zone = 'relegation';
 
-    // Parse recent form (e.g. "W,D,L,W,W")
-    let form: ('W' | 'D' | 'L')[] = ['W', 'D', 'W', 'W', 'D'];
-    if (item.form && typeof item.form === 'string') {
-      const letters = item.form.replace(/[^WDL]/g, '').split('');
-      if (letters.length > 0) {
-        form = letters.slice(-5) as ('W' | 'D' | 'L')[];
-      }
-    }
+    const form = parseRecentForm(item.form);
 
     return {
       pos: rank,
@@ -149,16 +147,14 @@ const fetchEspnStandings = async (slug: string, fallbackTable: LeagueTable): Pro
     const teamName = entry.team?.displayName || entry.team?.name || 'Club';
     let logo = entry.team?.logo || getTeamLogoUrl(teamName);
 
-    let zone: 'ucl' | 'uel' | 'conf' | 'relegation' | undefined = undefined;
-    if (rank <= 4) zone = 'ucl';
-    else if (rank === 5) zone = 'uel';
-    else if (rank === 6) zone = 'conf';
-    else if (rank >= (entries.length - 2)) zone = 'relegation';
+    const qualification = String(entry.note?.description || '').toLowerCase();
+    let zone: 'ucl' | 'uel' | 'conf' | 'relegation' | undefined;
+    if (qualification.includes('champions league')) zone = 'ucl';
+    else if (qualification.includes('conference league')) zone = 'conf';
+    else if (qualification.includes('europa league')) zone = 'uel';
+    else if (qualification.includes('relegation')) zone = 'relegation';
 
-    let form: ('W' | 'D' | 'L')[] = ['W', 'D', 'W', 'W', 'D'];
-    if (entry.form && typeof entry.form === 'string') {
-      form = entry.form.split('').map((c: string) => c === 'W' ? 'W' : c === 'D' ? 'D' : 'L').slice(-5);
-    }
+    const form = parseRecentForm(entry.form);
 
     return {
       pos: rank,
@@ -181,20 +177,29 @@ const fetchEspnStandings = async (slug: string, fallbackTable: LeagueTable): Pro
 /**
  * Primary function: Get live league standings with 3-tier resilience
  */
-export const getLiveLeagueStandings = async (leagueId: string): Promise<LiveStandingsResult> => {
+export const getLiveLeagueStandings = async (leagueId: string, forceRefresh = false): Promise<LiveStandingsResult> => {
   const fallbackTable = LEAGUE_TABLES.find(l => l.id === leagueId) || LEAGUE_TABLES[0];
+
+  const lsKey = `streamhub_standings_v2_${leagueId}`;
+  if (forceRefresh) {
+    delete standingsMemoryCache[leagueId];
+    try {
+      localStorage.removeItem(lsKey);
+    } catch {
+      // continue
+    }
+  }
 
   // 1. Check Memory Cache
   const memCached = standingsMemoryCache[leagueId];
-  if (memCached && Date.now() - memCached.timestamp < STANDINGS_CACHE_TTL) {
+  if (!forceRefresh && memCached && Date.now() - memCached.timestamp < STANDINGS_CACHE_TTL) {
     return memCached.data;
   }
 
   // 2. Check LocalStorage Cache
   try {
-    const lsKey = `streamhub_standings_${leagueId}`;
     const lsItem = localStorage.getItem(lsKey);
-    if (lsItem) {
+    if (!forceRefresh && lsItem) {
       const parsed = JSON.parse(lsItem);
       if (parsed && Date.now() - parsed.lastUpdated < STANDINGS_CACHE_TTL) {
         standingsMemoryCache[leagueId] = { data: parsed, timestamp: parsed.lastUpdated };
@@ -227,7 +232,7 @@ export const getLiveLeagueStandings = async (leagueId: string): Promise<LiveStan
 
         standingsMemoryCache[leagueId] = { data: result, timestamp: Date.now() };
         try {
-          localStorage.setItem(`streamhub_standings_${leagueId}`, JSON.stringify(result));
+          localStorage.setItem(lsKey, JSON.stringify(result));
         } catch { /* ignore */ }
 
         return result;
@@ -244,8 +249,8 @@ export const getLiveLeagueStandings = async (leagueId: string): Promise<LiveStan
       if (espnStandings.length > 0) {
         const result: LiveStandingsResult = {
           leagueId,
-          name: fallbackTable.name,
-          season: '2026/2027',
+          name: data.name || fallbackTable.name,
+          season: data.children?.[0]?.standings?.seasonDisplayName || fallbackTable.season,
           isLive: true,
           standings: espnStandings,
           lastUpdated: Date.now(),
@@ -254,7 +259,7 @@ export const getLiveLeagueStandings = async (leagueId: string): Promise<LiveStan
 
         standingsMemoryCache[leagueId] = { data: result, timestamp: Date.now() };
         try {
-          localStorage.setItem(`streamhub_standings_${leagueId}`, JSON.stringify(result));
+          localStorage.setItem(lsKey, JSON.stringify(result));
         } catch { /* ignore */ }
 
         return result;

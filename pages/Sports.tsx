@@ -436,16 +436,9 @@ const playScoreAlertSound = () => {
   }
 };
 
-const getDeterministicForm = (teamName: string): ('W' | 'D' | 'L')[] => {
-  let hash = 0;
-  for (let i = 0; i < teamName.length; i++) hash = teamName.charCodeAt(i) + ((hash << 5) - hash);
-  const results: ('W' | 'D' | 'L')[] = [];
-  const options: ('W' | 'D' | 'L')[] = ['W', 'W', 'D', 'W', 'L', 'W', 'D'];
-  for (let i = 0; i < 5; i++) {
-    const idx = Math.abs((hash >> (i * 3)) % options.length);
-    results.push(options[idx]);
-  }
-  return results;
+const getStandingsForm = (teamName: string, standings?: LeagueTeamStanding[]): ('W' | 'D' | 'L')[] => {
+  const teamToken = normalizeTeamToken(teamName);
+  return standings?.find(team => normalizeTeamToken(team.team) === teamToken)?.form || [];
 };
 
 const getWinProbability = (match: SportsMatch): { home: number; draw: number; away: number } => {
@@ -2494,6 +2487,11 @@ export const Sports: React.FC = () => {
               const standingsList = liveStandingsData?.standings || currentTable.standings;
 
               const sourceBadge = (() => {
+                if (!liveStandingsData) {
+                  return isLoadingStandings
+                    ? { label: 'Loading live table · snapshot shown', badgeClass: 'bg-amber-500/15 text-amber-300 border-amber-500/30' }
+                    : { label: 'Bundled snapshot · may be out of date', badgeClass: 'bg-purple-500/15 text-purple-300 border-purple-500/30' };
+                }
                 const src = liveStandingsData?.source;
                 if (src === 'football-data.org') {
                   return { label: 'Football-Data.org · Live', badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' };
@@ -2518,19 +2516,19 @@ export const Sports: React.FC = () => {
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[rgb(var(--primary-color))]/20 text-[rgb(var(--primary-color))] border border-[rgb(var(--primary-color))]/30">
                             {liveStandingsData?.season || currentTable.season || '2026 / 2027'} Season
                           </span>
-                          {liveStandingsData && (
-                            <span className={`flex items-center gap-1.5 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border ${sourceBadge.badgeClass}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full bg-current ${liveStandingsData.isLive ? 'animate-pulse' : ''}`} />
-                              <span>{sourceBadge.label}</span>
-                            </span>
-                          )}
+                          <span className={`flex items-center gap-1.5 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border ${sourceBadge.badgeClass}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full bg-current ${liveStandingsData?.isLive || isLoadingStandings ? 'animate-pulse' : ''}`} />
+                            <span>{sourceBadge.label}</span>
+                          </span>
                           <button
                             type="button"
-                            onClick={() => {
-                              refetchStandings();
-                              refetchScorers();
+                            disabled={isFetchingStandings || isFetchingScorers}
+                            onClick={async () => {
+                              await getLiveLeagueStandings(selectedLeague, true);
+                              await refetchStandings();
+                              await refetchScorers();
                             }}
-                            className="p-1 rounded-lg bg-[var(--bg-input)] hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-white border border-[var(--border-subtle)] transition-colors"
+                            className="p-1 rounded-lg bg-[var(--bg-input)] hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-white border border-[var(--border-subtle)] disabled:opacity-50 transition-colors"
                             title="Refresh Data"
                           >
                             <RotateCw className={`w-3 h-3 ${isFetchingStandings || isFetchingScorers ? 'animate-spin text-emerald-400' : ''}`} />
@@ -2612,16 +2610,21 @@ export const Sports: React.FC = () => {
                               </td>
                               <td className="py-3 px-3 sm:px-4 text-center hidden sm:table-cell">
                                 <div className="flex items-center justify-center gap-1">
-                                  {team.form.map((res, i) => (
+                                  {Array.isArray(team.form) && team.form.length > 0 ? team.form.map((res, i) => (
                                     <span
                                       key={i}
+                                      title={res === 'W' ? 'Win' : res === 'D' ? 'Draw' : 'Loss'}
                                       className={`w-4 h-4 rounded text-[9px] font-black flex items-center justify-center text-white ${
                                         res === 'W' ? 'bg-emerald-500' : res === 'D' ? 'bg-amber-500' : 'bg-red-500'
                                       }`}
                                     >
                                       {res}
                                     </span>
-                                  ))}
+                                  )) : (
+                                    <span className="text-[10px] text-[var(--text-muted)]" title="Recent form is not provided by the current standings source">
+                                      —
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -2790,7 +2793,8 @@ export const Sports: React.FC = () => {
                   <div className="flex items-center justify-between sm:justify-start gap-2 flex-1">
                     <span className="text-[11px] font-bold text-white/80 truncate max-w-[90px]">{previewMatch.teams.home.name}:</span>
                     <div className="flex items-center gap-1">
-                      {getDeterministicForm(previewMatch.teams.home.name).map((f, i) => (
+                      {getStandingsForm(previewMatch.teams.home.name, liveStandingsData?.standings).length > 0
+                        ? getStandingsForm(previewMatch.teams.home.name, liveStandingsData?.standings).map((f, i) => (
                         <span
                           key={i}
                           className={`w-5 h-5 rounded-full flex items-center justify-center font-mono text-[9px] font-black text-white ${
@@ -2800,14 +2804,16 @@ export const Sports: React.FC = () => {
                         >
                           {f}
                         </span>
-                      ))}
+                        ))
+                        : <span className="text-[9px] text-[var(--text-muted)]" title="Recent form is not provided by the current standings source">Unavailable</span>}
                     </div>
                   </div>
                   {/* Away Form */}
                   <div className="flex items-center justify-between sm:justify-start gap-2 flex-1 sm:border-l border-white/10 sm:pl-3">
                     <span className="text-[11px] font-bold text-white/80 truncate max-w-[90px]">{previewMatch.teams.away.name}:</span>
                     <div className="flex items-center gap-1">
-                      {getDeterministicForm(previewMatch.teams.away.name).map((f, i) => (
+                      {getStandingsForm(previewMatch.teams.away.name, liveStandingsData?.standings).length > 0
+                        ? getStandingsForm(previewMatch.teams.away.name, liveStandingsData?.standings).map((f, i) => (
                         <span
                           key={i}
                           className={`w-5 h-5 rounded-full flex items-center justify-center font-mono text-[9px] font-black text-white ${
@@ -2817,7 +2823,8 @@ export const Sports: React.FC = () => {
                         >
                           {f}
                         </span>
-                      ))}
+                        ))
+                        : <span className="text-[9px] text-[var(--text-muted)]" title="Recent form is not provided by the current standings source">Unavailable</span>}
                     </div>
                   </div>
                 </div>
