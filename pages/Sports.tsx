@@ -504,7 +504,11 @@ const LiveScoresTicker: React.FC<{
             const hasTeams = Boolean(m.teams?.home?.name && m.teams?.away?.name);
             const effDate = getEffectiveMatchDate(m.date);
             const isLive = isLiveMatchStatus(m.status) || (effDate - now <= 15 * 60 * 1000 && effDate - now >= -getExpectedMatchDurationMs(m.category));
-            const minute = isLive ? (m.minute || getLiveMatchMinute(m.date, m.category)) : formatTimeForTz(m.date, getScheduleTimezone(selectedRegion));
+            const reportedMinute = m.minute?.trim();
+            const hasReportedMinute = Boolean(reportedMinute && !['LIVE', 'IN_PLAY', 'IN PLAY', 'PAUSED'].includes(reportedMinute.toUpperCase()));
+            const minute = isLive
+              ? hasReportedMinute ? reportedMinute : `~${getLiveMatchMinute(m.date, m.category)}`
+              : formatTimeForTz(m.date, getScheduleTimezone(selectedRegion));
             const isMorocco = isMoroccanMatch(m);
 
             return (
@@ -594,7 +598,9 @@ const MatchGridCard = React.memo(({
   const sportEmoji = getSportIcon(match.category);
   const isMorocco = isMoroccanMatch(match);
   const timeFormatted = formatTimeForTz(match.date, getScheduleTimezone(selectedRegion));
-  const liveMinute = isLive ? getLiveMatchMinute(match.date, match.category) : null;
+  const reportedMinute = match.minute?.trim();
+  const hasReportedMinute = Boolean(reportedMinute && !['LIVE', 'IN_PLAY', 'IN PLAY', 'PAUSED'].includes(reportedMinute.toUpperCase()));
+  const liveMinute = isLive ? (hasReportedMinute ? reportedMinute : getLiveMatchMinute(match.date, match.category)) : null;
   const homeBrand = getTeamBrand(match.teams?.home?.name || match.category);
   const awayBrand = getTeamBrand(match.teams?.away?.name || `${match.category} away`);
   const [posterFailed, setPosterFailed] = useState(false);
@@ -680,7 +686,7 @@ const MatchGridCard = React.memo(({
           {isLive ? (
             <span className="flex items-center gap-1.5 bg-red-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-md shadow-red-900/40">
               <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping" />
-              <span>LIVE {liveMinute}</span>
+              <span>LIVE {hasReportedMinute ? '' : '~'}{liveMinute}</span>
             </span>
           ) : isMatchFinished(match) ? (
             <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-zinc-800/80 text-zinc-300 border border-zinc-700/50">
@@ -736,7 +742,12 @@ const MatchGridCard = React.memo(({
                   </div>
                   {isLive && (
                     <span className="text-[9px] font-bold text-red-400 font-mono mt-0.5 animate-pulse">
-                      {match.minute || liveMinute}
+                      {hasReportedMinute ? liveMinute : `~${liveMinute}`}
+                    </span>
+                  )}
+                  {isLive && match.score && (
+                    <span className="text-[8px] font-bold uppercase tracking-wide text-emerald-400/90 mt-0.5">
+                      Feed score
                     </span>
                   )}
                   {isMatchFinished(match) && (
@@ -746,8 +757,8 @@ const MatchGridCard = React.memo(({
                   )}
                 </div>
               ) : (
-                <span className="text-xs font-black text-[var(--text-muted)] italic px-2 py-0.5 rounded-lg bg-[var(--bg-main)]/90 border border-[var(--border-subtle)] shadow-sm">
-                  VS
+                <span className={`text-xs font-black italic px-2 py-0.5 rounded-lg bg-[var(--bg-main)]/90 border border-[var(--border-subtle)] shadow-sm ${isLive ? 'text-amber-300' : 'text-[var(--text-muted)]'}`}>
+                  {isLive ? 'Score pending' : 'VS'}
                 </span>
               )}
             </div>
@@ -1234,7 +1245,7 @@ export const Sports: React.FC = () => {
     };
   }, [selectedRegion.tz, selectedRegion.id]);
 
-  const { data: matches = [], isLoading, refetch, isFetching } = useQuery({
+  const { data: matches = [], isLoading, refetch, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ['matches'],
     queryFn: getAllMatches,
     refetchInterval: 30000,
@@ -1987,7 +1998,13 @@ export const Sports: React.FC = () => {
                     ) : (
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                     )}
-                    <span>{isFetching ? 'Updating scores' : 'Auto-refresh · 30s'}</span>
+                    <span>
+                      {isFetching
+                        ? 'Updating scores'
+                        : dataUpdatedAt
+                          ? `Data updated · ${new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+                          : 'Waiting for score feed'}
+                    </span>
                   </div>
                   <button
                     type="button"
