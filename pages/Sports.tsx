@@ -143,26 +143,30 @@ const formatTimezoneOffset = (dateNum: number, tz: string): string => {
 };
 
 const getScheduleOffsetBadge = (region: RegionOption, dateNum = Date.now()): string => {
-  if (region.id === 'morocco') return 'UTC';
+  if (region.id === 'morocco') return 'GMT+1';
   return formatTimezoneOffset(dateNum, getScheduleTimezone(region));
 };
 
 export const formatTimeForTz = (dateNum: number, tz: string) => {
-  const safeTz = normalizeTimezone(tz);
+  const isMorocco = tz === 'Africa/Casablanca' || tz === 'morocco';
+  const effectiveDateNum = isMorocco ? dateNum + 3600 * 1000 : dateNum;
+  const safeTz = isMorocco ? 'UTC' : normalizeTimezone(tz);
   try {
     return new Intl.DateTimeFormat('en-GB', {
       timeZone: safeTz,
       hour: '2-digit',
       minute: '2-digit',
       hour12: false
-    }).format(new Date(dateNum));
+    }).format(new Date(effectiveDateNum));
   } catch {
-    return new Date(dateNum).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return new Date(effectiveDateNum).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 };
 
 export const formatDateFullForTz = (dateNum: number, tz: string) => {
-  const safeTz = normalizeTimezone(tz);
+  const isMorocco = tz === 'Africa/Casablanca' || tz === 'morocco';
+  const effectiveDateNum = isMorocco ? dateNum + 3600 * 1000 : dateNum;
+  const safeTz = isMorocco ? 'UTC' : normalizeTimezone(tz);
   try {
     return new Intl.DateTimeFormat('en-GB', {
       timeZone: safeTz,
@@ -170,14 +174,16 @@ export const formatDateFullForTz = (dateNum: number, tz: string) => {
       day: 'numeric',
       month: 'long',
       year: 'numeric'
-    }).format(new Date(dateNum));
+    }).format(new Date(effectiveDateNum));
   } catch {
-    return new Date(dateNum).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
+    return new Date(effectiveDateNum).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
   }
 };
 
 export const getDayLabelForTz = (dateNum: number, tz: string, regionFlag: string) => {
-  const safeTz = normalizeTimezone(tz);
+  const isMorocco = tz === 'Africa/Casablanca' || tz === 'morocco';
+  const effectiveDateNum = isMorocco ? dateNum + 3600 * 1000 : dateNum;
+  const safeTz = isMorocco ? 'UTC' : normalizeTimezone(tz);
   try {
     const dateKey = (value: Date) => new Intl.DateTimeFormat('en-CA', {
       timeZone: safeTz,
@@ -185,8 +191,9 @@ export const getDayLabelForTz = (dateNum: number, tz: string, regionFlag: string
       month: '2-digit',
       day: '2-digit'
     }).format(value);
-    const matchDate = dateKey(new Date(dateNum));
-    const today = dateKey(new Date());
+    const matchDate = dateKey(new Date(effectiveDateNum));
+    const nowEffective = new Date(isMorocco ? Date.now() + 3600 * 1000 : Date.now());
+    const today = dateKey(nowEffective);
     const [year, month, day] = today.split('-').map(Number);
     const todayCalendarDate = Date.UTC(year, month - 1, day);
     const tomorrow = new Date(todayCalendarDate + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -201,9 +208,9 @@ export const getDayLabelForTz = (dateNum: number, tz: string, regionFlag: string
       weekday: 'long',
       month: 'short',
       day: 'numeric'
-    }).format(new Date(dateNum));
+    }).format(new Date(effectiveDateNum));
   } catch {
-    return new Date(dateNum).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+    return new Date(effectiveDateNum).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
   }
 };
 
@@ -1186,33 +1193,62 @@ export const Sports: React.FC = () => {
   const [currentRegionDate, setCurrentRegionDate] = useState('');
 
   useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      const safeTz = normalizeTimezone(selectedRegion.tz);
-      const timeStr = new Intl.DateTimeFormat('en-GB', {
-        timeZone: safeTz,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      }).format(now);
+    let active = true;
+    const updateTime = async () => {
+      let timeStr = '';
+      let dateStr = '';
 
-      const dateStr = new Intl.DateTimeFormat('en-GB', {
-        timeZone: safeTz,
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      }).format(now);
+      if (selectedRegion.id === 'morocco') {
+        try {
+          const res = await fetch('https://time.now/developer/api/time?timezone=Africa/Casablanca');
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.datetime) {
+              const dt = new Date(data.datetime);
+              timeStr = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+              dateStr = dt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            }
+          }
+        } catch {
+          // fallback
+        }
+        if (!timeStr) {
+          const moroccoNow = new Date(Date.now() + 3600 * 1000);
+          timeStr = moroccoNow.toLocaleTimeString('en-GB', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+          dateStr = moroccoNow.toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        }
+      } else {
+        const now = new Date();
+        const safeTz = normalizeTimezone(selectedRegion.tz);
+        timeStr = new Intl.DateTimeFormat('en-GB', {
+          timeZone: safeTz,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        }).format(now);
 
+        dateStr = new Intl.DateTimeFormat('en-GB', {
+          timeZone: safeTz,
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        }).format(now);
+      }
+
+      if (!active) return;
       setCurrentRegionTime(timeStr);
       setCurrentRegionDate(dateStr);
     };
 
     updateTime();
     const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, [selectedRegion.tz]);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [selectedRegion.tz, selectedRegion.id]);
 
   const { data: matches = [], isLoading, refetch, isFetching } = useQuery({
     queryKey: ['matches'],
