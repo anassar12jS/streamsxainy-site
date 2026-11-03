@@ -1060,3 +1060,74 @@ export const getLiveScoreboard = (match: SportsMatch): LiveMatchScoreboard => {
     events
   };
 };
+
+/**
+ * Generate Google Calendar URL for one-click fixture addition
+ */
+export const createGoogleCalendarUrl = (match: SportsMatch): string => {
+  const start = new Date(match.date).toISOString().replace(/-|:|\.\d\d\d/g, '');
+  const end = new Date(match.date + (getExpectedMatchDurationMs(match.category) || 2 * 3600 * 1000)).toISOString().replace(/-|:|\.\d\d\d/g, '');
+  const title = encodeURIComponent(`${match.title} · ${match.competition || match.category}`);
+  const details = encodeURIComponent(
+    `Match: ${match.title}\nCompetition: ${match.competition || match.category}\nVenue: ${match.venue || match.venueCity || 'Stadium'}\nWatch on StreamHub: ${window.location.origin}/sports`
+  );
+  const location = encodeURIComponent([match.venue, match.venueCity].filter(Boolean).join(', ') || 'Stadium');
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`;
+};
+
+/**
+ * Download standard .ics calendar file for Apple Calendar, Outlook, Google Calendar
+ */
+export const downloadIcsCalendar = (match: SportsMatch): void => {
+  const start = new Date(match.date).toISOString().replace(/-|:|\.\d\d\d/g, '');
+  const end = new Date(match.date + (getExpectedMatchDurationMs(match.category) || 2 * 3600 * 1000)).toISOString().replace(/-|:|\.\d\d\d/g, '');
+  const summary = `${match.title} (${match.competition || match.category})`;
+  const location = [match.venue, match.venueCity].filter(Boolean).join(', ') || 'Stadium';
+  const description = `Live Sports on StreamHub: ${match.title}\\nCompetition: ${match.competition || match.category}\\nWatch live stream: ${window.location.origin}/sports`;
+
+  const icsContent = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//StreamHub//Sports Schedule//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:match-${match.id}@streamhub.app`,
+    `DTSTAMP:${start}`,
+    `DTSTART:${start}`,
+    `DTEND:${end}`,
+    `SUMMARY:${summary}`,
+    `DESCRIPTION:${description}`,
+    `LOCATION:${location}`,
+    'STATUS:CONFIRMED',
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].join('\r\n');
+
+  const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', `${match.title.replace(/[^a-zA-Z0-9]/g, '_')}.ics`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+/**
+ * Copy match direct link to clipboard
+ */
+export const copyMatchShareLink = async (match: SportsMatch): Promise<boolean> => {
+  try {
+    const url = `${window.location.origin}/sports?matchId=${encodeURIComponent(match.id)}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url);
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+};
+

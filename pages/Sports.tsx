@@ -1,13 +1,23 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { getAllMatches, getExpectedMatchDurationMs, isLiveMatchStatus, isMatchFinished, normalizeTeamToken } from '../services/sports';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  getAllMatches,
+  getExpectedMatchDurationMs,
+  isLiveMatchStatus,
+  isMatchFinished,
+  normalizeTeamToken,
+  createGoogleCalendarUrl,
+  downloadIcsCalendar,
+  copyMatchShareLink
+} from '../services/sports';
 import { SportsMatch, LeagueTopScorer } from '../types';
 import {
   Trophy, Calendar, PlayCircle, Clock, Loader2, Search,
   Heart, LayoutGrid, List, Timer, ChevronUp, Radio,
   RotateCw, Play, Flame, X, ChevronDown, Activity, Globe,
-  Check, ExternalLink, Sparkles, Tv, Award
+  Check, ExternalLink, Sparkles, Tv, Award, Share2, Download,
+  MapPin, Shield
 } from 'lucide-react';
 import {
   addFavoriteSportsMatch,
@@ -478,12 +488,16 @@ const MatchGridCard = React.memo(({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {isLive && (
+          {isLive ? (
             <span className="flex items-center gap-1.5 bg-red-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-md shadow-red-900/40">
               <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping" />
               <span>LIVE {liveMinute}</span>
             </span>
-          )}
+          ) : isMatchFinished(match) ? (
+            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-zinc-800/80 text-zinc-300 border border-zinc-700/50">
+              {match.minute || 'FT'}
+            </span>
+          ) : null}
 
           <button
             type="button"
@@ -505,7 +519,7 @@ const MatchGridCard = React.memo(({
       {/* Center Teams Matchup View */}
       <div className="relative z-10 my-auto py-2">
         <div className="mb-2 flex items-center justify-between">
-          {!isLive ? <MatchCountdown date={match.date} /> : <div />}
+          {!isLive && !isMatchFinished(match) ? <MatchCountdown date={match.date} /> : <div />}
         </div>
 
         {hasTeams ? (
@@ -522,7 +536,7 @@ const MatchGridCard = React.memo(({
             <div className="flex flex-col items-center shrink-0">
               {match.score ? (
                 <div className="flex flex-col items-center">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-black/70 border border-white/10 font-mono text-sm font-black text-white shadow-inner">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-black/75 border border-white/10 font-mono text-sm font-black text-white shadow-inner tabular-nums">
                     <span className={match.score.home > match.score.away ? 'text-emerald-400 font-extrabold' : ''}>
                       {match.score.home}
                     </span>
@@ -534,6 +548,11 @@ const MatchGridCard = React.memo(({
                   {isLive && (
                     <span className="text-[9px] font-bold text-red-400 font-mono mt-0.5 animate-pulse">
                       {match.minute || liveMinute}
+                    </span>
+                  )}
+                  {isMatchFinished(match) && (
+                    <span className="text-[9px] font-bold text-[var(--text-muted)] font-mono mt-0.5">
+                      {match.minute || 'Full Time'}
                     </span>
                   )}
                 </div>
@@ -556,6 +575,18 @@ const MatchGridCard = React.memo(({
           <h3 className="font-bold text-sm sm:text-base text-[var(--text-main)] line-clamp-2 leading-tight group-hover:text-[rgb(var(--primary-color))] transition-colors min-h-[44px] flex items-center">
             {match.title}
           </h3>
+        )}
+
+        {/* Real incidents snippet if present */}
+        {Array.isArray(match.events) && match.events.length > 0 && (
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-1 text-[10px] text-[var(--text-muted)] font-mono truncate max-w-full">
+            {match.events.slice(0, 2).map((ev, i) => (
+              <span key={i} className="inline-flex items-center gap-1 bg-black/40 px-1.5 py-0.5 rounded border border-white/5 truncate max-w-[130px]">
+                <span>{ev.type === 'goal' ? '⚽' : ev.type === 'red_card' ? '🟥' : '🟨'}</span>
+                <span className="truncate">{ev.player} {ev.minute}'</span>
+              </span>
+            ))}
+          </div>
         )}
       </div>
 
@@ -681,6 +712,15 @@ const MatchListRow = React.memo(({
               </span>
               <span className="text-[10px] font-black text-red-500 tracking-wider">LIVE {liveMinute}</span>
             </div>
+          ) : isMatchFinished(match) ? (
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700/50">
+                {match.minute || 'FT'}
+              </span>
+              <span className="text-[9px] text-[var(--text-muted)] font-mono">
+                {timeFormatted}
+              </span>
+            </div>
           ) : (
             <>
               <span className="text-xs font-bold font-mono text-[var(--text-main)]">
@@ -707,7 +747,7 @@ const MatchListRow = React.memo(({
               </div>
 
               {match.score ? (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/60 border border-white/10 font-mono text-xs font-black text-white shadow-inner shrink-0">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/70 border border-white/10 font-mono text-xs font-black text-white shadow-inner shrink-0 tabular-nums">
                   <span className={match.score.home > match.score.away ? 'text-emerald-400 font-bold' : ''}>
                     {match.score.home}
                   </span>
@@ -803,9 +843,100 @@ const MatchListRow = React.memo(({
   );
 });
 
+const matchesCompetition = (m: SportsMatch, compKey: string): boolean => {
+  if (compKey === 'ALL') return true;
+  const comp = (m.competition || '').toLowerCase();
+  const cat = (m.category || '').toLowerCase();
+  const title = m.title.toLowerCase();
+
+  switch (compKey) {
+    case 'UCL':
+      return comp.includes('champion') || title.includes('champions');
+    case 'PL':
+      return comp.includes('premier') || title.includes('premier league');
+    case 'LALIGA':
+      return comp.includes('la liga') || comp.includes('laliga') || comp.includes('primera');
+    case 'SERIEA':
+      return comp.includes('serie a');
+    case 'BUNDESLIGA':
+      return comp.includes('bundesliga');
+    case 'LIGUE1':
+      return comp.includes('ligue 1');
+    case 'BOTOLA':
+      return isMoroccanMatch(m);
+    case 'NBA':
+      return cat.includes('basket') || comp.includes('nba');
+    case 'FIGHT':
+      return cat.includes('fight') || comp.includes('ufc') || comp.includes('box') || comp.includes('mma');
+    case 'MOTOR':
+      return cat.includes('motor') || comp.includes('f1') || comp.includes('racing');
+    case 'NFL':
+      return cat.includes('american') || comp.includes('nfl');
+    default:
+      return true;
+  }
+};
+
+const matchesScheduleDay = (m: SportsMatch, dayFilter: string, tz: string): boolean => {
+  if (dayFilter === 'all') return true;
+  const safeTz = normalizeTimezone(tz);
+
+  try {
+    const dateKey = (value: Date) => new Intl.DateTimeFormat('en-CA', {
+      timeZone: safeTz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(value);
+
+    const matchDate = dateKey(new Date(m.date));
+    const now = new Date();
+    const today = dateKey(now);
+    const [year, month, day] = today.split('-').map(Number);
+    const todayCalendarDate = Date.UTC(year, month - 1, day);
+    const tomorrow = new Date(todayCalendarDate + 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const yesterday = new Date(todayCalendarDate - 24 * 3600 * 1000).toISOString().slice(0, 10);
+
+    if (dayFilter === 'today') return matchDate === today;
+    if (dayFilter === 'tomorrow') return matchDate === tomorrow;
+    if (dayFilter === 'results') return isMatchFinished(m) || matchDate === yesterday || matchDate === today;
+    if (dayFilter === 'weekend') {
+      const matchDayOfWeek = new Date(m.date).getDay();
+      return matchDayOfWeek === 5 || matchDayOfWeek === 6 || matchDayOfWeek === 0;
+    }
+  } catch {
+    return true;
+  }
+  return true;
+};
+
+const COMPETITION_FILTERS = [
+  { id: 'ALL', label: 'All Leagues', icon: '🏆' },
+  { id: 'UCL', label: 'Champions League', icon: '⭐' },
+  { id: 'PL', label: 'Premier League', icon: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
+  { id: 'LALIGA', label: 'La Liga', icon: '🇪🇸' },
+  { id: 'SERIEA', label: 'Serie A', icon: '🇮🇹' },
+  { id: 'BUNDESLIGA', label: 'Bundesliga', icon: '🇩🇪' },
+  { id: 'LIGUE1', label: 'Ligue 1', icon: '🇫🇷' },
+  { id: 'BOTOLA', label: 'Botola & Maroc', icon: '🇲🇦' },
+  { id: 'NBA', label: 'NBA', icon: '🏀' },
+  { id: 'FIGHT', label: 'UFC & Combat', icon: '🥊' },
+  { id: 'MOTOR', label: 'Formula 1', icon: '🏎️' },
+  { id: 'NFL', label: 'NFL', icon: '🏈' },
+];
+
+const SCHEDULE_DAY_OPTIONS = [
+  { id: 'all', label: 'All Dates' },
+  { id: 'today', label: 'Today (Kickoffs)' },
+  { id: 'tomorrow', label: 'Tomorrow' },
+  { id: 'weekend', label: 'This Weekend (Fri–Sun)' },
+  { id: 'results', label: 'Recent Results (FT)' },
+];
+
 // --- Main Sports Component ---
 export const Sports: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [favorites, setFavorites] = useState<string[]>([]);
 
   // User preference: Default league = La Liga ('laliga')
@@ -813,12 +944,17 @@ export const Sports: React.FC = () => {
   const [selectedLeague, setSelectedLeague] = useState<string>('laliga');
   const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>('grid');
   const [activeCategory, setActiveCategory] = useState('ALL');
+  const [selectedCompetition, setSelectedCompetition] = useState('ALL');
+  const [selectedScheduleDay, setSelectedScheduleDay] = useState<'all' | 'today' | 'tomorrow' | 'weekend' | 'results'>('all');
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [displayLimit, setDisplayLimit] = useState(24);
-  const hasActiveFilters = Boolean(searchQuery.trim()) || activeCategory !== 'ALL';
+  const hasActiveFilters = Boolean(searchQuery.trim()) || activeCategory !== 'ALL' || selectedCompetition !== 'ALL' || selectedScheduleDay !== 'all';
   const clearSportsFilters = () => {
     setSearchQuery('');
     setActiveCategory('ALL');
+    setSelectedCompetition('ALL');
+    setSelectedScheduleDay('all');
   };
 
   // Region / Timezone State
@@ -920,6 +1056,17 @@ export const Sports: React.FC = () => {
     }
   }, []);
 
+  // Deep-link: If user opened /sports?matchId=... automatically open Match Center
+  useEffect(() => {
+    const matchId = searchParams.get('matchId');
+    if (matchId && matches.length > 0) {
+      const target = matches.find(m => m.id === matchId || getMatchUniqueId(m) === matchId);
+      if (target) {
+        setPreviewMatch(target);
+      }
+    }
+  }, [searchParams, matches]);
+
   // Reset pagination on filter change
   useEffect(() => {
     setDisplayLimit(24);
@@ -959,8 +1106,8 @@ export const Sports: React.FC = () => {
     (featuredMatch.date - Date.now() <= 15 * 60 * 1000 && featuredMatch.date - Date.now() >= -getExpectedMatchDurationMs(featuredMatch.category))
   ));
 
-  // Data Partitioning based on chosen region
-  const { live, visibleUpcomingGroups, favMatches, upcomingCount } = useMemo(() => {
+  // Data Partitioning based on chosen region, competition, and day filter
+  const { live, visibleUpcomingGroups, favMatches, upcomingCount, totalLiveCount, totalResultsCount } = useMemo(() => {
     const now = Date.now();
     const q = searchQuery.toLowerCase().trim();
 
@@ -983,8 +1130,13 @@ export const Sports: React.FC = () => {
       filtered = filtered.filter(m => m.category.toUpperCase() === activeCategory);
     }
 
+    if (selectedCompetition !== 'ALL') {
+      filtered = filtered.filter(m => matchesCompetition(m, selectedCompetition));
+    }
+
     const liveList: SportsMatch[] = [];
     const upcomingList: SportsMatch[] = [];
+    const resultsList: SportsMatch[] = [];
     const seenLiveKeys = new Set<string>();
 
     filtered.forEach(m => {
@@ -1004,7 +1156,9 @@ export const Sports: React.FC = () => {
           seenLiveKeys.add(liveKey);
           liveList.push(m);
         }
-      } else if (!finished && diff > 15 * 60 * 1000) {
+      } else if (finished) {
+        resultsList.push(m);
+      } else if (diff > 15 * 60 * 1000) {
         upcomingList.push(m);
       }
     });
@@ -1015,10 +1169,21 @@ export const Sports: React.FC = () => {
       return a.date - b.date;
     });
     upcomingList.sort((a, b) => a.date - b.date);
+    resultsList.sort((a, b) => b.date - a.date);
 
-    // Group upcoming matches by date in the selected region
+    // Filter schedule pool based on selectedScheduleDay
+    let schedulePool = upcomingList;
+    if (selectedScheduleDay === 'results') {
+      schedulePool = resultsList;
+    } else if (selectedScheduleDay !== 'all') {
+      schedulePool = upcomingList.filter(m =>
+        matchesScheduleDay(m, selectedScheduleDay, getScheduleTimezone(selectedRegion))
+      );
+    }
+
+    // Group schedule matches by date in the selected region
     const grouped: Record<string, SportsMatch[]> = {};
-    upcomingList.forEach(m => {
+    schedulePool.forEach(m => {
       const key = getDayLabelForTz(m.date, getScheduleTimezone(selectedRegion), selectedRegion.flag);
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(m);
@@ -1050,9 +1215,11 @@ export const Sports: React.FC = () => {
       live: liveList,
       visibleUpcomingGroups: visibleGroups,
       favMatches: favsList,
-      upcomingCount: upcomingList.length
+      upcomingCount: schedulePool.length,
+      totalLiveCount: liveList.length,
+      totalResultsCount: resultsList.length
     };
-  }, [matches, activeCategory, searchQuery, displayLimit, favorites, selectedRegion]);
+  }, [matches, activeCategory, selectedCompetition, selectedScheduleDay, searchQuery, displayLimit, favorites, selectedRegion]);
 
   // Dynamic Sport Categories (Standard sports first, Botola/Maroc as specialized filter)
   const categories = useMemo(() => {
@@ -1462,15 +1629,18 @@ export const Sports: React.FC = () => {
 
           </div>
 
-          {/* Category Filter Pills (Standard Sports First, Botola/Maroc as specialized filter) */}
+          {/* Sport Category Filter Pills */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 fancy-scrollbar">
             {categories.map(cat => (
               <button
                 key={cat.name}
                 type="button"
-                onClick={() => setActiveCategory(cat.name)}
+                onClick={() => {
+                  setActiveCategory(cat.name);
+                  if (cat.name !== 'ALL') setSelectedCompetition('ALL');
+                }}
                 aria-pressed={activeCategory === cat.name}
-                className={`shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
                   activeCategory === cat.name
                     ? 'bg-[rgb(var(--primary-color))] border-[rgb(var(--primary-color))] text-white shadow-md'
                     : cat.name === 'MOROCCO'
@@ -1486,6 +1656,53 @@ export const Sports: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {/* League & Competition Quick Filter Bar */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 fancy-scrollbar pt-1 border-t border-[var(--border-subtle)]/50">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] shrink-0 mr-1 flex items-center gap-1">
+              <Trophy className="w-3.5 h-3.5 text-amber-400" /> League:
+            </span>
+            {COMPETITION_FILTERS.map(comp => (
+              <button
+                key={comp.id}
+                type="button"
+                onClick={() => setSelectedCompetition(comp.id)}
+                className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border transition-all ${
+                  selectedCompetition === comp.id
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm font-black'
+                    : 'bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-white hover:bg-[var(--bg-hover)]'
+                }`}
+              >
+                <span>{comp.icon}</span>
+                <span className="whitespace-nowrap">{comp.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Schedule Date / Results Filter Bar (for Schedule tab) */}
+          {tabMode === 'upcoming' && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 fancy-scrollbar pt-1 border-t border-[var(--border-subtle)]/50 animate-in fade-in">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] shrink-0 mr-1 flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-cyan-400" /> Fixtures:
+              </span>
+              {SCHEDULE_DAY_OPTIONS.map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setSelectedScheduleDay(opt.id as any)}
+                  className={`shrink-0 px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+                    selectedScheduleDay === opt.id
+                      ? opt.id === 'results'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm font-black'
+                        : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm font-black'
+                      : 'bg-[var(--bg-card)] text-[var(--text-muted)] border-[var(--border-subtle)] hover:text-white hover:bg-[var(--bg-hover)]'
+                  }`}
+                >
+                  <span className="whitespace-nowrap">{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
         </div>
       </div>
@@ -1603,10 +1820,14 @@ export const Sports: React.FC = () => {
                   <span className="text-xl">{selectedRegion.flag}</span>
                   <div>
                     <p className="text-xs font-bold text-[var(--text-main)]">
-                      Showing schedules in {selectedRegion.name} ({getScheduleOffsetBadge(selectedRegion)})
+                      {selectedScheduleDay === 'results'
+                        ? `Showing recent match results and FT scores in ${selectedRegion.name}`
+                        : `Showing fixtures & schedules in ${selectedRegion.name} (${getScheduleOffsetBadge(selectedRegion)})`}
                     </p>
                     <p className="text-[10px] text-[var(--text-muted)]">
-                      Kickoff times and calendar dates update automatically with each region
+                      {selectedScheduleDay === 'results'
+                        ? 'Official final scores, goal scorers, red cards, and match centers from live feeds'
+                        : 'Kickoff times and calendar dates update automatically with each region'}
                     </p>
                   </div>
                 </div>
@@ -1626,7 +1847,7 @@ export const Sports: React.FC = () => {
                   <div className="sticky top-[155px] z-20 py-2.5 px-4 bg-[var(--bg-main)]/95 backdrop-blur-md border border-[var(--border-subtle)] flex items-center justify-between rounded-xl shadow-md">
                     <h3 className="text-xs font-black uppercase tracking-wider text-[var(--text-main)] flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-cyan-400" />
-                      <span>{dateLabel}</span>
+                      <span>{selectedScheduleDay === 'results' ? `Full-Time Results · ${dateLabel}` : dateLabel}</span>
                     </h3>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-mono">
@@ -1688,10 +1909,14 @@ export const Sports: React.FC = () => {
             <div className="py-20 text-center flex flex-col items-center text-[var(--text-muted)]">
               <Calendar className="w-10 h-10 mb-3 opacity-40" />
               <h3 className="text-base font-bold text-[var(--text-main)] mb-1">
-                {hasActiveFilters ? 'No fixtures match these filters' : 'No upcoming fixtures found'}
+                {selectedScheduleDay === 'results'
+                  ? 'No recent match results found'
+                  : hasActiveFilters ? 'No fixtures match these filters' : 'No upcoming fixtures found'}
               </h3>
               <p className="text-xs mb-4">
-                {hasActiveFilters ? 'Try another team, league, or sport.' : 'Check back soon or refresh the sports feeds.'}
+                {selectedScheduleDay === 'results'
+                  ? 'Completed matches with full-time scores will appear here as games finish.'
+                  : hasActiveFilters ? 'Try another team, league, or sport.' : 'Check back soon or refresh the sports feeds.'}
               </p>
               {hasActiveFilters ? (
                 <button
@@ -2138,7 +2363,7 @@ export const Sports: React.FC = () => {
             </div>
 
             {/* Time & Region Information with Quick Region Switcher */}
-            <div className="space-y-2.5 mb-5 text-xs bg-[var(--bg-input)]/40 p-4 rounded-2xl border border-[var(--border-subtle)]">
+            <div className="space-y-2.5 mb-4 text-xs bg-[var(--bg-input)]/40 p-4 rounded-2xl border border-[var(--border-subtle)]">
               <div className="flex justify-between items-center">
                 <span className="text-[var(--text-muted)] flex items-center gap-1">
                   <span>{selectedRegion.flag}</span>
@@ -2156,7 +2381,10 @@ export const Sports: React.FC = () => {
               )}
               {(previewMatch.venue || previewMatch.venueCity) && (
                 <div className="flex justify-between items-center">
-                  <span className="text-[var(--text-muted)]">Venue:</span>
+                  <span className="text-[var(--text-muted)] flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-red-400" />
+                    <span>Venue:</span>
+                  </span>
                   <span className="font-bold text-[var(--text-main)] text-right">
                     {[previewMatch.venue, previewMatch.venueCity].filter(Boolean).join(' · ')}
                   </span>
@@ -2171,13 +2399,87 @@ export const Sports: React.FC = () => {
               <div className="flex justify-between items-center">
                 <span className="text-[var(--text-muted)]">Status:</span>
                 {isMatchFinished(previewMatch) ? (
-                  <span className="text-xs font-bold text-[var(--text-muted)]">Final</span>
+                  <span className="text-xs font-bold text-zinc-300 font-mono bg-zinc-800 px-2 py-0.5 rounded">
+                    Full Time · {previewMatch.minute || 'FT'}
+                  </span>
                 ) : isLiveMatchStatus(previewMatch.status) ? (
-                  <span className="text-xs font-bold text-red-400">Live · {previewMatch.minute || 'In progress'}</span>
+                  <span className="text-xs font-bold text-red-400 font-mono flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
+                    Live · {previewMatch.minute || 'In progress'}
+                  </span>
                 ) : (
                   <MatchCountdown date={previewMatch.date} />
                 )}
               </div>
+            </div>
+
+            {/* Match Incidents Timeline (from official live scoreboard data) */}
+            {Array.isArray(previewMatch.events) && previewMatch.events.length > 0 && (
+              <div className="mb-4 bg-[var(--bg-input)]/40 p-3.5 rounded-2xl border border-[var(--border-subtle)]">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-amber-400 mb-2 flex items-center gap-1.5 font-mono">
+                  <Activity className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Key Match Incidents</span>
+                </p>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto fancy-scrollbar">
+                  {previewMatch.events.map((ev, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-[var(--bg-main)]/80 border border-white/5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono font-bold text-amber-400 shrink-0 w-8">{ev.minute}'</span>
+                        <span className="text-sm shrink-0">{ev.type === 'goal' ? '⚽' : ev.type === 'red_card' ? '🟥' : '🟨'}</span>
+                        <span className="font-semibold text-[var(--text-main)] truncate">{ev.player}</span>
+                      </div>
+                      <span className="text-[10px] text-[var(--text-muted)] font-mono uppercase ml-2 shrink-0">{ev.team}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Calendar & Share Actions Bar */}
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <a
+                href={createGoogleCalendarUrl(previewMatch)}
+                target="_blank"
+                rel="noreferrer"
+                className="py-2 px-2.5 rounded-xl bg-[var(--bg-main)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-bold text-[var(--text-main)] flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                title="Add to Google Calendar"
+              >
+                <Calendar className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <span className="truncate">Google Cal</span>
+              </a>
+              <button
+                type="button"
+                onClick={() => downloadIcsCalendar(previewMatch)}
+                className="py-2 px-2.5 rounded-xl bg-[var(--bg-main)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-bold text-[var(--text-main)] flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                title="Download .ics file for iCal/Outlook"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="truncate">.ICS File</span>
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const ok = await copyMatchShareLink(previewMatch);
+                  if (ok) {
+                    setCopyFeedback(previewMatch.id);
+                    setTimeout(() => setCopyFeedback(null), 2500);
+                  }
+                }}
+                className="py-2 px-2.5 rounded-xl bg-[var(--bg-main)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-bold text-[var(--text-main)] flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                title="Copy Match Link"
+              >
+                {copyFeedback === previewMatch.id ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span className="text-emerald-400 font-bold truncate">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                    <span className="truncate">Share</span>
+                  </>
+                )}
+              </button>
             </div>
 
             {/* Quick Stream Servers Preview */}
@@ -2190,7 +2492,7 @@ export const Sports: React.FC = () => {
                 {previewMatch.sources.length > 0 ? previewMatch.sources.map((s, idx) => (
                   <div key={idx} className="p-2.5 rounded-xl bg-[var(--bg-main)] border border-[var(--border-subtle)] flex items-center justify-between text-xs">
                     <span className="font-bold text-[var(--text-main)]">Mirror {idx + 1} ({s.source.toUpperCase()})</span>
-                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded">Linked</span>
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded font-bold">Linked ⚡</span>
                   </div>
                 )) : (
                   <p className="col-span-2 text-xs text-[var(--text-muted)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-xl p-3">

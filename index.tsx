@@ -20,8 +20,8 @@ root.render(
   </React.StrictMode>
 );
 
-// Register Service Worker for ultra-fast asset & API caching
-if ('serviceWorker' in navigator) {
+// Register Service Worker for ultra-fast asset & API caching in production
+if ('serviceWorker' in navigator && (import.meta as any).env?.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch((err) => {
       console.debug('Service worker registration note:', err);

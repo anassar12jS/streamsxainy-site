@@ -56,7 +56,8 @@ const fetchFootballData = async (endpoint: string): Promise<any> => {
       signal: controller.signal,
       headers: { Accept: 'application/json' },
     });
-    if (!res.ok) {
+    const contentType = res.headers.get('content-type') || '';
+    if (!res.ok || !contentType.includes('application/json')) {
       throw new Error(`Football-Data endpoint ${endpoint} failed with status ${res.status}`);
     }
     return await res.json();
@@ -326,20 +327,75 @@ export const getLeagueTopScorers = async (leagueId: string): Promise<LeagueTopSc
 };
 
 /**
- * Fetch live soccer scoreboards from ESPN (unlimited requests, live clock, real scores & goal events)
+/**
+ * Helper to format date as YYYYMMDD for ESPN API
+ */
+const toEspnDateStr = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}${m}${d}`;
+};
+
+/**
+ * Fetch live soccer scoreboards & multi-day fixtures from ESPN
+ * (unlimited free requests, live clocks, real scores, goal events & weekend schedules)
  */
 export const fetchEspnLiveScoreboard = async (): Promise<SportsMatch[]> => {
-  const leagues = [
-    'eng.1', 'esp.1', 'ita.1', 'ger.1', 'fra.1',
-    'ned.1', 'eng.2', 'esp.2', 'por.1', 'bel.1', 'tur.1', 'sco.1',
-    'uefa.champions', 'uefa.europa', 'uefa.europa.conf',
-    'usa.1', 'bra.1', 'mex.1'
+  const primaryLeagues = [
+    'eng.1', 'esp.1', 'ita.1', 'ger.1', 'fra.1', 'uefa.champions', 'uefa.europa'
   ];
-  const matches: SportsMatch[] = [];
+  const secondaryLeagues = [
+    'ned.1', 'por.1', 'tur.1', 'eng.2', 'esp.2', 'uefa.europa.conf', 'usa.1', 'bra.1', 'mex.1'
+  ];
 
-  const promises = leagues.map(async (slug) => {
+  const now = new Date();
+  const todayStr = toEspnDateStr(now);
+  const tomorrow = new Date(Date.now() + 24 * 3600 * 1000);
+  const tomorrowStr = toEspnDateStr(tomorrow);
+  const yesterday = new Date(Date.now() - 24 * 3600 * 1000);
+  const yesterdayStr = toEspnDateStr(yesterday);
+
+  // Determine next Friday, Saturday, Sunday for key European league matchdays
+  const weekendDateStrings: string[] = [];
+  for (let offset = 2; offset <= 6; offset++) {
+    const futureDate = new Date(Date.now() + offset * 24 * 3600 * 1000);
+    const dayOfWeek = futureDate.getDay(); // 0 is Sunday, 5 is Friday, 6 is Saturday
+    if (dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0) {
+      weekendDateStrings.push(toEspnDateStr(futureDate));
+    }
+  }
+
+  // Build target query requests:
+  // 1. Current round / live for all leagues (no date param)
+  // 2. Yesterday's results for top European leagues (scores & stats)
+  // 3. Tomorrow's upcoming fixtures for top European leagues
+  // 4. Weekend matchdays for primary leagues
+  const requests: { slug: string; dateParam?: string }[] = [];
+
+  // All leagues get their active round
+  [...primaryLeagues, ...secondaryLeagues].forEach(slug => {
+    requests.push({ slug });
+  });
+
+  // Top leagues get yesterday, tomorrow, and weekend fixtures
+  primaryLeagues.forEach(slug => {
+    requests.push({ slug, dateParam: yesterdayStr });
+    requests.push({ slug, dateParam: tomorrowStr });
+    weekendDateStrings.slice(0, 2).forEach(dateParam => {
+      requests.push({ slug, dateParam });
+    });
+  });
+
+  const matches: SportsMatch[] = [];
+  const seenEventIds = new Set<string>();
+
+  const promises = requests.map(async ({ slug, dateParam }) => {
     try {
-      const url = `${ESPN_SCOREBOARD_BASE}/${slug}/scoreboard`;
+      const url = dateParam
+        ? `${ESPN_SCOREBOARD_BASE}/${slug}/scoreboard?dates=${dateParam}`
+        : `${ESPN_SCOREBOARD_BASE}/${slug}/scoreboard`;
+
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 4500);
       const res = await fetch(url, { signal: controller.signal });
@@ -352,6 +408,9 @@ export const fetchEspnLiveScoreboard = async (): Promise<SportsMatch[]> => {
       const competition = data?.leagues?.[0]?.name || slug.replace('.', ' ');
 
       for (const ev of events) {
+        if (!ev.id || seenEventIds.has(String(ev.id))) continue;
+        seenEventIds.add(String(ev.id));
+
         const comp = ev.competitions?.[0];
         if (!comp || !Array.isArray(comp.competitors) || comp.competitors.length < 2) continue;
 
@@ -382,7 +441,7 @@ export const fetchEspnLiveScoreboard = async (): Promise<SportsMatch[]> => {
         const date = new Date(ev.date).getTime();
         const displayClock = isFinished ? (detail || 'FT') : (comp.status?.displayClock || detail || (isLive ? 'LIVE' : undefined));
 
-        // Parse real goal incidents
+        // Parse real goal incidents and cards
         const matchEvents: any[] = [];
         if (Array.isArray(comp.details)) {
           comp.details.forEach((det: any) => {
