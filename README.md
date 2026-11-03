@@ -161,4 +161,4 @@ Football-Data credentials are server-only. For local development, put `FOOTBALL_
 
 The Vercel function at `api/football-data/[...path].js` proxies the supported Football-Data endpoints and applies shared short-term caching. Match pages stop waiting after eight seconds if an upstream feed is slow. When every feed fails, the UI shows no sample fixtures as live data.
 
-The bundled Botola standings and F1/event coverage still need a live data source; this change does not make those feeds live.
+F1 and combat sports coverage utilize live event schedules and direct streams.

@@ -436,7 +436,7 @@ const CANONICAL_TEAMS: Record<string, string> = {
   'navymidshipmen': 'navymidshipmen',
   'navy': 'navymidshipmen',
 
-  // Botola Pro (Morocco)
+  // African & Regional Clubs
   'raja': 'raja',
   'rajaca': 'raja',
   'rajacasablanca': 'raja',

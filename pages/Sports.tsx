@@ -241,7 +241,7 @@ const getMatchUniqueId = (match: SportsMatch): string => {
 const isMoroccanMatch = (m: SportsMatch): boolean => {
   const text = `${m.title} ${m.category} ${m.teams?.home?.name || ''} ${m.teams?.away?.name || ''}`.toLowerCase();
   const moroccanKeywords = [
-    'morocco', 'maroc', 'botola', 'raja', 'wydad', 'as far', 'far rabat', 'berkane', 
+    'morocco', 'maroc', 'raja', 'wydad', 'as far', 'far rabat', 'berkane', 
     'fus rabat', 'mas fes', 'mas fès', 'irt tanger', 'tanger', 'olympic safi', 'ocs safi', 
     'mat tetouan', 'tetouan', 'hassania agadir', 'husa', 'renaissance zemamra', 'chabab mohammedia', 
     'jeunesse soualem', 'touarga', 'uts', 'mco oujda', 'maghreb fez', 'atlas lions', 'mar'
@@ -862,14 +862,14 @@ const matchesCompetition = (m: SportsMatch, compKey: string): boolean => {
       return comp.includes('bundesliga');
     case 'LIGUE1':
       return comp.includes('ligue 1');
-    case 'BOTOLA':
-      return isMoroccanMatch(m);
     case 'NBA':
       return cat.includes('basket') || comp.includes('nba');
     case 'FIGHT':
       return cat.includes('fight') || comp.includes('ufc') || comp.includes('box') || comp.includes('mma');
     case 'MOTOR':
       return cat.includes('motor') || comp.includes('f1') || comp.includes('racing');
+    case 'TENNIS':
+      return cat.includes('tenn') || comp.includes('tenn') || comp.includes('atp') || comp.includes('wta');
     case 'NFL':
       return cat.includes('american') || comp.includes('nfl');
     default:
@@ -918,19 +918,19 @@ const COMPETITION_FILTERS = [
   { id: 'SERIEA', label: 'Serie A', icon: '🇮🇹' },
   { id: 'BUNDESLIGA', label: 'Bundesliga', icon: '🇩🇪' },
   { id: 'LIGUE1', label: 'Ligue 1', icon: '🇫🇷' },
-  { id: 'BOTOLA', label: 'Botola & Maroc', icon: '🇲🇦' },
   { id: 'NBA', label: 'NBA', icon: '🏀' },
   { id: 'FIGHT', label: 'UFC & Combat', icon: '🥊' },
   { id: 'MOTOR', label: 'Formula 1', icon: '🏎️' },
+  { id: 'TENNIS', label: 'Tennis', icon: '🎾' },
   { id: 'NFL', label: 'NFL', icon: '🏈' },
 ];
 
 const SCHEDULE_DAY_OPTIONS = [
   { id: 'all', label: 'All Dates' },
-  { id: 'today', label: 'Today (Kickoffs)' },
+  { id: 'today', label: 'Today' },
   { id: 'tomorrow', label: 'Tomorrow' },
-  { id: 'weekend', label: 'This Weekend (Fri–Sun)' },
-  { id: 'results', label: 'Recent Results (FT)' },
+  { id: 'weekend', label: 'This Weekend' },
+  { id: 'results', label: 'Recent FT' },
 ];
 
 // --- Main Sports Component ---
@@ -943,16 +943,14 @@ export const Sports: React.FC = () => {
   const [tabMode, setTabMode] = useState<'live' | 'upcoming' | 'favorites' | 'standings'>('live');
   const [selectedLeague, setSelectedLeague] = useState<string>('laliga');
   const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>('grid');
-  const [activeCategory, setActiveCategory] = useState('ALL');
   const [selectedCompetition, setSelectedCompetition] = useState('ALL');
   const [selectedScheduleDay, setSelectedScheduleDay] = useState<'all' | 'today' | 'tomorrow' | 'weekend' | 'results'>('all');
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [displayLimit, setDisplayLimit] = useState(24);
-  const hasActiveFilters = Boolean(searchQuery.trim()) || activeCategory !== 'ALL' || selectedCompetition !== 'ALL' || selectedScheduleDay !== 'all';
+  const hasActiveFilters = Boolean(searchQuery.trim()) || selectedCompetition !== 'ALL' || (tabMode === 'upcoming' && selectedScheduleDay !== 'all');
   const clearSportsFilters = () => {
     setSearchQuery('');
-    setActiveCategory('ALL');
     setSelectedCompetition('ALL');
     setSelectedScheduleDay('all');
   };
@@ -1070,7 +1068,7 @@ export const Sports: React.FC = () => {
   // Reset pagination on filter change
   useEffect(() => {
     setDisplayLimit(24);
-  }, [tabMode, activeCategory, searchQuery]);
+  }, [tabMode, selectedCompetition, selectedScheduleDay, searchQuery]);
 
   const toggleFavorite = useCallback((match: SportsMatch) => {
     const id = getMatchUniqueId(match);
@@ -1122,12 +1120,6 @@ export const Sports: React.FC = () => {
         m.teams?.home?.name?.toLowerCase().includes(q) ||
         m.teams?.away?.name?.toLowerCase().includes(q)
       );
-    }
-
-    if (activeCategory === 'MOROCCO') {
-      filtered = filtered.filter(isMoroccanMatch);
-    } else if (activeCategory !== 'ALL') {
-      filtered = filtered.filter(m => m.category.toUpperCase() === activeCategory);
     }
 
     if (selectedCompetition !== 'ALL') {
@@ -1219,26 +1211,17 @@ export const Sports: React.FC = () => {
       totalLiveCount: liveList.length,
       totalResultsCount: resultsList.length
     };
-  }, [matches, activeCategory, selectedCompetition, selectedScheduleDay, searchQuery, displayLimit, favorites, selectedRegion]);
+  }, [matches, selectedCompetition, selectedScheduleDay, searchQuery, displayLimit, favorites, selectedRegion]);
 
-  // Dynamic Sport Categories (Standard sports first, Botola/Maroc as specialized filter)
-  const categories = useMemo(() => {
-    const moroccoCount = matches.filter(isMoroccanMatch).length;
-    const footCount = matches.filter(m => m.category.toLowerCase().includes('foot')).length;
-    const basketCount = matches.filter(m => m.category.toLowerCase().includes('basket')).length;
-    const fightCount = matches.filter(m => m.category.toLowerCase().includes('fight')).length;
-    const motorCount = matches.filter(m => m.category.toLowerCase().includes('motor')).length;
-    const tennCount = matches.filter(m => m.category.toLowerCase().includes('tenn')).length;
-    
-    return [
-      { name: 'ALL', label: 'All Sports', icon: '🌐', count: matches.length },
-      ...(moroccoCount > 0 ? [{ name: 'MOROCCO', label: 'Botola & Maroc', icon: '🇲🇦', count: moroccoCount }] : []),
-      ...(footCount > 0 ? [{ name: 'FOOTBALL', label: 'Football', icon: '⚽', count: footCount }] : []),
-      ...(basketCount > 0 ? [{ name: 'BASKETBALL', label: 'Basketball (NBA)', icon: '🏀', count: basketCount }] : []),
-      ...(fightCount > 0 ? [{ name: 'FIGHT', label: 'Combat / UFC', icon: '🥊', count: fightCount }] : []),
-      ...(motorCount > 0 ? [{ name: 'MOTOR SPORTS', label: 'Formula 1', icon: '🏎️', count: motorCount }] : []),
-      ...(tennCount > 0 ? [{ name: 'TENNIS', label: 'Tennis', icon: '🎾', count: tennCount }] : []),
-    ];
+  // Dynamic match counts for each league filter
+  const filterCounts = useMemo(() => {
+    const counts: Record<string, number> = { ALL: matches.length };
+    COMPETITION_FILTERS.forEach(f => {
+      if (f.id !== 'ALL') {
+        counts[f.id] = matches.filter(m => matchesCompetition(m, f.id)).length;
+      }
+    });
+    return counts;
   }, [matches]);
 
   const handlePlayMatch = (m: SportsMatch) => {
@@ -1395,7 +1378,7 @@ export const Sports: React.FC = () => {
       </div>
 
       {/* Featured Headline Marquee Banner (Stadium Atmosphere - Real Madrid vs Barcelona) */}
-      {featuredMatch && !searchQuery && activeCategory === 'ALL' && (
+      {featuredMatch && !hasActiveFilters && (
         <div className="relative border-b border-[var(--border-subtle)] bg-[var(--bg-card)] overflow-hidden">
           {/* Ambient Stadium Lighting */}
           <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-[rgb(var(--primary-color))]/10 to-pink-500/10 pointer-events-none" />
@@ -1629,78 +1612,88 @@ export const Sports: React.FC = () => {
 
           </div>
 
-          {/* Sport Category Filter Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 fancy-scrollbar">
-            {categories.map(cat => (
-              <button
-                key={cat.name}
-                type="button"
-                onClick={() => {
-                  setActiveCategory(cat.name);
-                  if (cat.name !== 'ALL') setSelectedCompetition('ALL');
-                }}
-                aria-pressed={activeCategory === cat.name}
-                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
-                  activeCategory === cat.name
-                    ? 'bg-[rgb(var(--primary-color))] border-[rgb(var(--primary-color))] text-white shadow-md'
-                    : cat.name === 'MOROCCO'
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
-                      : 'bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
-                }`}
-              >
-                <span>{cat.icon}</span>
-                <span>{cat.label || cat.name}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeCategory === cat.name ? 'bg-white/20 text-white' : 'bg-[var(--bg-main)] text-[var(--text-muted)]'}`}>
-                  {cat.count}
-                </span>
-              </button>
-            ))}
-          </div>
+          {/* Unified Contextual Filter Bar (Only shown on Live & Schedule views) */}
+          {(tabMode === 'live' || tabMode === 'upcoming') && (
+            <div className="flex items-center justify-between gap-3 overflow-x-auto pb-1 fancy-scrollbar pt-2 border-t border-[var(--border-subtle)]">
+              <div className="flex items-center gap-2 shrink-0">
+                
+                {/* Schedule Day Segmented Control (Schedule tab only) */}
+                {tabMode === 'upcoming' && (
+                  <div className="flex items-center bg-[var(--bg-card)] p-0.5 rounded-xl border border-[var(--border-subtle)] shrink-0 shadow-sm">
+                    {SCHEDULE_DAY_OPTIONS.map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setSelectedScheduleDay(opt.id as any)}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                          selectedScheduleDay === opt.id
+                            ? opt.id === 'results'
+                              ? 'bg-emerald-500 text-white shadow-sm font-extrabold'
+                              : 'bg-[rgb(var(--primary-color))] text-white shadow-sm font-extrabold'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                        }`}
+                      >
+                        <span className="whitespace-nowrap">{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-          {/* League & Competition Quick Filter Bar */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 fancy-scrollbar pt-1 border-t border-[var(--border-subtle)]/50">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] shrink-0 mr-1 flex items-center gap-1">
-              <Trophy className="w-3.5 h-3.5 text-amber-400" /> League:
-            </span>
-            {COMPETITION_FILTERS.map(comp => (
-              <button
-                key={comp.id}
-                type="button"
-                onClick={() => setSelectedCompetition(comp.id)}
-                className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border transition-all ${
-                  selectedCompetition === comp.id
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm font-black'
-                    : 'bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-white hover:bg-[var(--bg-hover)]'
-                }`}
-              >
-                <span>{comp.icon}</span>
-                <span className="whitespace-nowrap">{comp.label}</span>
-              </button>
-            ))}
-          </div>
+                {tabMode === 'upcoming' && (
+                  <div className="h-4 w-px bg-[var(--border-subtle)] shrink-0 hidden sm:block" />
+                )}
 
-          {/* Schedule Date / Results Filter Bar (for Schedule tab) */}
-          {tabMode === 'upcoming' && (
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 fancy-scrollbar pt-1 border-t border-[var(--border-subtle)]/50 animate-in fade-in">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] shrink-0 mr-1 flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-cyan-400" /> Fixtures:
-              </span>
-              {SCHEDULE_DAY_OPTIONS.map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setSelectedScheduleDay(opt.id as any)}
-                  className={`shrink-0 px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
-                    selectedScheduleDay === opt.id
-                      ? opt.id === 'results'
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm font-black'
-                        : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm font-black'
-                      : 'bg-[var(--bg-card)] text-[var(--text-muted)] border-[var(--border-subtle)] hover:text-white hover:bg-[var(--bg-hover)]'
-                  }`}
-                >
-                  <span className="whitespace-nowrap">{opt.label}</span>
-                </button>
-              ))}
+                {/* Competition / League Quick Filter Pills */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {COMPETITION_FILTERS.map(comp => {
+                    const count = filterCounts[comp.id] ?? 0;
+                    // Do not clutter the filter bar with empty leagues
+                    if (comp.id !== 'ALL' && count === 0 && selectedCompetition !== comp.id) {
+                      return null;
+                    }
+
+                    return (
+                      <button
+                        key={comp.id}
+                        type="button"
+                        onClick={() => setSelectedCompetition(comp.id)}
+                        className={`shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+                          selectedCompetition === comp.id
+                            ? 'bg-[rgb(var(--primary-color))] text-white border-[rgb(var(--primary-color))] shadow-sm font-extrabold'
+                            : 'bg-[var(--bg-card)] text-[var(--text-muted)] border-[var(--border-subtle)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
+                        }`}
+                      >
+                        <span>{comp.icon}</span>
+                        <span className="whitespace-nowrap">{comp.label}</span>
+                        {count > 0 && (
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono tabular-nums ${
+                            selectedCompetition === comp.id ? 'bg-white/25 text-white font-bold' : 'bg-[var(--bg-main)] text-[var(--text-muted)]'
+                          }`}>
+                            {count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+              </div>
+
+              {/* Active Filter Clear / Reset Pill */}
+              {hasActiveFilters && (
+                <div className="flex items-center gap-2 shrink-0 ml-auto">
+                  <button
+                    type="button"
+                    onClick={clearSportsFilters}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/30 transition-all shrink-0"
+                    title="Reset all filters"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Reset</span>
+                  </button>
+                </div>
+              )}
+
             </div>
           )}
 
@@ -2022,7 +2015,7 @@ export const Sports: React.FC = () => {
                 </p>
               </div>
 
-              {/* League Selector Pills (Ordered strictly: La Liga -> Premier League -> Ligue 1 -> Serie A -> Botola) */}
+              {/* League Selector Pills */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1 fancy-scrollbar">
                 {LEAGUE_TABLES.map(league => (
                   <button
@@ -2074,7 +2067,6 @@ export const Sports: React.FC = () => {
             {/* Selected League Card */}
             {(() => {
               const currentTable = LEAGUE_TABLES.find(l => l.id === selectedLeague) || LEAGUE_TABLES[0];
-              const isBotola = currentTable.id === 'botola';
               const standingsList = liveStandingsData?.standings || currentTable.standings;
 
               const sourceBadge = (() => {
@@ -2084,9 +2076,6 @@ export const Sports: React.FC = () => {
                 }
                 if (src === 'espn') {
                   return { label: 'ESPN · Live', badgeClass: 'bg-blue-500/15 text-blue-400 border-blue-500/30' };
-                }
-                if (src === 'botola-inwi') {
-                  return { label: 'Botola Pro Inwi · Snapshot', badgeClass: 'bg-purple-500/15 text-purple-300 border-purple-500/30' };
                 }
                 return { label: 'Bundled season snapshot · May be out of date', badgeClass: 'bg-purple-500/15 text-purple-300 border-purple-500/30' };
               })();
@@ -2133,11 +2122,11 @@ export const Sports: React.FC = () => {
                       <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--text-muted)]">
                         <span className="flex items-center gap-1.5">
                           <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm" /> 
-                          {isBotola ? 'CAF Champions League' : 'Champions League / Playoff'}
+                          Champions League / Playoff
                         </span>
                         <span className="flex items-center gap-1.5">
                           <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> 
-                          {isBotola ? 'CAF Confederation' : 'Europa League'}
+                          Europa League
                         </span>
                         <span className="flex items-center gap-1.5">
                           <span className="w-2.5 h-2.5 rounded-full bg-red-500" /> Relégation

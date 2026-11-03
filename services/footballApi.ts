@@ -32,7 +32,7 @@ export interface LiveStandingsResult {
   isLive: boolean;
   standings: LeagueTeamStanding[];
   lastUpdated: number;
-  source: 'football-data.org' | 'espn' | 'botola-inwi' | 'curated-2026/2027';
+  source: 'football-data.org' | 'espn' | 'curated-2026/2027';
 }
 
 // Memory caches
@@ -184,19 +184,6 @@ const fetchEspnStandings = async (slug: string, fallbackTable: LeagueTable): Pro
 export const getLiveLeagueStandings = async (leagueId: string): Promise<LiveStandingsResult> => {
   const fallbackTable = LEAGUE_TABLES.find(l => l.id === leagueId) || LEAGUE_TABLES[0];
 
-  // Botola has no live standings provider configured yet; identify the bundled table as a snapshot.
-  if (leagueId === 'botola') {
-    return {
-      leagueId: 'botola',
-      name: fallbackTable.name,
-      season: fallbackTable.season,
-      isLive: false,
-      standings: fallbackTable.standings,
-      lastUpdated: 0,
-      source: 'curated-2026/2027'
-    };
-  }
-
   // 1. Check Memory Cache
   const memCached = standingsMemoryCache[leagueId];
   if (memCached && Date.now() - memCached.timestamp < STANDINGS_CACHE_TTL) {
@@ -293,8 +280,6 @@ export const getLiveLeagueStandings = async (leagueId: string): Promise<LiveStan
  * Get top scorers for a competition
  */
 export const getLeagueTopScorers = async (leagueId: string): Promise<LeagueTopScorer[]> => {
-  if (leagueId === 'botola') return []; // no live Botola scorer source is configured
-
   const fdCode = FD_LEAGUE_MAP[leagueId];
   if (!fdCode) return [];
 
