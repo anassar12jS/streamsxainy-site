@@ -1193,6 +1193,12 @@ export const Sports: React.FC = () => {
   // Live Digital Clock Ticker in Selected Region
   const [currentRegionTime, setCurrentRegionTime] = useState('');
   const [currentRegionDate, setCurrentRegionDate] = useState('');
+  const [clockNow, setClockNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setClockNow(Date.now()), 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -1322,7 +1328,7 @@ export const Sports: React.FC = () => {
   // Featured Marquee Game (Prioritize live popular match, else marquee upcoming)
   const featuredMatch = useMemo(() => {
     if (!matches || matches.length === 0) return null;
-    const now = Date.now();
+    const now = clockNow;
     const liveMatches = matches.filter(m => {
       const diff = m.date - now;
       const finished = isMatchFinished(m);
@@ -1335,16 +1341,16 @@ export const Sports: React.FC = () => {
       .filter(m => !isMatchFinished(m) && m.date - now > 15 * 60 * 1000)
       .sort((a, b) => a.date - b.date);
     return upcomingMatches.find(m => m.popular) || upcomingMatches[0] || null;
-  }, [matches]);
+  }, [matches, clockNow]);
 
   const featuredIsLive = Boolean(featuredMatch && !isMatchFinished(featuredMatch) && (
     isLiveMatchStatus(featuredMatch.status) ||
-    (featuredMatch.date - Date.now() <= 15 * 60 * 1000 && featuredMatch.date - Date.now() >= -getExpectedMatchDurationMs(featuredMatch.category))
+    (featuredMatch.date - clockNow <= 15 * 60 * 1000 && featuredMatch.date - clockNow >= -getExpectedMatchDurationMs(featuredMatch.category))
   ));
 
   // Data Partitioning based on chosen region, competition, and day filter
   const { live, visibleUpcomingGroups, favMatches, upcomingCount, totalLiveCount, totalResultsCount } = useMemo(() => {
-    const now = Date.now();
+    const now = clockNow;
     const q = searchQuery.toLowerCase().trim();
 
     let filtered = matches;
@@ -1449,7 +1455,7 @@ export const Sports: React.FC = () => {
       totalLiveCount: liveList.length,
       totalResultsCount: resultsList.length
     };
-  }, [matches, selectedCompetition, selectedScheduleDay, searchQuery, displayLimit, favorites, selectedRegion]);
+  }, [matches, selectedCompetition, selectedScheduleDay, searchQuery, displayLimit, favorites, selectedRegion, clockNow]);
 
   // Dynamic match counts for each league filter
   const filterCounts = useMemo(() => {
@@ -1967,21 +1973,41 @@ export const Sports: React.FC = () => {
         {!isLoading && tabMode === 'live' && (
           live.length > 0 ? (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
                   <h2 className="text-base font-black uppercase tracking-wider text-[var(--text-main)]">
                     Live Right Now ({live.length} Events)
                   </h2>
                 </div>
-                <div className="flex items-center gap-2 text-xs font-mono text-cyan-400 font-bold">
-                  <Globe className="w-3.5 h-3.5" />
-                  <span>{selectedRegion.flag} {selectedRegion.name.split(' /')[0]} ({getScheduleOffsetBadge(selectedRegion)})</span>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-[10px] font-mono text-[var(--text-muted)]">
+                    {isFetching ? (
+                      <Loader2 className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
+                    ) : (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    )}
+                    <span>{isFetching ? 'Updating scores' : 'Auto-refresh · 30s'}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => refetch()}
+                    disabled={isFetching}
+                    aria-label="Refresh live scores"
+                    title="Refresh live scores"
+                    className="p-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-cyan-400 hover:border-cyan-500/40 disabled:opacity-50 transition-colors"
+                  >
+                    <RotateCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+                  </button>
+                  <div className="flex items-center gap-2 text-xs font-mono text-cyan-400 font-bold">
+                    <Globe className="w-3.5 h-3.5" />
+                    <span>{selectedRegion.flag} {selectedRegion.name.split(' /')[0]} ({getScheduleOffsetBadge(selectedRegion)})</span>
+                  </div>
                 </div>
               </div>
 
               {layoutMode === 'grid' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 xl:gap-6">
                   {live.map(match => (
                     <MatchGridCard
                       key={getMatchUniqueId(match)}
