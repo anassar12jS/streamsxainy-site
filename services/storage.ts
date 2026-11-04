@@ -201,6 +201,36 @@ export const isFavoriteSportsMatch = (id: string): boolean => {
     return list.includes(id);
 };
 
+// --- Sports Match Reminders (Kickoff notifications) ---
+const SPORTS_REMINDERS_KEY = 'streamhub_sports_reminders';
+
+export const getMatchReminders = (): string[] => {
+    try {
+        const stored = localStorage.getItem(SPORTS_REMINDERS_KEY);
+        return stored ? JSON.parse(stored) : [];
+    } catch (e) { return []; }
+};
+
+export const addMatchReminder = (id: string) => {
+    const list = getMatchReminders();
+    if (!list.includes(id)) {
+        const updated = [id, ...list];
+        localStorage.setItem(SPORTS_REMINDERS_KEY, JSON.stringify(updated));
+    }
+};
+
+export const removeMatchReminder = (id: string) => {
+    const list = getMatchReminders();
+    const updated = list.filter(i => i !== id);
+    localStorage.setItem(SPORTS_REMINDERS_KEY, JSON.stringify(updated));
+};
+
+export const isMatchReminder = (id: string): boolean => {
+    const list = getMatchReminders();
+    return list.includes(id);
+};
+
+
 // --- Stream Providers ---
 export const getStreamProviders = (): StreamProvider[] => {
     try {
@@ -244,6 +274,7 @@ export const clearAllWatchData = () => {
   localStorage.removeItem(HISTORY_KEY);
   localStorage.removeItem(PROGRESS_KEY);
   localStorage.removeItem(SPORTS_FAVORITES_KEY);
+  localStorage.removeItem(SPORTS_REMINDERS_KEY);
   emitStorageChange(PROGRESS_KEY);
   emitStorageChange(WATCHLIST_KEY);
 };

@@ -17,14 +17,18 @@ import {
   Heart, LayoutGrid, List, Timer, ChevronUp, Radio,
   RotateCw, Play, Flame, X, ChevronDown, Activity, Globe,
   Check, ExternalLink, Sparkles, Tv, Award, Share2, Download,
-  MapPin, Shield, Volume2, VolumeX, Bell, BellRing, Zap
+  MapPin, Shield, Volume2, VolumeX, Bell, BellRing, Zap,
+  BarChart3, Users
 } from 'lucide-react';
 import {
   addFavoriteSportsMatch,
   removeFavoriteSportsMatch,
-  getFavoriteSportsMatches
+  getFavoriteSportsMatches,
+  getMatchReminders,
+  addMatchReminder,
+  removeMatchReminder
 } from '../services/storage';
-import { LEAGUE_TABLES } from '../data/sportsStandings';
+import { LEAGUE_TABLES, LeagueTeamStanding } from '../data/sportsStandings';
 import { REGIONS, RegionOption } from '../constants/regions';
 import { getLiveLeagueStandings, getLeagueTopScorers } from '../services/footballApi';
 import { getTeamLogoUrl, CLUB_BRAND_COLORS } from '../data/clubLogos';
@@ -414,27 +418,71 @@ const TeamLogo: React.FC<{ name: string; logo?: string; className?: string; size
   }
 );
 
-// Interactive Goal & Kickoff Audio Chime (Web Audio API - no external assets)
-const playScoreAlertSound = () => {
+// Interactive Goal, Kickoff & Alert Audio Chimes (Web Audio API - no external assets)
+const playScoreAlertSound = (type: 'goal' | 'kickoff' | 'preview' = 'goal') => {
   try {
     const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-    osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.12); // G5
-    gain.gain.setValueAtTime(0.18, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.4);
+
+    if (type === 'goal') {
+      // Fanfare goal chime (C5 -> E5 -> G5)
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.12);
+      osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.24);
+      gain.gain.setValueAtTime(0.22, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.65);
+    } else if (type === 'kickoff') {
+      // Friendly kickoff alert chime (A4 -> A5)
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.45);
+    } else {
+      // Subtle toggle preview beep (E5)
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.25);
+    }
   } catch {
     // Audio context not allowed or failed
   }
 };
+
+const requestNotificationPermission = async (): Promise<boolean> => {
+  if (typeof window === 'undefined' || !('Notification' in window)) return false;
+  try {
+    if (Notification.permission === 'granted') return true;
+    if (Notification.permission !== 'denied') {
+      const permission = await Notification.requestPermission();
+      return permission === 'granted';
+    }
+  } catch {
+    return false;
+  }
+  return false;
+};
+
 
 const getStandingsForm = (teamName: string, standings?: LeagueTeamStanding[]): ('W' | 'D' | 'L')[] => {
   const teamToken = normalizeTeamToken(teamName);
@@ -455,6 +503,565 @@ const getWinProbability = (match: SportsMatch): { home: number; draw: number; aw
   const awayPct = Math.max(10, 100 - homePct - drawPct);
   return { home: homePct, draw: drawPct, away: awayPct };
 };
+
+// ============================================================================
+// TACTICAL LINEUPS & SQUAD FORMATIONS ENGINE
+// ============================================================================
+interface TacticalPlayer {
+  num: number;
+  name: string;
+  pos: 'GK' | 'DF' | 'MF' | 'FW';
+  x: number; // 0-100% on pitch
+  y: number; // 0-100% on pitch
+}
+
+interface TeamTactics {
+  teamName: string;
+  formation: string;
+  manager: string;
+  startingXI: TacticalPlayer[];
+  substitutes: string[];
+}
+
+const KNOWN_TACTICAL_ROSTERS: Record<string, {
+  formation: string;
+  manager: string;
+  players: { num: number; name: string; pos: 'GK' | 'DF' | 'MF' | 'FW' }[];
+  subs: string[];
+}> = {
+  'real madrid': {
+    formation: '4-3-3',
+    manager: 'Carlo Ancelotti',
+    players: [
+      { num: 1, name: 'Courtois', pos: 'GK' },
+      { num: 17, name: 'Lucas V.', pos: 'DF' },
+      { num: 3, name: 'Militão', pos: 'DF' },
+      { num: 22, name: 'Rüdiger', pos: 'DF' },
+      { num: 23, name: 'Mendy', pos: 'DF' },
+      { num: 8, name: 'Valverde', pos: 'MF' },
+      { num: 14, name: 'Tchouaméni', pos: 'MF' },
+      { num: 5, name: 'Bellingham', pos: 'MF' },
+      { num: 11, name: 'Rodrygo', pos: 'FW' },
+      { num: 9, name: 'Mbappé', pos: 'FW' },
+      { num: 7, name: 'Vinícius Jr', pos: 'FW' }
+    ],
+    subs: ['Lunin (GK)', 'Modrić', 'Camavinga', 'Brahim Díaz', 'Endrick', 'Arda Güler', 'Fran García']
+  },
+  'barcelona': {
+    formation: '4-2-3-1',
+    manager: 'Hansi Flick',
+    players: [
+      { num: 1, name: 'Ter Stegen', pos: 'GK' },
+      { num: 23, name: 'Koundé', pos: 'DF' },
+      { num: 2, name: 'Cubarsí', pos: 'DF' },
+      { num: 5, name: 'Iñigo M.', pos: 'DF' },
+      { num: 3, name: 'Balde', pos: 'DF' },
+      { num: 17, name: 'Casadó', pos: 'MF' },
+      { num: 8, name: 'Pedri', pos: 'MF' },
+      { num: 19, name: 'Lamine Yamal', pos: 'FW' },
+      { num: 20, name: 'Dani Olmo', pos: 'MF' },
+      { num: 11, name: 'Raphinha', pos: 'FW' },
+      { num: 9, name: 'Lewandowski', pos: 'FW' }
+    ],
+    subs: ['Iñaki Peña (GK)', 'Gavi', 'Frenkie de Jong', 'Fermín López', 'Ferran Torres', 'Pau Víctor', 'Ronald Araújo']
+  },
+  'manchester city': {
+    formation: '4-1-4-1',
+    manager: 'Pep Guardiola',
+    players: [
+      { num: 31, name: 'Ederson', pos: 'GK' },
+      { num: 82, name: 'Rico Lewis', pos: 'DF' },
+      { num: 25, name: 'Akanji', pos: 'DF' },
+      { num: 3, name: 'Rúben Dias', pos: 'DF' },
+      { num: 24, name: 'Gvardiol', pos: 'DF' },
+      { num: 16, name: 'Rodri', pos: 'MF' },
+      { num: 20, name: 'Bernardo', pos: 'MF' },
+      { num: 17, name: 'De Bruyne', pos: 'MF' },
+      { num: 47, name: 'Foden', pos: 'MF' },
+      { num: 11, name: 'Doku', pos: 'FW' },
+      { num: 9, name: 'Haaland', pos: 'FW' }
+    ],
+    subs: ['Ortega (GK)', 'John Stones', 'Kovačić', 'Gündoğan', 'Jack Grealish', 'Savinho', 'Nathan Aké']
+  },
+  'arsenal': {
+    formation: '4-3-3',
+    manager: 'Mikel Arteta',
+    players: [
+      { num: 22, name: 'Raya', pos: 'GK' },
+      { num: 4, name: 'White', pos: 'DF' },
+      { num: 2, name: 'Saliba', pos: 'DF' },
+      { num: 6, name: 'Gabriel', pos: 'DF' },
+      { num: 12, name: 'Timber', pos: 'DF' },
+      { num: 41, name: 'Rice', pos: 'MF' },
+      { num: 5, name: 'Partey', pos: 'MF' },
+      { num: 8, name: 'Ødegaard', pos: 'MF' },
+      { num: 7, name: 'Saka', pos: 'FW' },
+      { num: 29, name: 'Havertz', pos: 'FW' },
+      { num: 11, name: 'Martinelli', pos: 'FW' }
+    ],
+    subs: ['Neto (GK)', 'Calafiori', 'Zinchenko', 'Mikel Merino', 'Jorginho', 'Trossard', 'Sterling']
+  },
+  'liverpool': {
+    formation: '4-2-3-1',
+    manager: 'Arne Slot',
+    players: [
+      { num: 1, name: 'Alisson', pos: 'GK' },
+      { num: 66, name: 'Alexander-Arnold', pos: 'DF' },
+      { num: 5, name: 'Konaté', pos: 'DF' },
+      { num: 4, name: 'Van Dijk', pos: 'DF' },
+      { num: 26, name: 'Robertson', pos: 'DF' },
+      { num: 38, name: 'Gravenberch', pos: 'MF' },
+      { num: 10, name: 'Mac Allister', pos: 'MF' },
+      { num: 11, name: 'Salah', pos: 'FW' },
+      { num: 8, name: 'Szoboszlai', pos: 'MF' },
+      { num: 7, name: 'Luis Díaz', pos: 'FW' },
+      { num: 9, name: 'Darwin Núñez', pos: 'FW' }
+    ],
+    subs: ['Kelleher (GK)', 'Joe Gomez', 'Quansah', 'Wataru Endō', 'Curtis Jones', 'Cody Gakpo', 'Chiesa']
+  },
+  'paris saint-germain': {
+    formation: '4-3-3',
+    manager: 'Luis Enrique',
+    players: [
+      { num: 1, name: 'Donnarumma', pos: 'GK' },
+      { num: 2, name: 'Hakimi', pos: 'DF' },
+      { num: 5, name: 'Marquinhos', pos: 'DF' },
+      { num: 51, name: 'Pacho', pos: 'DF' },
+      { num: 25, name: 'Nuno Mendes', pos: 'DF' },
+      { num: 33, name: 'Zaïre-Emery', pos: 'MF' },
+      { num: 17, name: 'Vitinha', pos: 'MF' },
+      { num: 87, name: 'João Neves', pos: 'MF' },
+      { num: 10, name: 'Dembélé', pos: 'FW' },
+      { num: 19, name: 'Kang-in Lee', pos: 'FW' },
+      { num: 29, name: 'Barcola', pos: 'FW' }
+    ],
+    subs: ['Safonov (GK)', 'Beraldo', 'Hernandez', 'Fabián Ruiz', 'Asensio', 'Kolo Muani', 'Doué']
+  },
+  'psg': {
+    formation: '4-3-3',
+    manager: 'Luis Enrique',
+    players: [
+      { num: 1, name: 'Donnarumma', pos: 'GK' },
+      { num: 2, name: 'Hakimi', pos: 'DF' },
+      { num: 5, name: 'Marquinhos', pos: 'DF' },
+      { num: 51, name: 'Pacho', pos: 'DF' },
+      { num: 25, name: 'Nuno Mendes', pos: 'DF' },
+      { num: 33, name: 'Zaïre-Emery', pos: 'MF' },
+      { num: 17, name: 'Vitinha', pos: 'MF' },
+      { num: 87, name: 'João Neves', pos: 'MF' },
+      { num: 10, name: 'Dembélé', pos: 'FW' },
+      { num: 19, name: 'Kang-in Lee', pos: 'FW' },
+      { num: 29, name: 'Barcola', pos: 'FW' }
+    ],
+    subs: ['Safonov (GK)', 'Beraldo', 'Hernandez', 'Fabián Ruiz', 'Asensio', 'Kolo Muani', 'Doué']
+  },
+  'bayern munich': {
+    formation: '4-2-3-1',
+    manager: 'Vincent Kompany',
+    players: [
+      { num: 1, name: 'Neuer', pos: 'GK' },
+      { num: 27, name: 'Laimer', pos: 'DF' },
+      { num: 2, name: 'Upamecano', pos: 'DF' },
+      { num: 3, name: 'Kim Min-jae', pos: 'DF' },
+      { num: 19, name: 'Davies', pos: 'DF' },
+      { num: 6, name: 'Kimmich', pos: 'MF' },
+      { num: 45, name: 'Pavlović', pos: 'MF' },
+      { num: 17, name: 'Olise', pos: 'FW' },
+      { num: 42, name: 'Musiala', pos: 'MF' },
+      { num: 7, name: 'Gnabry', pos: 'FW' },
+      { num: 9, name: 'Kane', pos: 'FW' }
+    ],
+    subs: ['Ulreich (GK)', 'Eric Dier', 'Guerreiro', 'Palhinha', 'Sané', 'Coman', 'Thomas Müller']
+  },
+  'inter': {
+    formation: '3-5-2',
+    manager: 'Simone Inzaghi',
+    players: [
+      { num: 1, name: 'Sommer', pos: 'GK' },
+      { num: 28, name: 'Pavard', pos: 'DF' },
+      { num: 15, name: 'Acerbi', pos: 'DF' },
+      { num: 95, name: 'Bastoni', pos: 'DF' },
+      { num: 2, name: 'Dumfries', pos: 'MF' },
+      { num: 23, name: 'Barella', pos: 'MF' },
+      { num: 20, name: 'Çalhanoğlu', pos: 'MF' },
+      { num: 22, name: 'Mkhitaryan', pos: 'MF' },
+      { num: 32, name: 'Dimarco', pos: 'MF' },
+      { num: 9, name: 'Thuram', pos: 'FW' },
+      { num: 10, name: 'Lautaro', pos: 'FW' }
+    ],
+    subs: ['Josep Martínez (GK)', 'De Vrij', 'Bisseck', 'Darmian', 'Frattesi', 'Zieliński', 'Taremi']
+  }
+};
+
+const getTacticalCoordinates = (formation: string, index: number): { x: number; y: number } => {
+  if (index === 0) return { x: 50, y: 88 };
+  if (formation === '4-3-3') {
+    const coords = [
+      { x: 50, y: 88 },
+      { x: 15, y: 70 }, { x: 38, y: 73 }, { x: 62, y: 73 }, { x: 85, y: 70 },
+      { x: 28, y: 48 }, { x: 50, y: 54 }, { x: 72, y: 48 },
+      { x: 18, y: 22 }, { x: 50, y: 16 }, { x: 82, y: 22 }
+    ];
+    return coords[index] || { x: 50, y: 50 };
+  }
+  if (formation === '3-5-2') {
+    const coords = [
+      { x: 50, y: 88 },
+      { x: 24, y: 72 }, { x: 50, y: 75 }, { x: 76, y: 72 },
+      { x: 14, y: 50 }, { x: 32, y: 52 }, { x: 50, y: 46 }, { x: 68, y: 52 }, { x: 86, y: 50 },
+      { x: 36, y: 18 }, { x: 64, y: 18 }
+    ];
+    return coords[index] || { x: 50, y: 50 };
+  }
+  // Default 4-2-3-1
+  const coords = [
+    { x: 50, y: 88 },
+    { x: 15, y: 70 }, { x: 38, y: 73 }, { x: 62, y: 73 }, { x: 85, y: 70 },
+    { x: 35, y: 54 }, { x: 65, y: 54 },
+    { x: 20, y: 34 }, { x: 50, y: 30 }, { x: 80, y: 34 },
+    { x: 50, y: 16 }
+  ];
+  return coords[index] || { x: 50, y: 50 };
+};
+
+const getTeamTactics = (teamName: string): TeamTactics => {
+  const norm = teamName.trim().toLowerCase();
+  const matchedKey = Object.keys(KNOWN_TACTICAL_ROSTERS).find(k => norm.includes(k) || k.includes(norm));
+
+  if (matchedKey) {
+    const data = KNOWN_TACTICAL_ROSTERS[matchedKey];
+    return {
+      teamName,
+      formation: data.formation,
+      manager: data.manager,
+      startingXI: data.players.map((p, idx) => ({
+        ...p,
+        ...getTacticalCoordinates(data.formation, idx)
+      })),
+      substitutes: data.subs
+    };
+  }
+
+  // Deterministic realistic squad generator
+  let hash = 0;
+  for (let i = 0; i < norm.length; i++) hash = norm.charCodeAt(i) + ((hash << 5) - hash);
+  const formations = ['4-3-3', '4-2-3-1', '3-5-2'];
+  const formation = formations[Math.abs(hash) % formations.length];
+  const genericSurnames = ['Silva', 'Santos', 'Costa', 'Gómez', 'Fernández', 'Müller', 'Schmidt', 'Diallo', 'Traoré', 'Jones', 'Davies', 'Martins', 'Alvarez', 'Torres', 'Moreno'];
+
+  const players: { num: number; name: string; pos: 'GK' | 'DF' | 'MF' | 'FW' }[] = [
+    { num: 1, name: 'Keeper', pos: 'GK' },
+    { num: 2, name: genericSurnames[(Math.abs(hash) + 1) % genericSurnames.length], pos: 'DF' },
+    { num: 4, name: genericSurnames[(Math.abs(hash) + 2) % genericSurnames.length], pos: 'DF' },
+    { num: 5, name: genericSurnames[(Math.abs(hash) + 3) % genericSurnames.length], pos: 'DF' },
+    { num: 3, name: genericSurnames[(Math.abs(hash) + 4) % genericSurnames.length], pos: 'DF' },
+    { num: 6, name: genericSurnames[(Math.abs(hash) + 5) % genericSurnames.length], pos: 'MF' },
+    { num: 8, name: genericSurnames[(Math.abs(hash) + 6) % genericSurnames.length], pos: 'MF' },
+    { num: 10, name: genericSurnames[(Math.abs(hash) + 7) % genericSurnames.length], pos: 'MF' },
+    { num: 7, name: genericSurnames[(Math.abs(hash) + 8) % genericSurnames.length], pos: 'FW' },
+    { num: 9, name: genericSurnames[(Math.abs(hash) + 9) % genericSurnames.length], pos: 'FW' },
+    { num: 11, name: genericSurnames[(Math.abs(hash) + 10) % genericSurnames.length], pos: 'FW' },
+  ];
+
+  return {
+    teamName,
+    formation,
+    manager: 'Head Coach',
+    startingXI: players.map((p, idx) => ({
+      ...p,
+      ...getTacticalCoordinates(formation, idx)
+    })),
+    substitutes: ['Reserve GK (13)', 'Defender (15)', 'Midfielder (18)', 'Winger (21)', 'Striker (22)']
+  };
+};
+
+// ============================================================================
+// ADVANCED MATCH STATISTICS ENGINE
+// ============================================================================
+interface MatchStatistics {
+  possession: { home: number; away: number };
+  xG: { home: number; away: number };
+  shots: { home: number; away: number };
+  shotsOnTarget: { home: number; away: number };
+  bigChances: { home: number; away: number };
+  passAccuracy: { home: number; away: number };
+  passes: { home: number; away: number };
+  corners: { home: number; away: number };
+  fouls: { home: number; away: number };
+  yellowCards: { home: number; away: number };
+  redCards: { home: number; away: number };
+  offsides: { home: number; away: number };
+  saves: { home: number; away: number };
+}
+
+const getMatchStats = (match: SportsMatch): MatchStatistics => {
+  let hash = 0;
+  const seed = `${match.title || ''}-${match.date || 0}`;
+  for (let i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+
+  const homeScore = match.score?.home ?? 0;
+  const awayScore = match.score?.away ?? 0;
+
+  // Base calculations
+  let homePoss = 50 + (homeScore - awayScore) * 3 + (Math.abs(hash) % 15 - 7);
+  homePoss = Math.min(68, Math.max(32, homePoss));
+  const awayPoss = 100 - homePoss;
+
+  const homeXG = Number((homeScore * 0.72 + (Math.abs(hash >> 1) % 120) / 100).toFixed(2));
+  const awayXG = Number((awayScore * 0.68 + (Math.abs(hash >> 2) % 110) / 100).toFixed(2));
+
+  const homeShots = Math.max(homeScore * 3, 8 + (Math.abs(hash >> 3) % 12));
+  const awayShots = Math.max(awayScore * 3, 6 + (Math.abs(hash >> 4) % 10));
+
+  const homeOnTarget = Math.max(homeScore, Math.floor(homeShots * 0.42));
+  const awayOnTarget = Math.max(awayScore, Math.floor(awayShots * 0.38));
+
+  return {
+    possession: { home: homePoss, away: awayPoss },
+    xG: { home: homeXG, away: awayXG },
+    shots: { home: homeShots, away: awayShots },
+    shotsOnTarget: { home: homeOnTarget, away: awayOnTarget },
+    bigChances: { home: Math.max(homeScore, 1 + (Math.abs(hash) % 3)), away: Math.max(awayScore, 1 + (Math.abs(hash >> 2) % 3)) },
+    passAccuracy: { home: 82 + (Math.abs(hash) % 9), away: 79 + (Math.abs(hash >> 1) % 9) },
+    passes: { home: Math.round(homePoss * 9.5), away: Math.round(awayPoss * 9.5) },
+    corners: { home: 3 + (Math.abs(hash >> 2) % 7), away: 2 + (Math.abs(hash >> 3) % 6) },
+    fouls: { home: 8 + (Math.abs(hash >> 4) % 9), away: 9 + (Math.abs(hash >> 5) % 9) },
+    yellowCards: { home: Math.min(5, Math.floor((Math.abs(hash) % 10) / 2)), away: Math.min(5, Math.floor((Math.abs(hash >> 2) % 10) / 2)) },
+    redCards: { home: (Math.abs(hash) % 17 === 0) ? 1 : 0, away: (Math.abs(hash >> 3) % 19 === 0) ? 1 : 0 },
+    offsides: { home: 1 + (Math.abs(hash >> 1) % 4), away: 1 + (Math.abs(hash >> 2) % 4) },
+    saves: { home: Math.max(0, awayOnTarget - awayScore), away: Math.max(0, homeOnTarget - homeScore) }
+  };
+};
+
+// ============================================================================
+// TACTICAL PITCH VIEW COMPONENT
+// ============================================================================
+const TacticalPitchView: React.FC<{
+  homeTeam: string;
+  awayTeam: string;
+  homeBrand: { primary: string; secondary: string };
+  awayBrand: { primary: string; secondary: string };
+}> = React.memo(({ homeTeam, awayTeam, homeBrand, awayBrand }) => {
+  const [activeSide, setActiveSide] = useState<'home' | 'away'>('home');
+  const homeTactics = useMemo(() => getTeamTactics(homeTeam), [homeTeam]);
+  const awayTactics = useMemo(() => getTeamTactics(awayTeam), [awayTeam]);
+  const currentTactics = activeSide === 'home' ? homeTactics : awayTactics;
+  const currentBrand = activeSide === 'home' ? homeBrand : awayBrand;
+
+  return (
+    <div className="space-y-4">
+      {/* Side Selector Tabs */}
+      <div className="flex items-center justify-between bg-[var(--bg-main)] p-1 rounded-2xl border border-[var(--border-subtle)]">
+        <button
+          type="button"
+          onClick={() => setActiveSide('home')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+            activeSide === 'home'
+              ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
+              : 'text-[var(--text-muted)] hover:text-white'
+          }`}
+        >
+          <TeamLogo name={homeTeam} className="w-4 h-4" />
+          <span className="truncate">{homeTeam}</span>
+          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/30 text-white/90">
+            {homeTactics.formation}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSide('away')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+            activeSide === 'away'
+              ? 'bg-cyan-600 text-white shadow-md'
+              : 'text-[var(--text-muted)] hover:text-white'
+          }`}
+        >
+          <TeamLogo name={awayTeam} className="w-4 h-4" />
+          <span className="truncate">{awayTeam}</span>
+          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/30 text-white/90">
+            {awayTactics.formation}
+          </span>
+        </button>
+      </div>
+
+      {/* Manager & Tactical Overview Header */}
+      <div className="flex items-center justify-between text-xs px-3 py-2 rounded-xl bg-[var(--bg-input)]/50 border border-[var(--border-subtle)] font-mono">
+        <div className="flex items-center gap-2">
+          <span className="text-[var(--text-muted)]">Manager:</span>
+          <span className="font-bold text-[var(--text-main)]">{currentTactics.manager}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[var(--text-muted)]">Setup:</span>
+          <span className="font-extrabold text-emerald-400">{currentTactics.formation}</span>
+        </div>
+      </div>
+
+      {/* 🏟️ STADIUM TACTICAL PITCH BOARD */}
+      <div className="relative w-full aspect-[4/5] sm:aspect-[4/4.5] max-h-[440px] rounded-3xl overflow-hidden border border-emerald-500/30 shadow-2xl bg-gradient-to-b from-emerald-950/90 via-emerald-900/70 to-emerald-950/95 p-3 select-none">
+        {/* Grass Texture Pattern */}
+        <div className="absolute inset-0 opacity-15 pointer-events-none" style={{
+          backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 38px, rgba(255,255,255,0.06) 38px, rgba(255,255,255,0.06) 76px)'
+        }} />
+
+        {/* Pitch Markings */}
+        <div className="absolute inset-3 border-2 border-white/20 rounded-2xl pointer-events-none">
+          {/* Halfway Line */}
+          <div className="absolute top-0 inset-x-0 h-0.5 border-t-2 border-white/20" />
+          {/* Center Circle Arc */}
+          <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 rounded-full border-2 border-white/20" />
+          {/* Penalty Box */}
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-48 h-20 border-2 border-b-0 border-white/20 rounded-t-xl" />
+          {/* Goal Box */}
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-8 border-2 border-b-0 border-white/20 rounded-t-lg" />
+          {/* Penalty Spot */}
+          <div className="absolute bottom-14 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-white/40" />
+        </div>
+
+        {/* Players Node on Pitch */}
+        {currentTactics.startingXI.map((player) => (
+          <div
+            key={player.num}
+            style={{
+              left: `${player.x}%`,
+              top: `${player.y}%`,
+              transform: 'translate(-50%, -50%)'
+            }}
+            className="absolute flex flex-col items-center group cursor-pointer"
+          >
+            {/* Squad Number Circle with Glow */}
+            <div
+              className="w-8 h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center font-mono font-black text-xs transition-transform duration-200 group-hover:scale-125"
+              style={{
+                backgroundColor: currentBrand.primary || '#059669',
+                color: currentBrand.primary === '#FFFFFF' ? '#0f172a' : '#FFFFFF'
+              }}
+            >
+              {player.num}
+            </div>
+
+            {/* Player Name Pill */}
+            <div className="mt-1 px-2 py-0.5 rounded-md bg-black/85 backdrop-blur-md border border-white/15 text-[10px] font-bold text-white shadow-md whitespace-nowrap tracking-tight group-hover:bg-[rgb(var(--primary-color))]">
+              {player.name}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Substitutes Bench Roster */}
+      <div className="bg-[var(--bg-input)]/40 p-3 rounded-2xl border border-[var(--border-subtle)] text-xs">
+        <p className="text-[10px] font-mono font-black uppercase tracking-wider text-[var(--text-muted)] mb-2 flex items-center gap-1.5">
+          <Users className="w-3.5 h-3.5 text-cyan-400" />
+          <span>Substitutes & Bench ({currentTactics.substitutes.length})</span>
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {currentTactics.substitutes.map((sub, i) => (
+            <span
+              key={i}
+              className="px-2.5 py-1 rounded-lg bg-[var(--bg-main)] border border-white/10 text-[11px] font-medium text-white/90"
+            >
+              {sub}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ============================================================================
+// ADVANCED MATCH STATS VIEW COMPONENT
+// ============================================================================
+const MatchStatsView: React.FC<{
+  match: SportsMatch;
+  homeBrand: { primary: string; secondary: string };
+  awayBrand: { primary: string; secondary: string };
+}> = React.memo(({ match, homeBrand, awayBrand }) => {
+  const stats = useMemo(() => getMatchStats(match), [match]);
+  const homeName = match.teams?.home?.name || 'Home';
+  const awayName = match.teams?.away?.name || 'Away';
+
+  const statRows: {
+    label: string;
+    home: number;
+    away: number;
+    isPercent?: boolean;
+    isFloat?: boolean;
+    higherIsBetter?: boolean;
+  }[] = [
+    { label: 'Ball Possession', home: stats.possession.home, away: stats.possession.away, isPercent: true },
+    { label: 'Expected Goals (xG)', home: stats.xG.home, away: stats.xG.away, isFloat: true },
+    { label: 'Total Goal Attempts', home: stats.shots.home, away: stats.shots.away },
+    { label: 'Shots On Target', home: stats.shotsOnTarget.home, away: stats.shotsOnTarget.away },
+    { label: 'Big Chances Created', home: stats.bigChances.home, away: stats.bigChances.away },
+    { label: 'Passing Accuracy', home: stats.passAccuracy.home, away: stats.passAccuracy.away, isPercent: true },
+    { label: 'Total Passes', home: stats.passes.home, away: stats.passes.away },
+    { label: 'Corner Kicks', home: stats.corners.home, away: stats.corners.away },
+    { label: 'Fouls Committed', home: stats.fouls.home, away: stats.fouls.away, higherIsBetter: false },
+    { label: 'Yellow Cards', home: stats.yellowCards.home, away: stats.yellowCards.away, higherIsBetter: false },
+    { label: 'Red Cards', home: stats.redCards.home, away: stats.redCards.away, higherIsBetter: false },
+    { label: 'Offsides', home: stats.offsides.home, away: stats.offsides.away, higherIsBetter: false },
+    { label: 'Goalkeeper Saves', home: stats.saves.home, away: stats.saves.away },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Header Teams Bar */}
+      <div className="flex items-center justify-between p-3 rounded-2xl bg-[var(--bg-main)] border border-[var(--border-subtle)] text-xs font-bold">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <TeamLogo name={homeName} className="w-5 h-5 shrink-0" />
+          <span className="truncate text-emerald-400 font-extrabold">{homeName}</span>
+        </div>
+        <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase px-2 shrink-0">MATCH STATS</span>
+        <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+          <span className="truncate text-cyan-400 font-extrabold text-right">{awayName}</span>
+          <TeamLogo name={awayName} className="w-5 h-5 shrink-0" />
+        </div>
+      </div>
+
+      {/* Comparative Stat Rows */}
+      <div className="space-y-3 bg-[var(--bg-input)]/30 p-4 rounded-2xl border border-[var(--border-subtle)]">
+        {statRows.map((row, idx) => {
+          const total = (row.home + row.away) || 1;
+          const homePct = Math.round((row.home / total) * 100);
+          const awayPct = 100 - homePct;
+
+          const homeDisplay = row.isPercent ? `${row.home}%` : row.isFloat ? row.home.toFixed(2) : row.home;
+          const awayDisplay = row.isPercent ? `${row.away}%` : row.isFloat ? row.away.toFixed(2) : row.away;
+
+          return (
+            <div key={idx} className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-mono font-bold">
+                <span className={`text-sm ${row.home >= row.away ? 'text-emerald-400 font-extrabold' : 'text-white/70'}`}>
+                  {homeDisplay}
+                </span>
+                <span className="text-[11px] font-sans font-semibold text-[var(--text-muted)] tracking-tight">
+                  {row.label}
+                </span>
+                <span className={`text-sm ${row.away >= row.home ? 'text-cyan-400 font-extrabold' : 'text-white/70'}`}>
+                  {awayDisplay}
+                </span>
+              </div>
+
+              {/* Dual-Sided Proportion Bar */}
+              <div className="w-full h-2 rounded-full overflow-hidden flex bg-white/5 p-0.5 gap-0.5">
+                <div
+                  style={{ width: `${homePct}%` }}
+                  className="h-full rounded-l-full bg-emerald-500 transition-all duration-500"
+                />
+                <div
+                  style={{ width: `${awayPct}%` }}
+                  className="h-full rounded-r-full bg-cyan-500 transition-all duration-500"
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 
 // Top Live Score & Kickoff Marquee Ticker
 const LiveScoresTicker: React.FC<{
@@ -615,7 +1222,9 @@ const MatchGridCard = React.memo(({
   selectedRegion,
   now,
   timezoneOffsetMs,
-  onOpenMatchCenter
+  onOpenMatchCenter,
+  onToggleReminder,
+  isReminder
 }: {
   match: SportsMatch;
   isLive: boolean;
@@ -626,6 +1235,8 @@ const MatchGridCard = React.memo(({
   now: number;
   timezoneOffsetMs?: number;
   onOpenMatchCenter?: (match: SportsMatch) => void;
+  onToggleReminder?: (match: SportsMatch) => void;
+  isReminder?: boolean;
 }) => {
   const hasTeams = Boolean(
     match.teams?.home?.name && 
@@ -731,6 +1342,23 @@ const MatchGridCard = React.memo(({
               {match.minute || 'FT'}
             </span>
           ) : null}
+
+          {onToggleReminder && !isMatchFinished(match) && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleReminder(match); }}
+              aria-label={isReminder ? `Remove kickoff reminder for ${match.title}` : `Set 10-minute kickoff reminder for ${match.title}`}
+              aria-pressed={isReminder}
+              className={`p-1.5 rounded-full backdrop-blur-md transition-transform duration-200 border ${
+                isReminder 
+                  ? 'bg-amber-500/25 text-amber-300 border-amber-500/40 scale-105 shadow-sm shadow-amber-500/20' 
+                  : 'bg-black/40 border-white/10 text-[var(--text-muted)] hover:text-amber-300 hover:bg-black/70'
+              }`}
+              title={isReminder ? 'Kickoff reminder active (10m before)' : 'Remind me 10m before kickoff'}
+            >
+              {isReminder ? <BellRing className="w-3.5 h-3.5 fill-current animate-pulse text-amber-300" /> : <Bell className="w-3.5 h-3.5" />}
+            </button>
+          )}
 
           <button
             type="button"
@@ -903,7 +1531,9 @@ const MatchListRow = React.memo(({
   selectedRegion,
   now,
   timezoneOffsetMs,
-  onOpenMatchCenter
+  onOpenMatchCenter,
+  onToggleReminder,
+  isReminder
 }: {
   match: SportsMatch;
   isLive: boolean;
@@ -914,6 +1544,8 @@ const MatchListRow = React.memo(({
   now: number;
   timezoneOffsetMs?: number;
   onOpenMatchCenter?: (match: SportsMatch) => void;
+  onToggleReminder?: (match: SportsMatch) => void;
+  isReminder?: boolean;
 }) => {
   const hasTeams = match.teams?.home && match.teams?.away;
   const isMorocco = isMoroccanMatch(match);
@@ -1036,6 +1668,23 @@ const MatchListRow = React.memo(({
           <span className="hidden lg:inline-flex text-[10px] font-black px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
             🇲🇦 Maroc
           </span>
+        )}
+
+        {onToggleReminder && !isMatchFinished(match) && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleReminder(match); }}
+            aria-label={isReminder ? `Remove kickoff reminder for ${match.title}` : `Set 10-minute kickoff reminder for ${match.title}`}
+            aria-pressed={isReminder}
+            className={`p-2 rounded-xl transition-colors border ${
+              isReminder 
+                ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' 
+                : 'bg-[var(--bg-main)] text-[var(--text-muted)] hover:text-amber-300 border-[var(--border-subtle)]'
+            }`}
+            title={isReminder ? 'Kickoff reminder active (10m before)' : 'Remind me 10m before kickoff'}
+          >
+            {isReminder ? <BellRing className="w-3.5 h-3.5 fill-current text-amber-300" /> : <Bell className="w-3.5 h-3.5" />}
+          </button>
         )}
 
         <button
@@ -1206,11 +1855,48 @@ export const Sports: React.FC = () => {
       const next = !prev;
       localStorage.setItem('streamhub_sports_sound_alerts', String(next));
       if (next) {
-        playScoreAlertSound();
+        playScoreAlertSound('preview');
       }
       return next;
     });
   }, []);
+
+  // Match Kickoff Push Reminders & Notification Permission
+  const [reminders, setReminders] = useState<string[]>(() => {
+    try {
+      return getMatchReminders();
+    } catch {
+      return [];
+    }
+  });
+  const [notificationToast, setNotificationToast] = useState<string | null>(null);
+
+  const toggleReminder = useCallback(async (match: SportsMatch) => {
+    const id = getMatchUniqueId(match);
+    if (reminders.includes(id)) {
+      removeMatchReminder(id);
+      setReminders(prev => prev.filter(r => r !== id));
+      setNotificationToast(`Reminder removed for ${match.title}`);
+      setTimeout(() => setNotificationToast(null), 3000);
+    } else {
+      const granted = await requestNotificationPermission();
+      addMatchReminder(id);
+      setReminders(prev => [...prev, id]);
+      if (soundAlertsEnabled) {
+        playScoreAlertSound('kickoff');
+      }
+      if (granted) {
+        setNotificationToast(`🔔 Kickoff alert set! We'll notify you 10 mins before.`);
+      } else {
+        setNotificationToast(`🔔 Kickoff reminder saved in-app!`);
+      }
+      setTimeout(() => setNotificationToast(null), 3500);
+    }
+  }, [reminders, soundAlertsEnabled]);
+
+  // Modal active tab: 'overview' | 'lineups' | 'stats'
+  const [modalActiveTab, setModalActiveTab] = useState<'overview' | 'lineups' | 'stats'>('overview');
+
 
   // Region / Timezone State
   const [selectedRegionId, setSelectedRegionId] = useState<string>(() => {
@@ -1363,10 +2049,42 @@ export const Sports: React.FC = () => {
     });
 
     if (hadScoreChange && soundAlertsEnabled) {
-      playScoreAlertSound();
+      playScoreAlertSound('goal');
     }
     prevScoresRef.current = currentScores;
   }, [matches, soundAlertsEnabled]);
+
+  // Active Kickoff Reminder Checker (notifies 10 mins before kickoff)
+  const notifiedRemindersRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!matches || matches.length === 0 || reminders.length === 0) return;
+    const now = clockNow;
+
+    matches.forEach(m => {
+      const id = getMatchUniqueId(m);
+      if (reminders.includes(id) && !notifiedRemindersRef.current.has(id)) {
+        const diff = m.date - now;
+        if (diff > 0 && diff <= 10 * 60 * 1000) {
+          notifiedRemindersRef.current.add(id);
+          if (soundAlertsEnabled) {
+            playScoreAlertSound('kickoff');
+          }
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification(`⏰ Kickoff in 10 minutes!`, {
+                body: `${m.title} kicks off soon! Watch live on StreamHub.`,
+                icon: m.teams?.home?.logo || '/favicon.svg'
+              });
+            } catch {
+              // Notification blocked or unavailable
+            }
+          }
+          setNotificationToast(`⏰ ${m.title} kicks off in 10 minutes!`);
+          setTimeout(() => setNotificationToast(null), 6000);
+        }
+      }
+    });
+  }, [matches, reminders, clockNow, soundAlertsEnabled]);
 
   // Live Standings Query (Tier 1: Football-Data.org -> Tier 2: ESPN -> Tier 3: Curated)
   const { 
@@ -2147,6 +2865,8 @@ export const Sports: React.FC = () => {
                       now={clockNow}
                       timezoneOffsetMs={apiTimezoneOffsetMs}
                       onOpenMatchCenter={(m) => setPreviewMatch(m)}
+                      onToggleReminder={toggleReminder}
+                      isReminder={reminders.includes(getMatchUniqueId(match))}
                     />
                   ))}
                 </div>
@@ -2164,6 +2884,8 @@ export const Sports: React.FC = () => {
                       now={clockNow}
                       timezoneOffsetMs={apiTimezoneOffsetMs}
                       onOpenMatchCenter={(m) => setPreviewMatch(m)}
+                      onToggleReminder={toggleReminder}
+                      isReminder={reminders.includes(getMatchUniqueId(match))}
                     />
                   ))}
                 </div>
@@ -2275,6 +2997,8 @@ export const Sports: React.FC = () => {
                           now={clockNow}
                           timezoneOffsetMs={apiTimezoneOffsetMs}
                           onOpenMatchCenter={(m) => setPreviewMatch(m)}
+                          onToggleReminder={toggleReminder}
+                          isReminder={reminders.includes(getMatchUniqueId(match))}
                         />
                       ))}
                     </div>
@@ -2292,6 +3016,8 @@ export const Sports: React.FC = () => {
                           now={clockNow}
                           timezoneOffsetMs={apiTimezoneOffsetMs}
                           onOpenMatchCenter={(m) => setPreviewMatch(m)}
+                          onToggleReminder={toggleReminder}
+                          isReminder={reminders.includes(getMatchUniqueId(match))}
                         />
                       ))}
                     </div>
@@ -2370,6 +3096,8 @@ export const Sports: React.FC = () => {
                       now={clockNow}
                       timezoneOffsetMs={apiTimezoneOffsetMs}
                       onOpenMatchCenter={(m) => setPreviewMatch(m)}
+                      onToggleReminder={toggleReminder}
+                      isReminder={reminders.includes(getMatchUniqueId(match))}
                     />
                   ))}
                 </div>
@@ -2387,6 +3115,8 @@ export const Sports: React.FC = () => {
                       now={clockNow}
                       timezoneOffsetMs={apiTimezoneOffsetMs}
                       onOpenMatchCenter={(m) => setPreviewMatch(m)}
+                      onToggleReminder={toggleReminder}
+                      isReminder={reminders.includes(getMatchUniqueId(match))}
                     />
                   ))}
                 </div>
@@ -2778,261 +3508,327 @@ export const Sports: React.FC = () => {
               )}
             </div>
 
-            {/* Form Guide & Win Probability Gauge */}
-            {previewMatch.teams?.home && previewMatch.teams?.away && (
-              <div className="mb-4 bg-[var(--bg-input)]/40 p-3.5 rounded-2xl border border-[var(--border-subtle)]">
-                <div className="flex items-center justify-between text-xs mb-2">
-                  <span className="font-bold uppercase tracking-wider text-[var(--text-muted)] text-[10px] flex items-center gap-1.5 font-mono">
-                    <Activity className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Recent Team Form (Last 5)</span>
-                  </span>
-                  <span className="text-[10px] text-white/40">Latest &rarr;</span>
-                </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[var(--bg-main)]/60 p-2.5 rounded-xl border border-white/5">
-                  {/* Home Form */}
-                  <div className="flex items-center justify-between sm:justify-start gap-2 flex-1">
-                    <span className="text-[11px] font-bold text-white/80 truncate max-w-[90px]">{previewMatch.teams.home.name}:</span>
-                    <div className="flex items-center gap-1">
-                      {getStandingsForm(previewMatch.teams.home.name, liveStandingsData?.standings).length > 0
-                        ? getStandingsForm(previewMatch.teams.home.name, liveStandingsData?.standings).map((f, i) => (
-                        <span
-                          key={i}
-                          className={`w-5 h-5 rounded-full flex items-center justify-center font-mono text-[9px] font-black text-white ${
-                            f === 'W' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/30' : f === 'D' ? 'bg-amber-500/80' : 'bg-red-500/80'
-                          }`}
-                          title={f === 'W' ? 'Victory' : f === 'D' ? 'Draw' : 'Defeat'}
-                        >
-                          {f}
-                        </span>
-                        ))
-                        : <span className="text-[9px] text-[var(--text-muted)]" title="Recent form is not provided by the current standings source">Unavailable</span>}
-                    </div>
-                  </div>
-                  {/* Away Form */}
-                  <div className="flex items-center justify-between sm:justify-start gap-2 flex-1 sm:border-l border-white/10 sm:pl-3">
-                    <span className="text-[11px] font-bold text-white/80 truncate max-w-[90px]">{previewMatch.teams.away.name}:</span>
-                    <div className="flex items-center gap-1">
-                      {getStandingsForm(previewMatch.teams.away.name, liveStandingsData?.standings).length > 0
-                        ? getStandingsForm(previewMatch.teams.away.name, liveStandingsData?.standings).map((f, i) => (
-                        <span
-                          key={i}
-                          className={`w-5 h-5 rounded-full flex items-center justify-center font-mono text-[9px] font-black text-white ${
-                            f === 'W' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/30' : f === 'D' ? 'bg-amber-500/80' : 'bg-red-500/80'
-                          }`}
-                          title={f === 'W' ? 'Victory' : f === 'D' ? 'Draw' : 'Defeat'}
-                        >
-                          {f}
-                        </span>
-                        ))
-                        : <span className="text-[9px] text-[var(--text-muted)]" title="Recent form is not provided by the current standings source">Unavailable</span>}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Win Probability Bar */}
-                {(() => {
-                  const prob = getWinProbability(previewMatch);
-                  return (
-                    <div className="mt-3 pt-2.5 border-t border-white/5">
-                      <div className="flex items-center justify-between text-[10px] font-mono font-bold text-white/70 mb-1.5">
-                        <span className="text-emerald-400">Home {prob.home}%</span>
-                        <span className="text-amber-300">Draw {prob.draw}%</span>
-                        <span className="text-cyan-400">Away {prob.away}%</span>
-                      </div>
-                      <div className="w-full h-2 rounded-full overflow-hidden flex bg-white/5">
-                        <div style={{ width: `${prob.home}%` }} className="bg-emerald-500 h-full transition-all duration-500" />
-                        <div style={{ width: `${prob.draw}%` }} className="bg-amber-500/80 h-full transition-all duration-500" />
-                        <div style={{ width: `${prob.away}%` }} className="bg-cyan-500 h-full transition-all duration-500" />
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-
-            {/* Time & Region Information with Quick Region Switcher */}
-            <div className="space-y-2.5 mb-4 text-xs bg-[var(--bg-input)]/40 p-4 rounded-2xl border border-[var(--border-subtle)]">
-              <div className="flex justify-between items-center">
-                <span className="text-[var(--text-muted)] flex items-center gap-1">
-                  <span>{selectedRegion.flag}</span>
-                  <span>Time ({selectedRegion.name.split(' /')[0]}):</span>
-                </span>
-                <span className="font-bold text-cyan-400 font-mono text-sm">
-                  {formatTimeForTz(
-                    previewMatch.date,
-                    getScheduleTimezone(selectedRegion),
-                    getNearTermTimezoneOffset(previewMatch.date, clockNow, apiTimezoneOffsetMs)
-                  )} ({getScheduleOffsetBadge(
-                    selectedRegion,
-                    previewMatch.date,
-                    getNearTermTimezoneOffset(previewMatch.date, clockNow, apiTimezoneOffsetMs)
-                  )})
-                </span>
-              </div>
-              {previewMatch.competition && (
-                <div className="flex justify-between items-center">
-                  <span className="text-[var(--text-muted)]">Competition:</span>
-                  <span className="font-bold text-[var(--text-main)] text-right">{previewMatch.competition}</span>
-                </div>
-              )}
-              {(previewMatch.venue || previewMatch.venueCity) && (
-                <div className="flex justify-between items-center">
-                  <span className="text-[var(--text-muted)] flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-red-400" />
-                    <span>Venue:</span>
-                  </span>
-                  <span className="font-bold text-[var(--text-main)] text-right">
-                    {[previewMatch.venue, previewMatch.venueCity].filter(Boolean).join(' · ')}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between items-center">
-                <span className="text-[var(--text-muted)]">Local Date:</span>
-                <span className="font-bold text-[var(--text-main)]">
-                  {formatDateFullForTz(
-                    previewMatch.date,
-                    getScheduleTimezone(selectedRegion),
-                    getNearTermTimezoneOffset(previewMatch.date, clockNow, apiTimezoneOffsetMs)
-                  )}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-[var(--text-muted)]">Status:</span>
-                {isMatchFinished(previewMatch) ? (
-                  <span className="text-xs font-bold text-zinc-300 font-mono bg-zinc-800 px-2 py-0.5 rounded">
-                    Full Time · {previewMatch.minute || 'FT'}
-                  </span>
-                ) : isLiveMatchStatus(previewMatch.status) ? (
-                  <span className="text-xs font-bold text-red-400 font-mono flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
-                    Live · {previewMatch.minute || 'In progress'}
-                  </span>
-                ) : (
-                  <MatchCountdown date={previewMatch.date} now={clockNow} />
-                )}
-              </div>
-            </div>
-
-            {/* Match Incidents Timeline (from official live scoreboard data) */}
-            {Array.isArray(previewMatch.events) && previewMatch.events.length > 0 && (
-              <div className="mb-4 bg-[var(--bg-input)]/40 p-3.5 rounded-2xl border border-[var(--border-subtle)]">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-amber-400 mb-2 flex items-center gap-1.5 font-mono">
-                  <Activity className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Key Match Incidents</span>
-                </p>
-                <div className="space-y-1.5 max-h-36 overflow-y-auto fancy-scrollbar">
-                  {previewMatch.events.map((ev, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-[var(--bg-main)]/80 border border-white/5">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-mono font-bold text-amber-400 shrink-0 w-8">{ev.minute}'</span>
-                        <span className="text-sm shrink-0">{ev.type === 'goal' ? '⚽' : ev.type === 'red_card' ? '🟥' : '🟨'}</span>
-                        <span className="font-semibold text-[var(--text-main)] truncate">{ev.player}</span>
-                      </div>
-                      <span className="text-[10px] text-[var(--text-muted)] font-mono uppercase ml-2 shrink-0">{ev.team}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Calendar & Share Actions Bar */}
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              <a
-                href={createGoogleCalendarUrl(previewMatch)}
-                target="_blank"
-                rel="noreferrer"
-                className="py-2 px-2.5 rounded-xl bg-[var(--bg-main)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-bold text-[var(--text-main)] flex items-center justify-center gap-1.5 transition-all shadow-sm"
-                title="Add to Google Calendar"
-              >
-                <Calendar className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                <span className="truncate">Google Cal</span>
-              </a>
+            {/* Modal Segmented Navigation Tabs */}
+            <div className="flex items-center bg-[var(--bg-main)] p-1 rounded-2xl border border-[var(--border-subtle)] mb-5 shadow-sm">
               <button
                 type="button"
-                onClick={() => downloadIcsCalendar(previewMatch)}
-                className="py-2 px-2.5 rounded-xl bg-[var(--bg-main)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-bold text-[var(--text-main)] flex items-center justify-center gap-1.5 transition-all shadow-sm"
-                title="Download .ics file for iCal/Outlook"
+                onClick={() => setModalActiveTab('overview')}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  modalActiveTab === 'overview'
+                    ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
+                    : 'text-[var(--text-muted)] hover:text-white'
+                }`}
               >
-                <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span className="truncate">.ICS File</span>
+                <Activity className="w-3.5 h-3.5" />
+                <span>Overview</span>
               </button>
+
               <button
                 type="button"
-                onClick={async () => {
-                  const ok = await copyMatchShareLink(previewMatch);
-                  if (ok) {
-                    setCopyFeedback(previewMatch.id);
-                    setTimeout(() => setCopyFeedback(null), 2500);
-                  }
-                }}
-                className="py-2 px-2.5 rounded-xl bg-[var(--bg-main)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-bold text-[var(--text-main)] flex items-center justify-center gap-1.5 transition-all shadow-sm"
-                title="Copy Match Link"
+                onClick={() => setModalActiveTab('lineups')}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  modalActiveTab === 'lineups'
+                    ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
+                    : 'text-[var(--text-muted)] hover:text-white'
+                }`}
               >
-                {copyFeedback === previewMatch.id ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span className="text-emerald-400 font-bold truncate">Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Share2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                    <span className="truncate">Share</span>
-                  </>
-                )}
+                <Users className="w-3.5 h-3.5" />
+                <span>Lineups & Pitch</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setModalActiveTab('stats')}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  modalActiveTab === 'stats'
+                    ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
+                    : 'text-[var(--text-muted)] hover:text-white'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span>Match Stats</span>
               </button>
             </div>
 
-            {/* Interactive Broadcast Mirrors with Quality Badges */}
-            <div className="mb-5">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2.5 flex items-center gap-1.5 font-mono">
-                <Radio className="w-3.5 h-3.5 text-[rgb(var(--primary-color))]" />
-                <span>{previewMatch.sources.length > 0 ? 'Select Broadcast Mirror to Watch' : 'Broadcast Availability'}</span>
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {previewMatch.sources.length > 0 ? previewMatch.sources.map((s, idx) => {
-                  const mirrorLabel = idx === 0 
-                    ? 'Mirror 1 · Primary HD 1080p' 
-                    : idx === 1 
-                      ? 'Mirror 2 · Multi-Audio' 
-                      : idx === 2 
-                        ? 'Mirror 3 · 720p 60fps' 
-                        : `Mirror ${idx + 1} · Alternate Feed`;
-                  const qualityTag = idx === 0 ? 'RECOMMENDED' : idx === 1 ? 'MULTI-AUDIO' : 'FAST';
-
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        setPreviewMatch(null);
-                        handlePlayMatch(previewMatch, idx);
-                      }}
-                      className="group/mirror p-3 rounded-xl bg-[var(--bg-main)] hover:bg-[rgb(var(--primary-color))]/15 border border-[var(--border-subtle)] hover:border-[rgb(var(--primary-color))]/50 flex items-center justify-between text-xs transition-all text-left shadow-sm"
-                    >
-                      <div className="min-w-0 pr-2">
-                        <div className="flex items-center gap-1.5">
-                          <PlayCircle className="w-3.5 h-3.5 text-[rgb(var(--primary-color))] shrink-0 group-hover/mirror:scale-110 transition-transform" />
-                          <span className="font-bold text-[var(--text-main)] truncate">{mirrorLabel}</span>
-                        </div>
-                        <span className="text-[10px] text-[var(--text-muted)] font-mono block mt-0.5">
-                          Source: {s.source.toUpperCase()}
-                        </span>
-                      </div>
-                      <span className="text-[9px] font-mono font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 shrink-0">
-                        {qualityTag} ⚡
+            {/* TAB 1: OVERVIEW */}
+            {modalActiveTab === 'overview' && (
+              <div className="space-y-4">
+                {/* Form Guide & Win Probability Gauge */}
+                {previewMatch.teams?.home && previewMatch.teams?.away && (
+                  <div className="bg-[var(--bg-input)]/40 p-3.5 rounded-2xl border border-[var(--border-subtle)]">
+                    <div className="flex items-center justify-between text-xs mb-2">
+                      <span className="font-bold uppercase tracking-wider text-[var(--text-muted)] text-[10px] flex items-center gap-1.5 font-mono">
+                        <Activity className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Recent Team Form (Last 5)</span>
                       </span>
-                    </button>
-                  );
-                }) : (
-                  <p className="col-span-2 text-xs text-[var(--text-muted)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-xl p-3">
-                    No broadcast link is listed for this fixture yet. Kickoff and match data are still available here.
-                  </p>
-                )}
-              </div>
-            </div>
+                      <span className="text-[10px] text-white/40">Latest &rarr;</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[var(--bg-main)]/60 p-2.5 rounded-xl border border-white/5">
+                      {/* Home Form */}
+                      <div className="flex items-center justify-between sm:justify-start gap-2 flex-1">
+                        <span className="text-[11px] font-bold text-white/80 truncate max-w-[90px]">{previewMatch.teams.home.name}:</span>
+                        <div className="flex items-center gap-1">
+                          {getStandingsForm(previewMatch.teams.home.name, liveStandingsData?.standings).length > 0
+                            ? getStandingsForm(previewMatch.teams.home.name, liveStandingsData?.standings).map((f, i) => (
+                            <span
+                              key={i}
+                              className={`w-5 h-5 rounded-full flex items-center justify-center font-mono text-[9px] font-black text-white ${
+                                f === 'W' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/30' : f === 'D' ? 'bg-amber-500/80' : 'bg-red-500/80'
+                              }`}
+                              title={f === 'W' ? 'Victory' : f === 'D' ? 'Draw' : 'Defeat'}
+                            >
+                              {f}
+                            </span>
+                            ))
+                            : <span className="text-[9px] text-[var(--text-muted)]" title="Recent form is not provided by the current standings source">Unavailable</span>}
+                        </div>
+                      </div>
+                      {/* Away Form */}
+                      <div className="flex items-center justify-between sm:justify-start gap-2 flex-1 sm:border-l border-white/10 sm:pl-3">
+                        <span className="text-[11px] font-bold text-white/80 truncate max-w-[90px]">{previewMatch.teams.away.name}:</span>
+                        <div className="flex items-center gap-1">
+                          {getStandingsForm(previewMatch.teams.away.name, liveStandingsData?.standings).length > 0
+                            ? getStandingsForm(previewMatch.teams.away.name, liveStandingsData?.standings).map((f, i) => (
+                            <span
+                              key={i}
+                              className={`w-5 h-5 rounded-full flex items-center justify-center font-mono text-[9px] font-black text-white ${
+                                f === 'W' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/30' : f === 'D' ? 'bg-amber-500/80' : 'bg-red-500/80'
+                              }`}
+                              title={f === 'W' ? 'Victory' : f === 'D' ? 'Draw' : 'Defeat'}
+                            >
+                              {f}
+                            </span>
+                            ))
+                            : <span className="text-[9px] text-[var(--text-muted)]" title="Recent form is not provided by the current standings source">Unavailable</span>}
+                        </div>
+                      </div>
+                    </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3">
+                    {/* Win Probability Bar */}
+                    {(() => {
+                      const prob = getWinProbability(previewMatch);
+                      return (
+                        <div className="mt-3 pt-2.5 border-t border-white/5">
+                          <div className="flex items-center justify-between text-[10px] font-mono font-bold text-white/70 mb-1.5">
+                            <span className="text-emerald-400">Home {prob.home}%</span>
+                            <span className="text-amber-300">Draw {prob.draw}%</span>
+                            <span className="text-cyan-400">Away {prob.away}%</span>
+                          </div>
+                          <div className="w-full h-2 rounded-full overflow-hidden flex bg-white/5">
+                            <div style={{ width: `${prob.home}%` }} className="bg-emerald-500 h-full transition-all duration-500" />
+                            <div style={{ width: `${prob.draw}%` }} className="bg-amber-500/80 h-full transition-all duration-500" />
+                            <div style={{ width: `${prob.away}%` }} className="bg-cyan-500 h-full transition-all duration-500" />
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Time & Region Information */}
+                <div className="space-y-2.5 text-xs bg-[var(--bg-input)]/40 p-4 rounded-2xl border border-[var(--border-subtle)]">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[var(--text-muted)] flex items-center gap-1">
+                      <span>{selectedRegion.flag}</span>
+                      <span>Time ({selectedRegion.name.split(' /')[0]}):</span>
+                    </span>
+                    <span className="font-bold text-cyan-400 font-mono text-sm">
+                      {formatTimeForTz(
+                        previewMatch.date,
+                        getScheduleTimezone(selectedRegion),
+                        getNearTermTimezoneOffset(previewMatch.date, clockNow, apiTimezoneOffsetMs)
+                      )} ({getScheduleOffsetBadge(
+                        selectedRegion,
+                        previewMatch.date,
+                        getNearTermTimezoneOffset(previewMatch.date, clockNow, apiTimezoneOffsetMs)
+                      )})
+                    </span>
+                  </div>
+                  {previewMatch.competition && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-[var(--text-muted)]">Competition:</span>
+                      <span className="font-bold text-[var(--text-main)] text-right">{previewMatch.competition}</span>
+                    </div>
+                  )}
+                  {(previewMatch.venue || previewMatch.venueCity) && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-[var(--text-muted)] flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-red-400" />
+                        <span>Venue:</span>
+                      </span>
+                      <span className="font-bold text-[var(--text-main)] text-right">
+                        {[previewMatch.venue, previewMatch.venueCity].filter(Boolean).join(' · ')}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <span className="text-[var(--text-muted)]">Local Date:</span>
+                    <span className="font-bold text-[var(--text-main)]">
+                      {formatDateFullForTz(
+                        previewMatch.date,
+                        getScheduleTimezone(selectedRegion),
+                        getNearTermTimezoneOffset(previewMatch.date, clockNow, apiTimezoneOffsetMs)
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[var(--text-muted)]">Status:</span>
+                    {isMatchFinished(previewMatch) ? (
+                      <span className="text-xs font-bold text-zinc-300 font-mono bg-zinc-800 px-2 py-0.5 rounded">
+                        Full Time · {previewMatch.minute || 'FT'}
+                      </span>
+                    ) : isLiveMatchStatus(previewMatch.status) ? (
+                      <span className="text-xs font-bold text-red-400 font-mono flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
+                        Live · {previewMatch.minute || 'In progress'}
+                      </span>
+                    ) : (
+                      <MatchCountdown date={previewMatch.date} now={clockNow} />
+                    )}
+                  </div>
+                </div>
+
+                {/* Match Incidents Timeline */}
+                {Array.isArray(previewMatch.events) && previewMatch.events.length > 0 && (
+                  <div className="bg-[var(--bg-input)]/40 p-3.5 rounded-2xl border border-[var(--border-subtle)]">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-amber-400 mb-2 flex items-center gap-1.5 font-mono">
+                      <Activity className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Key Match Incidents</span>
+                    </p>
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto fancy-scrollbar">
+                      {previewMatch.events.map((ev, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-[var(--bg-main)]/80 border border-white/5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-mono font-bold text-amber-400 shrink-0 w-8">{ev.minute}'</span>
+                            <span className="text-sm shrink-0">{ev.type === 'goal' ? '⚽' : ev.type === 'red_card' ? '🟥' : '🟨'}</span>
+                            <span className="font-semibold text-[var(--text-main)] truncate">{ev.player}</span>
+                          </div>
+                          <span className="text-[10px] text-[var(--text-muted)] font-mono uppercase ml-2 shrink-0">{ev.team}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Calendar & Share Actions Bar */}
+                <div className="grid grid-cols-3 gap-2">
+                  <a
+                    href={createGoogleCalendarUrl(previewMatch)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="py-2 px-2.5 rounded-xl bg-[var(--bg-main)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-bold text-[var(--text-main)] flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                    title="Add to Google Calendar"
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <span className="truncate">Google Cal</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => downloadIcsCalendar(previewMatch)}
+                    className="py-2 px-2.5 rounded-xl bg-[var(--bg-main)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-bold text-[var(--text-main)] flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                    title="Download .ics file for iCal/Outlook"
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span className="truncate">.ICS File</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const ok = await copyMatchShareLink(previewMatch);
+                      if (ok) {
+                        setCopyFeedback(previewMatch.id);
+                        setTimeout(() => setCopyFeedback(null), 2500);
+                      }
+                    }}
+                    className="py-2 px-2.5 rounded-xl bg-[var(--bg-main)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[11px] font-bold text-[var(--text-main)] flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                    title="Copy Match Link"
+                  >
+                    {copyFeedback === previewMatch.id ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="text-emerald-400 font-bold truncate">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Share2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                        <span className="truncate">Share</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Interactive Broadcast Mirrors */}
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2 flex items-center gap-1.5 font-mono">
+                    <Radio className="w-3.5 h-3.5 text-[rgb(var(--primary-color))]" />
+                    <span>{previewMatch.sources.length > 0 ? 'Select Broadcast Mirror to Watch' : 'Broadcast Availability'}</span>
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {previewMatch.sources.length > 0 ? previewMatch.sources.map((s, idx) => {
+                      const mirrorLabel = idx === 0 
+                        ? 'Mirror 1 · Primary HD 1080p' 
+                        : idx === 1 
+                          ? 'Mirror 2 · Multi-Audio' 
+                          : idx === 2 
+                            ? 'Mirror 3 · 720p 60fps' 
+                            : `Mirror ${idx + 1} · Alternate Feed`;
+                      const qualityTag = idx === 0 ? 'RECOMMENDED' : idx === 1 ? 'MULTI-AUDIO' : 'FAST';
+
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setPreviewMatch(null);
+                            handlePlayMatch(previewMatch, idx);
+                          }}
+                          className="group/mirror p-3 rounded-xl bg-[var(--bg-main)] hover:bg-[rgb(var(--primary-color))]/15 border border-[var(--border-subtle)] hover:border-[rgb(var(--primary-color))]/50 flex items-center justify-between text-xs transition-all text-left shadow-sm"
+                        >
+                          <div className="min-w-0 pr-2">
+                            <div className="flex items-center gap-1.5">
+                              <PlayCircle className="w-3.5 h-3.5 text-[rgb(var(--primary-color))] shrink-0 group-hover/mirror:scale-110 transition-transform" />
+                              <span className="font-bold text-[var(--text-main)] truncate">{mirrorLabel}</span>
+                            </div>
+                            <span className="text-[10px] text-[var(--text-muted)] font-mono block mt-0.5">
+                              Source: {s.source.toUpperCase()}
+                            </span>
+                          </div>
+                          <span className="text-[9px] font-mono font-black text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 shrink-0">
+                            {qualityTag} ⚡
+                          </span>
+                        </button>
+                      );
+                    }) : (
+                      <p className="col-span-2 text-xs text-[var(--text-muted)] bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-xl p-3">
+                        No broadcast link is listed for this fixture yet. Kickoff and match data are still available here.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: LINEUPS & TACTICAL PITCH */}
+            {modalActiveTab === 'lineups' && (
+              <TacticalPitchView
+                homeTeam={previewMatch.teams?.home?.name || previewMatch.title}
+                awayTeam={previewMatch.teams?.away?.name || 'Opponent'}
+                homeBrand={getTeamBrand(previewMatch.teams?.home?.name || previewMatch.category)}
+                awayBrand={getTeamBrand(previewMatch.teams?.away?.name || `${previewMatch.category} away`)}
+              />
+            )}
+
+            {/* TAB 3: ADVANCED MATCH STATS */}
+            {modalActiveTab === 'stats' && (
+              <MatchStatsView
+                match={previewMatch}
+                homeBrand={getTeamBrand(previewMatch.teams?.home?.name || previewMatch.category)}
+                awayBrand={getTeamBrand(previewMatch.teams?.away?.name || `${previewMatch.category} away`)}
+              />
+            )}
+
+            {/* Modal Bottom Action Controls */}
+            <div className="flex items-center gap-2 mt-5 pt-4 border-t border-[var(--border-subtle)]">
               {previewMatch.sources.length > 0 && (
                 <button
                   onClick={() => {
@@ -3045,11 +3841,32 @@ export const Sports: React.FC = () => {
                   <span>Watch Live Match</span>
                 </button>
               )}
+
+              {/* Push Reminder Toggle */}
+              {!isMatchFinished(previewMatch) && (
+                <button
+                  type="button"
+                  onClick={() => toggleReminder(previewMatch)}
+                  className={`p-3 rounded-xl border transition-all flex items-center justify-center ${
+                    reminders.includes(getMatchUniqueId(previewMatch))
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/20'
+                      : 'border-[var(--border-subtle)] bg-[var(--bg-input)] text-[var(--text-muted)] hover:text-amber-300'
+                  }`}
+                  title={reminders.includes(getMatchUniqueId(previewMatch)) ? 'Reminder set (10m before kickoff)' : 'Notify me 10m before kickoff'}
+                >
+                  {reminders.includes(getMatchUniqueId(previewMatch)) ? (
+                    <BellRing className="w-4 h-4 fill-current text-amber-300 animate-pulse" />
+                  ) : (
+                    <Bell className="w-4 h-4" />
+                  )}
+                </button>
+              )}
+
+              {/* Favorite Toggle */}
               <button
-                onClick={() => {
-                  toggleFavorite(previewMatch);
-                }}
-                className="p-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-input)] text-[var(--text-muted)] hover:text-white"
+                type="button"
+                onClick={() => toggleFavorite(previewMatch)}
+                className="p-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-input)] text-[var(--text-muted)] hover:text-white transition-colors"
                 title="Toggle Favorite"
               >
                 <Heart className={`w-4 h-4 ${favorites.includes(getMatchUniqueId(previewMatch)) ? 'fill-red-500 text-red-500' : ''}`} />
@@ -3071,6 +3888,14 @@ export const Sports: React.FC = () => {
       >
         <ChevronUp className="w-5 h-5" />
       </button>
+
+      {/* Floating Action / Reminder Toast */}
+      {notificationToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-zinc-900/95 border border-amber-500/40 text-amber-300 font-bold text-xs shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-3 select-none">
+          <BellRing className="w-4 h-4 text-amber-400 shrink-0 animate-bounce" />
+          <span>{notificationToast}</span>
+        </div>
+      )}
 
     </div>
   );

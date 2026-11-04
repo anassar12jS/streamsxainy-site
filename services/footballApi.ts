@@ -249,8 +249,8 @@ export const getLiveLeagueStandings = async (leagueId: string, forceRefresh = fa
       if (espnStandings.length > 0) {
         const result: LiveStandingsResult = {
           leagueId,
-          name: data.name || fallbackTable.name,
-          season: data.children?.[0]?.standings?.seasonDisplayName || fallbackTable.season,
+          name: fallbackTable.name,
+          season: fallbackTable.season || '2026/2027',
           isLive: true,
           standings: espnStandings,
           lastUpdated: Date.now(),
