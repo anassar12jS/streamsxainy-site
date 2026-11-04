@@ -2,6 +2,27 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Guard against environments or extensions attempting to patch window.fetch
+      // where Window.prototype.fetch is defined with only a getter.
+      (function() {
+        try {
+          if (typeof window !== 'undefined' && 'fetch' in window) {
+            var currentFetch = window.fetch;
+            Object.defineProperty(window, 'fetch', {
+              get: function() {
+                return currentFetch;
+              },
+              set: function(newFetch) {
+                currentFetch = newFetch;
+              },
+              configurable: true,
+              enumerable: true
+            });
+          }
+        } catch (e) {}
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>StreamHub anas</title>
     <meta name="description" content="A movie and TV show discovery platform powered by TMDB." />
