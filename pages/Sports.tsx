@@ -32,6 +32,7 @@ import { LEAGUE_TABLES, LeagueTeamStanding } from '../data/sportsStandings';
 import { REGIONS, RegionOption } from '../constants/regions';
 import { getLiveLeagueStandings, getLeagueTopScorers } from '../services/footballApi';
 import { getTeamLogoUrl, CLUB_BRAND_COLORS } from '../data/clubLogos';
+import { useSyncedClock, formatMatchCountdown, getSyncedNow } from '../services/clockSync';
 
 // Team initials / fallback color generator
 const generateColor = (name: string) => {
@@ -292,37 +293,19 @@ const getEffectiveMatchDate = (dateNum: number) => dateNum;
 
 // Dynamic Countdown Badge
 const MatchCountdown = React.memo(({ date, now }: { date: number; now: number }) => {
-  const [timeLeft, setTimeLeft] = useState('');
+  const countdown = useMemo(() => formatMatchCountdown(date, now), [date, now]);
 
-  useEffect(() => {
-    const update = () => {
-      const diff = date - now;
-      if (diff <= 0) {
-        setTimeLeft('Starting Soon');
-        return;
-      }
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-      if (hours >= 48) {
-        const days = Math.floor(hours / 24);
-        setTimeLeft(`${days}d away`);
-      } else if (hours >= 24) {
-        const days = Math.floor(hours / 24);
-        setTimeLeft(`${days}d ${hours % 24}h`);
-      } else {
-        setTimeLeft(`${hours}h ${mins}m`);
-      }
-    };
-
-    update();
-  }, [date, now]);
-
-  if (!timeLeft) return null;
+  if (!countdown.isUpcoming) {
+    return (
+      <span className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/25 whitespace-nowrap backdrop-blur-sm shadow-sm">
+        <Timer className="w-3.5 h-3.5 text-amber-400 shrink-0" /> Starting Soon
+      </span>
+    );
+  }
 
   return (
     <span className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/25 whitespace-nowrap backdrop-blur-sm shadow-sm">
-      <Timer className="w-3.5 h-3.5 text-amber-400 shrink-0" /> {timeLeft}
+      <Timer className="w-3.5 h-3.5 text-amber-400 shrink-0" /> {countdown.shortLabel}
     </span>
   );
 });
@@ -1927,95 +1910,14 @@ export const Sports: React.FC = () => {
   // Match Center Modal State
   const [previewMatch, setPreviewMatch] = useState<SportsMatch | null>(null);
 
-  // Live Digital Clock Ticker in Selected Region
-  const [currentRegionTime, setCurrentRegionTime] = useState('');
-  const [currentRegionDate, setCurrentRegionDate] = useState('');
-  const [clockNow, setClockNow] = useState(() => Date.now());
-  const [apiTimezoneOffsetMs, setApiTimezoneOffsetMs] = useState<number>();
-  const [apiTimezoneOffsetLabel, setApiTimezoneOffsetLabel] = useState('');
-
-  useEffect(() => {
-    let active = true;
-    let anchor: { epochMs: number; monotonicMs: number; offsetMs: number } | null = null;
-    let controller: AbortController | null = null;
-    let lastClockStateUpdate = 0;
-    setApiTimezoneOffsetMs(undefined);
-    setApiTimezoneOffsetLabel('');
-
-    const updateClock = () => {
-      const nowMs = anchor
-        ? anchor.epochMs + (performance.now() - anchor.monotonicMs)
-        : Date.now();
-      const displayDate = new Date(nowMs + (anchor?.offsetMs || 0));
-      const displayTimezone = anchor ? 'UTC' : selectedRegion.tz;
-      const timeStr = formatDateInTimezone(displayDate, displayTimezone, 'en-GB', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      });
-
-      const dateStr = formatDateInTimezone(displayDate, displayTimezone, 'en-GB', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      });
-
-      if (!active) return;
-      if (!lastClockStateUpdate || Math.abs(nowMs - lastClockStateUpdate) >= 15000) {
-        lastClockStateUpdate = nowMs;
-        setClockNow(nowMs);
-      }
-      setCurrentRegionTime(timeStr);
-      setCurrentRegionDate(dateStr);
-    };
-
-    const syncClock = async () => {
-      const requestController = new AbortController();
-      controller = requestController;
-      const timeoutId = window.setTimeout(() => requestController.abort(), 8000);
-
-      try {
-        const response = await fetch(
-          `https://time.now/developer/api/time?timezone=${encodeURIComponent(selectedRegion.tz)}`,
-          { signal: requestController.signal }
-        );
-        if (!response.ok) throw new Error(`Time service returned ${response.status}`);
-
-        const data = await response.json() as { timezone?: string; unixtime?: number; utc_offset?: string };
-        const offsetMs = data.utc_offset ? parseUtcOffsetMs(data.utc_offset) : undefined;
-        if (data.timezone !== selectedRegion.tz || typeof data.unixtime !== 'number' || offsetMs === undefined) {
-          throw new Error('Time service returned an invalid clock response');
-        }
-
-        if (!active) return;
-        anchor = { epochMs: data.unixtime * 1000, monotonicMs: performance.now(), offsetMs };
-        setApiTimezoneOffsetMs(offsetMs);
-        setApiTimezoneOffsetLabel(formatUtcOffset(data.utc_offset!));
-        updateClock();
-      } catch {
-        if (!active) return;
-        anchor = null;
-        setApiTimezoneOffsetMs(undefined);
-        setApiTimezoneOffsetLabel('');
-        updateClock();
-      } finally {
-        window.clearTimeout(timeoutId);
-      }
-    };
-
-    updateClock();
-    void syncClock();
-    const clockInterval = setInterval(updateClock, 1000);
-    const syncInterval = setInterval(() => { void syncClock(); }, 60000);
-    return () => {
-      active = false;
-      controller?.abort();
-      clearInterval(clockInterval);
-      clearInterval(syncInterval);
-    };
-  }, [selectedRegion.tz, selectedRegion.id]);
+  // Live Digital Clock Ticker in Selected Region via Centralized Synchronized Clock
+  const {
+    syncedNow: clockNow,
+    timeStr: currentRegionTime,
+    dateStr: currentRegionDate,
+    offsetMs: apiTimezoneOffsetMs,
+    offsetLabel: apiTimezoneOffsetLabel
+  } = useSyncedClock(selectedRegion);
 
   const selectedRegionOffset = apiTimezoneOffsetLabel || getScheduleOffsetBadge(selectedRegion);
   const getRegionOffsetLabel = (regionId: string, tz: string) => (

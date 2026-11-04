@@ -15,6 +15,12 @@ import {
   getFavoriteSportsMatches
 } from '../services/storage';
 import { REGIONS, RegionOption } from '../constants/regions';
+import {
+  getSyncedNow,
+  useSyncedClock,
+  formatDateInTimezone,
+  formatMatchCountdown
+} from '../services/clockSync';
 
 const getSportIcon = (cat?: string) => {
   const c = (cat || '').toLowerCase();
@@ -30,26 +36,6 @@ const getSportIcon = (cat?: string) => {
   return '🏆';
 };
 
-const getScheduleTimezone = (region: RegionOption): string => {
-  if (region.id === 'morocco' || region.tz === 'UTC' || region.scheduleTz === 'Africa/Casablanca') return 'UTC';
-  return region.scheduleTz || region.tz || 'UTC';
-};
-
-const getTimezoneOffset = (dateNum: number, timeZone: string): string => {
-  if (timeZone === 'UTC' || timeZone === 'Africa/Casablanca') return 'UTC';
-  try {
-    const offset = new Intl.DateTimeFormat('en', {
-      timeZone,
-      timeZoneName: 'shortOffset'
-    } as unknown as Intl.DateTimeFormatOptions)
-      .formatToParts(new Date(dateNum))
-      .find(part => part.type === 'timeZoneName')?.value;
-    return offset || 'UTC';
-  } catch {
-    return 'UTC';
-  }
-};
-
 export const SportsPlayer: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -63,7 +49,7 @@ export const SportsPlayer: React.FC = () => {
         id: channel.id,
         title: `${channel.name}`,
         category: channel.category.toLowerCase(),
-        date: Date.now() - 30 * 60 * 1000,
+        date: getSyncedNow() - 30 * 60 * 1000,
         popular: true,
         sources: [
           { source: 'streamfree', id: channel.daddyliveId }
@@ -91,12 +77,6 @@ export const SportsPlayer: React.FC = () => {
   // Favorites
   const [isFav, setIsFav] = useState(false);
 
-  // Time / Live calculation
-  const [isUpcoming, setIsUpcoming] = useState(() => Boolean(
-    match && !isMatchFinished(match) && !isLiveMatchStatus(match.status) && match.date - Date.now() > 15 * 60 * 1000
-  ));
-  const [timeToStart, setTimeToStart] = useState<string>('');
-
   // Live Scoreboard & Commentary Switcher States
   const [selectedLanguageFilter, setSelectedLanguageFilter] = useState<string>('all');
   const [showEventsTimeline, setShowEventsTimeline] = useState<boolean>(false);
@@ -122,25 +102,43 @@ export const SportsPlayer: React.FC = () => {
     return REGIONS.find(r => r.id === selectedRegionId) || REGIONS[0];
   }, [selectedRegionId]);
 
+  // Synchronized clock with time.now API (identical to Sports.tsx)
+  const { syncedNow, offsetMs, offsetLabel } = useSyncedClock(selectedRegion);
+
+  // User manually bypasses pre-match countdown screen to test mirrors early
+  const [bypassUpcoming, setBypassUpcoming] = useState(false);
+
+  // Authoritative countdown calculation: guarantees 100% agreement with Sports.tsx
+  const countdown = useMemo(() => {
+    if (!match?.date) return null;
+    return formatMatchCountdown(match.date, syncedNow);
+  }, [match?.date, syncedNow]);
+
+  const isUpcomingMatch = useMemo(() => {
+    if (!match || isMatchFinished(match) || isLiveMatchStatus(match.status)) return false;
+    return Boolean(countdown && countdown.isUpcoming && countdown.totalMs > 15 * 60 * 1000);
+  }, [match, countdown]);
+
+  const isUpcoming = isUpcomingMatch && !bypassUpcoming;
+  const timeToStart = countdown?.fullLabel || '';
+
   const regionTimeStr = useMemo(() => {
     if (!match?.date) return '';
-    return new Intl.DateTimeFormat('en-GB', {
-      timeZone: getScheduleTimezone(selectedRegion),
+    return formatDateInTimezone(new Date(match.date), selectedRegion.tz, 'en-GB', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false
-    }).format(new Date(match.date));
-  }, [match?.date, selectedRegion]);
+    }, offsetMs);
+  }, [match?.date, selectedRegion.tz, offsetMs]);
 
   const regionDateStr = useMemo(() => {
     if (!match?.date) return '';
-    return new Intl.DateTimeFormat('en-GB', {
-      timeZone: getScheduleTimezone(selectedRegion),
+    return formatDateInTimezone(new Date(match.date), selectedRegion.tz, 'en-GB', {
       weekday: 'short',
       day: 'numeric',
       month: 'short'
-    }).format(new Date(match.date));
-  }, [match?.date, selectedRegion]);
+    }, offsetMs);
+  }, [match?.date, selectedRegion.tz, offsetMs]);
 
   // Fetch all matches for the "Other Live Matches" row
   const { data: allMatches = [] } = useQuery({
@@ -152,15 +150,14 @@ export const SportsPlayer: React.FC = () => {
   // Calculate live matches excluding this one
   const otherLiveMatches = useMemo(() => {
     if (!match) return [];
-    const now = Date.now();
     return allMatches.filter(m => {
       if (m.id === match.id || m.title === match.title) return false;
-      const diff = m.date - now;
+      const diff = m.date - syncedNow;
       return !isMatchFinished(m) && (
         isLiveMatchStatus(m.status) || (diff < 15 * 60 * 1000 && diff > -getExpectedMatchDurationMs(m.category))
       );
     }).slice(0, 6);
-  }, [allMatches, match]);
+  }, [allMatches, match, syncedNow]);
 
   useEffect(() => {
     if (!match) {
@@ -171,34 +168,6 @@ export const SportsPlayer: React.FC = () => {
     // Check favorite status
     const favs = getFavoriteSportsMatches();
     setIsFav(favs.includes(match.id));
-
-    // Check upcoming status
-    const diff = match.date - Date.now();
-    if (!isMatchFinished(match) && !isLiveMatchStatus(match.status) && diff > 15 * 60 * 1000) {
-      setIsUpcoming(true);
-      const updateTimer = () => {
-        const d = match.date - Date.now();
-        if (d <= 0) {
-          setIsUpcoming(false);
-          return;
-        }
-        const hrs = Math.floor(d / (1000 * 60 * 60));
-        const mins = Math.floor((d % (1000 * 60 * 60)) / (1000 * 60));
-        const secs = Math.floor((d % (1000 * 60)) / 1000);
-        if (hrs >= 24) {
-          const days = Math.floor(hrs / 24);
-          setTimeToStart(`${days}d ${hrs % 24}h`);
-        } else {
-          setTimeToStart(`${hrs}h ${mins}m ${secs}s`);
-        }
-      };
-      updateTimer();
-      const interval = setInterval(updateTimer, 1000);
-      return () => clearInterval(interval);
-    } else {
-      setIsUpcoming(false);
-      setTimeToStart('');
-    }
 
     // Auto-select and fetch requested or first source if available
     if (match.sources && match.sources.length > 0) {
@@ -366,7 +335,7 @@ export const SportsPlayer: React.FC = () => {
                 {regionTimeStr && (
                   <>
                     <span className="text-[10px] font-mono font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
-                      {selectedRegion.flag} {regionTimeStr} ({getTimezoneOffset(match.date, getScheduleTimezone(selectedRegion))}) · {regionDateStr}
+                      {selectedRegion.flag} {regionTimeStr} ({offsetLabel}) · {regionDateStr}
                     </span>
                     <span>•</span>
                   </>
@@ -488,7 +457,7 @@ export const SportsPlayer: React.FC = () => {
                 <div className="mt-6 flex flex-wrap gap-3">
                   <button
                     type="button"
-                    onClick={() => setIsUpcoming(false)}
+                    onClick={() => setBypassUpcoming(true)}
                     className="px-6 py-2.5 rounded-xl bg-[rgb(var(--primary-color))] text-white font-bold text-xs hover:scale-105 transition-transform shadow-lg shadow-[rgb(var(--primary-color))]/30 flex items-center gap-2"
                   >
                     <Play className="w-4 h-4 fill-white" />
@@ -908,7 +877,7 @@ export const SportsPlayer: React.FC = () => {
               <div className="flex items-center gap-1.5 mt-1 font-mono">
                 <Clock className="w-3.5 h-3.5 text-cyan-400" />
                 <span className="font-bold text-[var(--text-main)]">
-                  {selectedRegion.flag} {regionTimeStr || new Date(match.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({getTimezoneOffset(match.date, getScheduleTimezone(selectedRegion))})
+                  {selectedRegion.flag} {regionTimeStr || new Date(match.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({offsetLabel})
                 </span>
               </div>
               <span className="mt-2 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-[var(--bg-input)] border border-[var(--border-subtle)]">
