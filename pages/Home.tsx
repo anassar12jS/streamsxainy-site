@@ -603,24 +603,14 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
           <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-end pb-16 sm:pb-20">
             <div className="max-w-2xl flex flex-col gap-3.5">
               
-              {/* Badges Line */}
-              <div className="flex flex-wrap items-center gap-2.5 animate-fade-in">
-                <span className="inline-flex items-center gap-1.5 py-1 px-3 rounded-full bg-gradient-to-r from-red-600 to-rose-600 text-white text-xs font-black tracking-wider uppercase shadow-lg shadow-red-900/30">
-                  <TrendingUp className="w-3.5 h-3.5" /> #{heroIndex + 1} Spotlight
+              {/* Eyebrow Kicker */}
+              <div className="flex items-center gap-2 text-xs font-bold tracking-wider uppercase animate-fade-in">
+                <span className="flex items-center gap-1.5 text-rose-400">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>Spotlight #{heroIndex + 1}</span>
                 </span>
-
-                <span className="inline-flex items-center gap-1 py-1 px-2.5 rounded-full bg-black/40 backdrop-blur-md text-amber-400 text-xs font-bold border border-white/10">
-                  <Star className="w-3.5 h-3.5 fill-amber-400" />
-                  {currentHero.vote_average ? currentHero.vote_average.toFixed(1) : '8.5'}
-                </span>
-
-                <span className="text-xs font-semibold px-2 py-0.5 rounded border border-white/20 bg-black/30 backdrop-blur-sm text-white/90 uppercase tracking-wider font-mono">
-                  {currentHero.media_type === 'tv' ? 'Series' : 'Movie'}
-                </span>
-
-                <span className="text-xs text-white/70 font-medium">
-                  {(currentHero.first_air_date || currentHero.release_date)?.split('-')[0]}
-                </span>
+                <span className="text-white/30">·</span>
+                <span className="text-white/60 font-medium tracking-wide">Trending Worldwide</span>
               </div>
 
               {/* Title */}
@@ -628,8 +618,28 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 {currentHero.title || currentHero.name}
               </h1>
 
+              {/* Metadata Row */}
+              <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm font-medium text-white/80 animate-fade-in">
+                <span className="flex items-center gap-1.5 text-amber-400 font-bold">
+                  <Star className="w-3.5 h-3.5 fill-amber-400 shrink-0" />
+                  <span>{currentHero.vote_average ? currentHero.vote_average.toFixed(1) : '8.5'}</span>
+                </span>
+                <span className="text-white/30">·</span>
+                <span className="text-white/90 font-semibold">
+                  {currentHero.media_type === 'tv' ? 'TV Series' : 'Feature Film'}
+                </span>
+                <span className="text-white/30">·</span>
+                <span className="text-white/70">
+                  {(currentHero.first_air_date || currentHero.release_date)?.split('-')[0]}
+                </span>
+                <span className="text-white/30">·</span>
+                <span className="text-emerald-400 font-semibold text-xs uppercase tracking-wider">
+                  Ultra HD 4K
+                </span>
+              </div>
+
               {/* Synopsis */}
-              <p className="text-gray-200/90 text-sm sm:text-base line-clamp-3 max-w-xl drop-shadow-md font-normal leading-relaxed animate-fade-in">
+              <p className="text-zinc-200/90 text-sm sm:text-base line-clamp-3 max-w-xl drop-shadow-sm font-normal leading-relaxed animate-fade-in">
                 {currentHero.overview}
               </p>
 

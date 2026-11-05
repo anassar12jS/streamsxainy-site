@@ -26,6 +26,7 @@ const getThemeHex = () => {
 
 export const PROVIDERS = [
   { id: 'vidy', name: 'Vidy Prime', speed: 'Fast ⚡', quality: '1080p', badge: 'Default' },
+  { id: 'vidlypro', name: 'Vidly Pro', speed: 'Ultra ⚡', quality: '4K · 1080p', badge: 'Fast 4K' },
   { id: 'vidlink', name: 'VidLink Pro', speed: 'Instant 🚀', quality: 'FHD · Audio', badge: 'Top Rated' },
   { id: 'videasy', name: 'Videasy HD', speed: 'Smooth 🎬', quality: '1080p', badge: 'Clean' },
   { id: 'vidsrc-sh', name: 'VidSrc Direct', speed: 'Fast ⚡', quality: '1080p Auto', badge: 'Stable' },
@@ -49,7 +50,7 @@ export const VidyPlayer: React.FC = () => {
   const [provider, setProvider] = useState<ProviderId>(
     PROVIDERS.some(p => p.id === initialServer) ? initialServer : 'vidy'
   );
-  const [animeProvider, setAnimeProvider] = useState<'aniembed' | 'megavid'>('aniembed');
+  const [animeProvider, setAnimeProvider] = useState<'aniembed' | 'megavid' | 'vidly' | 'anixo'>('aniembed');
   const [animeLang, setAnimeLang] = useState<'sub' | 'dub'>('sub');
   const [retryKey, setRetryKey] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -186,11 +187,19 @@ export const VidyPlayer: React.FC = () => {
 
   // Embed URL generation:
   // For ANIME: use AniEmbed (Server 1) or MegaVid (Server 2)
-  // For MOVIES / TV: use the 8 standard providers
+  // Embed URL generation:
+  // For ANIME: Server 1 (AniEmbed), Server 2 (MegaVid), Server 3 (Vidly Pro), Server 4 (Anixo)
+  // For MOVIES / TV: Vidy Prime, Vidly Pro, VidLink Pro, Videasy HD, etc.
   const embedUrl = useMemo(() => {
     if (isAnime && effectiveAnilistId) {
       if (animeProvider === 'megavid') {
         return `https://megavid.buzz/ani/${effectiveAnilistId}/${episode}/${animeLang}`;
+      }
+      if (animeProvider === 'vidly') {
+        return `https://vidly.pro/anime/${effectiveAnilistId}/${episode}/${animeLang}?player=custom`;
+      }
+      if (animeProvider === 'anixo') {
+        return `https://anixo.buzz/embed/ani/${effectiveAnilistId}/${episode}?track=${animeLang}&player=custom`;
       }
       const tParam = progress && progress > 0 ? `&t=${Math.floor(progress)}` : '';
       return `https://aniembed.se/e/${effectiveAnilistId}/${episode}?lang=${animeLang}&autoplay=1${tParam}`;
@@ -201,6 +210,10 @@ export const VidyPlayer: React.FC = () => {
         return isEpisode
           ? `https://vidy.st/tv/${id}/${season}/${episode}?${vidyParams.toString()}`
           : `https://vidy.st/movie/${id}?${vidyParams.toString()}`;
+      case 'vidlypro':
+        return isEpisode
+          ? `https://vidly.pro/tv/${id}/${season}/${episode}?player=custom&autoplay=true`
+          : `https://vidly.pro/movie/${id}?player=custom&autoplay=true`;
       case 'vidsrc-wtf':
         return isEpisode
           ? `https://vidsrc.wtf/api/1/tv/?id=${id}&s=${season}&e=${episode}`
@@ -395,7 +408,10 @@ export const VidyPlayer: React.FC = () => {
                 <span className="flex items-center gap-1 text-emerald-400">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   {isAnime 
-                    ? (animeProvider === 'aniembed' ? 'AniEmbed (Server 1)' : 'MegaVid (Server 2)') 
+                    ? (animeProvider === 'aniembed' ? 'AniEmbed (Server 1)' 
+                       : animeProvider === 'megavid' ? 'MegaVid (Server 2)' 
+                       : animeProvider === 'vidly' ? 'Vidly Pro (Server 3)' 
+                       : 'Anixo (Server 4)') 
                     : (PROVIDERS.find(p => p.id === provider)?.name || provider)}
                 </span>
               </div>
@@ -495,7 +511,7 @@ export const VidyPlayer: React.FC = () => {
       <div className={`flex-1 w-full ${isTheaterMode ? 'max-w-none px-2 sm:px-6' : 'max-w-[1440px]'} mx-auto py-4 flex flex-col space-y-4 transition-all duration-300`}>
         
         {/* ========================================================================= */}
-        {/* IF ANIME: SHOW EXCLUSIVE ANIME PLAYER CONTROLS (ANIEMBED & MEGAVID)       */}
+        {/* IF ANIME: SHOW EXCLUSIVE ANIME PLAYER CONTROLS (ANIEMBED & MEGAVID & VIDLY & ANIXO) */}
         {/* ========================================================================= */}
         {isAnime ? (
           <div className="bg-[#111115] border border-pink-500/20 rounded-2xl p-3.5 sm:p-4 shadow-xl">
@@ -517,7 +533,7 @@ export const VidyPlayer: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center bg-black/60 p-1 rounded-xl border border-white/10 gap-1">
+                <div className="flex flex-wrap items-center bg-black/60 p-1 rounded-xl border border-white/10 gap-1">
                   <button
                     type="button"
                     onClick={() => {
@@ -547,6 +563,36 @@ export const VidyPlayer: React.FC = () => {
                   >
                     <span>Server 2: MegaVid</span>
                     {animeProvider === 'megavid' && <Check className="w-3 h-3 text-white" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAnimeProvider('vidly');
+                      setIsLoading(true);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      animeProvider === 'vidly'
+                        ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
+                        : 'text-white/60 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span>Server 3: Vidly Pro</span>
+                    {animeProvider === 'vidly' && <Check className="w-3 h-3 text-white" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAnimeProvider('anixo');
+                      setIsLoading(true);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      animeProvider === 'anixo'
+                        ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
+                        : 'text-white/60 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span>Server 4: Anixo</span>
+                    {animeProvider === 'anixo' && <Check className="w-3 h-3 text-white" />}
                   </button>
                 </div>
               </div>

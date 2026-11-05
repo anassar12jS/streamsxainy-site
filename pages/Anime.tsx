@@ -606,61 +606,58 @@ export const Anime: React.FC<AnimeProps> = ({ onSelect }) => {
           <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-end pb-16 sm:pb-20">
             <div className="max-w-2xl flex flex-col gap-3.5">
               
-              {/* Badges Line */}
-              <div className="flex flex-wrap items-center gap-2.5 animate-fade-in">
-                <span className="inline-flex items-center gap-1.5 py-1 px-3 rounded-full bg-gradient-to-r from-pink-600 to-rose-500 text-white text-xs font-black tracking-wider uppercase shadow-lg shadow-pink-900/30">
-                  <Ghost className="w-3.5 h-3.5" /> #{heroIndex + 1} Trending Anime
+              {/* Eyebrow Kicker with Native Kanji */}
+              <div className="flex flex-wrap items-center gap-2 text-xs font-bold tracking-wider uppercase animate-fade-in">
+                <span className="flex items-center gap-1.5 text-pink-400">
+                  <Ghost className="w-3.5 h-3.5" />
+                  <span>AniList Trending #{heroIndex + 1}</span>
                 </span>
-
-                {currentHero.averageScore && (
-                  <span className="inline-flex items-center gap-1 py-1 px-2.5 rounded-full bg-black/40 backdrop-blur-md text-pink-400 text-xs font-bold border border-white/10">
-                    <Star className="w-3.5 h-3.5 fill-pink-400" />
-                    {(currentHero.averageScore / 10).toFixed(1)} / 10
-                  </span>
+                {currentHero.title.native && (
+                  <>
+                    <span className="text-white/30">·</span>
+                    <span className="text-pink-200/80 font-medium normal-case font-sans tracking-wide">
+                      {currentHero.title.native}
+                    </span>
+                  </>
                 )}
-
-                {currentHero.nextAiringEpisode && (
-                  <span className="inline-flex items-center gap-1 py-1 px-2.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/30 backdrop-blur-md">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping mr-0.5" />
-                    EP {currentHero.nextAiringEpisode.episode} ({formatCountdown(currentHero.nextAiringEpisode.airingAt)})
-                  </span>
-                )}
-
-                <span className="text-xs font-semibold px-2 py-0.5 rounded border border-white/20 bg-black/30 backdrop-blur-sm text-white/90 uppercase tracking-wider font-mono">
-                  {currentHero.status || 'ANIME'}
-                </span>
               </div>
-
-              {/* Japanese Native Subtitle */}
-              {currentHero.title.native && (
-                <p className="text-xs sm:text-sm font-medium text-pink-300/80 font-sans tracking-widest uppercase">
-                  {currentHero.title.native}
-                </p>
-              )}
 
               {/* Main Title */}
               <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white leading-[1.08] tracking-tight drop-shadow-2xl animate-fade-in line-clamp-2">
                 {currentHero.title.english || currentHero.title.romaji}
               </h1>
 
+              {/* Metadata Row */}
+              <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm font-medium text-white/80 animate-fade-in">
+                {currentHero.averageScore && (
+                  <span className="flex items-center gap-1.5 text-pink-400 font-bold">
+                    <Star className="w-3.5 h-3.5 fill-pink-400 shrink-0" />
+                    <span>{(currentHero.averageScore / 10).toFixed(1)} / 10</span>
+                  </span>
+                )}
+                {currentHero.nextAiringEpisode && (
+                  <>
+                    <span className="text-white/30">·</span>
+                    <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>EP {currentHero.nextAiringEpisode.episode} ({formatCountdown(currentHero.nextAiringEpisode.airingAt)})</span>
+                    </span>
+                  </>
+                )}
+                <span className="text-white/30">·</span>
+                <span className="text-white/90 font-semibold">{currentHero.status || 'ANIME'}</span>
+                {currentHero.genres?.slice(0, 3).map(genre => (
+                  <React.Fragment key={genre}>
+                    <span className="text-white/30">·</span>
+                    <span className="text-white/70">{genre}</span>
+                  </React.Fragment>
+                ))}
+              </div>
+
               {/* Synopsis */}
-              <p className="text-gray-200/90 text-sm sm:text-base line-clamp-3 max-w-xl drop-shadow-md font-normal leading-relaxed animate-fade-in">
+              <p className="text-zinc-200/90 text-sm sm:text-base line-clamp-3 max-w-xl drop-shadow-sm font-normal leading-relaxed animate-fade-in">
                 {cleanDescription(currentHero.description)}
               </p>
-
-              {/* Genres Pills */}
-              {currentHero.genres && currentHero.genres.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {currentHero.genres.slice(0, 4).map(genre => (
-                    <span 
-                      key={genre}
-                      className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-white/10 text-white/90 backdrop-blur-sm border border-white/10"
-                    >
-                      {genre}
-                    </span>
-                  ))}
-                </div>
-              )}
 
               {/* CTA Action Buttons */}
               <div className="flex flex-wrap items-center gap-3 pt-3 animate-fade-in">

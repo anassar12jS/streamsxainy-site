@@ -33,6 +33,7 @@ import { REGIONS, RegionOption } from '../constants/regions';
 import { getLiveLeagueStandings, getLeagueTopScorers } from '../services/footballApi';
 import { getTeamLogoUrl, CLUB_BRAND_COLORS } from '../data/clubLogos';
 import { useSyncedClock, formatMatchCountdown, getSyncedNow } from '../services/clockSync';
+import { SportsMultiviewModal } from '../components/SportsMultiviewModal';
 
 // Team initials / fallback color generator
 const generateColor = (name: string) => {
@@ -1090,7 +1091,7 @@ const LiveScoresTicker: React.FC<{
   if (items.length === 0) return null;
 
   return (
-    <div className="bg-[#0e0f14]/95 border-b border-white/10 py-2 px-3 backdrop-blur-md sticky top-[45px] z-30 shadow-md">
+    <div className="bg-[#0e0f14]/95 border-b border-white/10 py-2 px-3 shadow-md">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 overflow-hidden">
         
         {/* Ticker Title Badge */}
@@ -1821,6 +1822,13 @@ export const Sports: React.FC = () => {
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [displayLimit, setDisplayLimit] = useState(24);
+  const [isMultiviewOpen, setIsMultiviewOpen] = useState(false);
+  const [multiviewInitialMatch, setMultiviewInitialMatch] = useState<SportsMatch | null>(null);
+
+  const handleOpenMultiview = useCallback((match?: SportsMatch) => {
+    setMultiviewInitialMatch(match || null);
+    setIsMultiviewOpen(true);
+  }, []);
   const hasActiveFilters = Boolean(searchQuery.trim()) || selectedCompetition !== 'ALL' || (tabMode === 'upcoming' && selectedScheduleDay !== 'all');
   const clearSportsFilters = () => {
     setSearchQuery('');
@@ -2219,7 +2227,7 @@ export const Sports: React.FC = () => {
     <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] pb-24 transition-colors duration-300">
       
       {/* 🌍 DYNAMIC REGION & TIMEZONE TICKER BAR */}
-      <div className="bg-gradient-to-r from-blue-950/40 via-black/75 to-emerald-950/40 border-b border-white/10 py-2.5 px-4 backdrop-blur-md sticky top-0 z-40">
+      <div className="bg-gradient-to-r from-blue-950/40 via-black/75 to-emerald-950/40 border-b border-white/10 py-2.5 px-4 backdrop-blur-md shadow-sm">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           
           {/* Live Clock with Selected Region */}
@@ -2459,7 +2467,7 @@ export const Sports: React.FC = () => {
       )}
 
       {/* Control Sticky Toolbar */}
-      <div className="sticky top-[45px] z-30 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-[var(--border-subtle)] shadow-sm">
+      <div className="sticky top-0 z-30 bg-[#0c0d12]/98 backdrop-blur-xl border-b border-[var(--border-subtle)] shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col gap-3">
           
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -2567,6 +2575,18 @@ export const Sports: React.FC = () => {
                 title="Refresh Live Feeds"
               >
                 <RotateCw className={`w-4 h-4 ${isFetching ? 'animate-spin text-[rgb(var(--primary-color))]' : ''}`} />
+              </button>
+
+              {/* Multiview (Split-Screen concurrent watching) Button */}
+              <button
+                type="button"
+                onClick={() => handleOpenMultiview()}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:brightness-110 text-white text-xs font-bold shadow-md transition-all active:scale-95 shrink-0"
+                title="Watch multiple live matches simultaneously (2x or 4x split screen)"
+              >
+                <Tv className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Multiview</span>
+                <span className="px-1.5 py-0.2 rounded bg-white/20 text-[10px] font-mono">2x/4x</span>
               </button>
 
               {/* Grid / List Layout Switcher */}
@@ -2866,7 +2886,7 @@ export const Sports: React.FC = () => {
 
               {Object.entries(visibleUpcomingGroups).map(([dateLabel, groupMatches]) => (
                 <div key={dateLabel} className="space-y-4">
-                  <div className="sticky top-[155px] z-20 py-2.5 px-4 bg-[var(--bg-main)]/95 backdrop-blur-md border border-[var(--border-subtle)] flex items-center justify-between rounded-xl shadow-md">
+                  <div className="py-2.5 px-4 bg-[var(--bg-main)]/85 border border-[var(--border-subtle)] flex items-center justify-between rounded-xl shadow-sm">
                     <h3 className="text-xs font-black uppercase tracking-wider text-[var(--text-main)] flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-cyan-400" />
                       <span>{selectedScheduleDay === 'results' ? `Full-Time Results · ${dateLabel}` : dateLabel}</span>
@@ -3764,6 +3784,22 @@ export const Sports: React.FC = () => {
                 </button>
               )}
 
+              {/* Watch in Multiview Split */}
+              {previewMatch.sources.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const m = previewMatch;
+                    setPreviewMatch(null);
+                    handleOpenMultiview(m);
+                  }}
+                  className="p-3 rounded-xl border border-indigo-500/30 bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 transition-colors flex items-center justify-center"
+                  title="Watch in Multiview Split-Screen"
+                >
+                  <Tv className="w-4 h-4" />
+                </button>
+              )}
+
               {/* Favorite Toggle */}
               <button
                 type="button"
@@ -3798,6 +3834,14 @@ export const Sports: React.FC = () => {
           <span>{notificationToast}</span>
         </div>
       )}
+
+      {/* Sports Multiview (Split-Screen / 4x Streams Concurrent Player) */}
+      <SportsMultiviewModal
+        isOpen={isMultiviewOpen}
+        onClose={() => setIsMultiviewOpen(false)}
+        allMatches={matches}
+        initialMatch={multiviewInitialMatch}
+      />
 
     </div>
   );

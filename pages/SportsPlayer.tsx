@@ -21,6 +21,7 @@ import {
   formatDateInTimezone,
   formatMatchCountdown
 } from '../services/clockSync';
+import { SportsMultiviewModal } from '../components/SportsMultiviewModal';
 
 const getSportIcon = (cat?: string) => {
   const c = (cat || '').toLowerCase();
@@ -80,6 +81,7 @@ export const SportsPlayer: React.FC = () => {
   // Live Scoreboard & Commentary Switcher States
   const [selectedLanguageFilter, setSelectedLanguageFilter] = useState<string>('all');
   const [showEventsTimeline, setShowEventsTimeline] = useState<boolean>(false);
+  const [isMultiviewOpen, setIsMultiviewOpen] = useState(false);
 
   const [selectedRegionId, setSelectedRegionId] = useState<string>(() => {
     return localStorage.getItem('streamhub_sports_region_id') || 'morocco';
@@ -381,6 +383,17 @@ export const SportsPlayer: React.FC = () => {
                 <span className="hidden sm:inline">Open in New Tab ↗</span>
               </a>
             )}
+
+            {/* Multiview Split-Screen Button */}
+            <button
+              type="button"
+              onClick={() => setIsMultiviewOpen(true)}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-indigo-600 to-pink-600 hover:brightness-110 text-white transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+              title="Watch multiple live matches concurrently in split-screen"
+            >
+              <Tv className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Multiview</span>
+            </button>
 
             {/* Favorite Button */}
             <button
@@ -932,6 +945,14 @@ export const SportsPlayer: React.FC = () => {
         )}
 
       </main>
+
+      {/* Sports Multiview Split-Screen */}
+      <SportsMultiviewModal
+        isOpen={isMultiviewOpen}
+        onClose={() => setIsMultiviewOpen(false)}
+        allMatches={allMatches}
+        initialMatch={match}
+      />
 
     </div>
   );
