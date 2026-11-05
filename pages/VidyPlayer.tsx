@@ -4,14 +4,15 @@ import { useQuery } from '@tanstack/react-query';
 import { 
   ArrowLeft, Expand, ExternalLink, RotateCw, 
   Server, ChevronLeft, ChevronRight, AlertCircle, Tv, Film,
-  Ghost, Sparkles, Volume2, Globe, Subtitles, Check, Clock,
-  Maximize2, Minimize2, Keyboard, Sun, Moon, ListVideo, Zap, X
+  Ghost, Sparkles, Volume2, Subtitles, Check, Clock,
+  Maximize2, Minimize2, Keyboard, Sun, Moon, ListVideo, Zap, X,
+  Star, Share2, Plus, Bookmark, Users, ChevronDown, Play
 } from 'lucide-react';
-import { getDetails, getSeasonDetails } from '../services/tmdb';
+import { getDetails, getSeasonDetails, getRecommendations } from '../services/tmdb';
 import { searchAnimeByTitle, getAnimeById, mapAniListToTMDBDetail } from '../services/anilist';
-import { getProgressForId, getTheme, saveProgress } from '../services/storage';
-import { MediaType } from '../types';
-import { TMDB_POSTER_BASE, TMDB_IMAGE_BASE } from '../constants';
+import { getProgressForId, getTheme, saveProgress, addToWatchlist, removeFromWatchlist, isInWatchlist } from '../services/storage';
+import { MediaType, TMDBResult } from '../types';
+import { TMDB_POSTER_BASE, TMDB_IMAGE_BASE, TMDB_PROFILE_BASE } from '../constants';
 
 const getThemeHex = () => {
   const colors: Record<string, string> = {
@@ -59,6 +60,16 @@ export const VidyPlayer: React.FC = () => {
   const [isLightsDimmed, setIsLightsDimmed] = useState<boolean>(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
   const [showEpisodeDrawer, setShowEpisodeDrawer] = useState<boolean>(true);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isWatchlisted, setIsWatchlisted] = useState<boolean>(false);
+
+  const toastTimerRef = useRef<number | null>(null);
+
+  const showToast = (msg: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToastMessage(msg);
+    toastTimerRef.current = window.setTimeout(() => setToastMessage(null), 2500);
+  };
 
   const mediaType = mediaTypeParam === MediaType.TV ? MediaType.TV : MediaType.MOVIE;
   const isEpisode = mediaType === MediaType.TV;
@@ -92,6 +103,14 @@ export const VidyPlayer: React.FC = () => {
 
   const details = detailsQuery.data || aniListConverted;
 
+  // Query Recommendations for "You May Also Like" below player
+  const recommendationsQuery = useQuery({
+    queryKey: ['player-recommendations', id, mediaType],
+    queryFn: () => getRecommendations(id, mediaType),
+    enabled: Number.isSafeInteger(id) && id > 0,
+    staleTime: 1000 * 60 * 60,
+  });
+
   // Detect whether this is an Anime title
   const isAnimeDetected = useMemo(() => {
     if (anilistIdParam || aniListConverted) return true;
@@ -112,6 +131,31 @@ export const VidyPlayer: React.FC = () => {
   const effectiveAnilistId = anilistIdParam || aniListConverted?.id || anilistLookupQuery.data || (isAnimeDetected ? id : undefined);
   const isAnime = Boolean(anilistIdParam || isAnimeDetected || aniListConverted);
 
+  // Sync watchlist status
+  useEffect(() => {
+    if (details) {
+      setIsWatchlisted(isInWatchlist(details.id));
+    }
+  }, [details?.id]);
+
+  const toggleWatchlist = () => {
+    if (!details) return;
+    if (isWatchlisted) {
+      removeFromWatchlist(details.id);
+      setIsWatchlisted(false);
+      showToast('Removed from Watchlist');
+    } else {
+      addToWatchlist(details);
+      setIsWatchlisted(true);
+      showToast('Added to Watchlist');
+    }
+  };
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    showToast('Player link copied to clipboard!');
+  };
+
   // Query Season Details for TV episodes navigation
   const seasonQuery = useQuery({
     queryKey: ['season', id, season],
@@ -119,6 +163,12 @@ export const VidyPlayer: React.FC = () => {
     enabled: isEpisode && Number.isSafeInteger(id) && id > 0 && !aniListConverted,
     staleTime: 1000 * 60 * 30,
   });
+
+  // Extract available seasons (filtering out specials season 0 if desired)
+  const availableSeasons = useMemo(() => {
+    if (!details?.seasons) return [];
+    return details.seasons.filter(s => s.season_number > 0);
+  }, [details?.seasons]);
 
   const totalEpisodesInSeason = useMemo(() => {
     if (details?.season_detail_fallback?.episodes) {
@@ -162,6 +212,7 @@ export const VidyPlayer: React.FC = () => {
     }
     return false;
   }, [details, episode, seasonQuery.data]);
+
   const savedProgress = Number.isSafeInteger(id) ? getProgressForId(id) : undefined;
   const progressMatchesSelection = isAnime
     ? savedProgress?.episode === episode
@@ -185,8 +236,6 @@ export const VidyPlayer: React.FC = () => {
     autoplay: 'true',
   });
 
-  // Embed URL generation:
-  // For ANIME: use AniEmbed (Server 1) or MegaVid (Server 2)
   // Embed URL generation:
   // For ANIME: Server 1 (AniEmbed), Server 2 (MegaVid), Server 3 (Vidly Pro), Server 4 (Anixo)
   // For MOVIES / TV: Vidy Prime, Vidly Pro, VidLink Pro, Videasy HD, etc.
@@ -249,53 +298,61 @@ export const VidyPlayer: React.FC = () => {
       default:
         return `https://vidy.st/movie/${id}?${vidyParams.toString()}`;
     }
-  }, [isAnime, effectiveAnilistId, episode, animeLang, animeProvider, progress, provider, isEpisode, id, season, vidyParams, externalId, vidLinkParams]);
+  }, [provider, animeProvider, animeLang, isEpisode, isAnime, id, externalId, season, episode, effectiveAnilistId, progress]);
 
-  const detailsUrl = effectiveAnilistId ? `/tv/${id}?anilistId=${effectiveAnilistId}` : `/${mediaType}/${id}`;
-
-  // Reset loading timeout whenever source, episode, or language changes
+  // Loading safety timeout
   useEffect(() => {
     setIsLoading(true);
     setHasTimedOut(false);
-    loadingTimeout.current = window.setTimeout(() => {
-      setIsLoading(false);
-      setHasTimedOut(true);
-    }, 14000);
-    return () => window.clearTimeout(loadingTimeout.current);
-  }, [embedUrl, retryKey]);
 
-  // Listen for Vidy player timeupdate postMessages
+    window.clearTimeout(loadingTimeout.current);
+    loadingTimeout.current = window.setTimeout(() => {
+      setHasTimedOut(true);
+      setIsLoading(false);
+    }, 12000);
+
+    return () => window.clearTimeout(loadingTimeout.current);
+  }, [provider, animeProvider, animeLang, season, episode, retryKey]);
+
+  // Handle postMessage playback events from providers
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.source !== playerRef.current?.contentWindow || typeof event.data !== 'string') return;
-
-      let payload: { event?: string; currentTime?: number };
       try {
-        payload = JSON.parse(event.data);
+        const rawData = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (!rawData) return;
+
+        let currentTime: number | undefined;
+        let duration: number | undefined;
+
+        if (rawData.type === 'PLAYER_EVENT') {
+          currentTime = rawData.data?.currentTime;
+          duration = rawData.data?.duration;
+        } else if (rawData.event === 'timeupdate') {
+          currentTime = rawData.currentTime || rawData.time;
+          duration = rawData.duration;
+        }
+
+        if (currentTime !== undefined && duration !== undefined && duration > 0) {
+          const now = Date.now();
+          if (now - lastSavedTime.current > 5000) {
+            lastSavedTime.current = now;
+            saveProgress({
+              id,
+              anilist_id: effectiveAnilistId,
+              media_type: mediaType,
+              title: details?.title || details?.name || '',
+              poster_path: details?.poster_path || null,
+              season: isEpisode && !isAnime ? season : undefined,
+              episode: (isEpisode || isAnime) ? episode : undefined,
+              currentTime,
+              duration,
+              progress: (currentTime / duration) * 100,
+            });
+          }
+        }
       } catch {
-        return;
+        // Safe ignore
       }
-
-      if (!['timeupdate', 'pause'].includes(payload.event || '') || !Number.isFinite(payload.currentTime) || !details) return;
-      const currentTime = Math.max(0, payload.currentTime as number);
-      if (payload.event === 'timeupdate' && currentTime - lastSavedTime.current < 15 && currentTime >= lastSavedTime.current) return;
-
-      lastSavedTime.current = currentTime;
-      const duration = (typeof (payload as any).duration === 'number' && (payload as any).duration > 0)
-        ? (payload as any).duration
-        : undefined;
-
-      saveProgress({
-        id: details.id,
-        anilist_id: effectiveAnilistId,
-        media_type: mediaType,
-        title: details.title || details.name || '',
-        poster_path: details.poster_path || null,
-        season: isEpisode && !isAnime ? season : undefined,
-        episode: (isEpisode || isAnime) ? episode : undefined,
-        currentTime,
-        duration,
-      });
     };
 
     window.addEventListener('message', handleMessage);
@@ -323,20 +380,26 @@ export const VidyPlayer: React.FC = () => {
     setIsLoading(true);
     setHasTimedOut(false);
     setRetryKey(current => current + 1);
+    showToast('Reloading stream player...');
   };
 
   const openFullscreen = () => {
     void playerRef.current?.requestFullscreen?.();
   };
 
-  const handleEpisodeChange = (newEp: number) => {
+  const handleEpisodeChange = (newEp: number, targetSeason: number = season) => {
     if (newEp < 1) return;
     const anilistParam = effectiveAnilistId ? `?anilistId=${effectiveAnilistId}` : '';
     if (isEpisode || isAnime) {
-      navigate(`/watch/tv/${id}/${season}/${newEp}${anilistParam}`);
+      navigate(`/watch/tv/${id}/${targetSeason}/${newEp}${anilistParam}`);
     } else {
       navigate(`/watch/movie/${id}${anilistParam}`);
     }
+  };
+
+  const handleSeasonChange = (newSeason: number) => {
+    if (newSeason === season) return;
+    handleEpisodeChange(1, newSeason);
   };
 
   const switchNextServer = () => {
@@ -344,13 +407,14 @@ export const VidyPlayer: React.FC = () => {
     const nextProvider = PROVIDERS[(currentIndex + 1) % PROVIDERS.length];
     setProvider(nextProvider.id);
     setIsLoading(true);
+    showToast(`Switched to ${nextProvider.name}`);
   };
 
   // Keyboard Shortcuts: F (fullscreen), T (theater), L (lights), N (next), P (prev), R (reload)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeTag = document.activeElement?.tagName || '';
-      if (['INPUT', 'TEXTAREA'].includes(activeTag)) return;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag)) return;
 
       if (e.key.toLowerCase() === 'f') {
         e.preventDefault();
@@ -380,18 +444,30 @@ export const VidyPlayer: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [episode, totalEpisodesInSeason, isEpisode, isAnime]);
 
+  const detailsUrl = isAnime && effectiveAnilistId 
+    ? `/tv/${id}?anilistId=${effectiveAnilistId}` 
+    : `/${mediaType}/${id}`;
+
   return (
-    <main className="min-h-screen bg-[#070709] text-white flex flex-col font-sans selection:bg-[rgb(var(--primary-color))]/30">
+    <main className="min-h-screen bg-[#070709] text-white flex flex-col font-sans selection:bg-[rgb(var(--primary-color))]/30 relative">
       
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#18181b] border border-white/15 text-white px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-5">
+          <Check className="w-4 h-4 text-emerald-400" />
+          <span className="text-sm font-medium">{toastMessage}</span>
+        </div>
+      )}
+
       {/* Top Header */}
-      <header className="border-b border-white/10 bg-[#0c0c0e]/90 backdrop-blur-md sticky top-0 z-30">
+      <header className="border-b border-white/10 bg-[#0c0c0e]/95 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-[1440px] mx-auto w-full px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
           
           <div className="flex items-center gap-3 min-w-0">
             <button 
               type="button" 
               onClick={() => navigate(detailsUrl)} 
-              className="p-2 rounded-xl text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors border border-white/10" 
+              className="p-2 rounded-xl text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors border border-white/10 cursor-pointer" 
               aria-label="Back to details" 
               title="Back to details"
             >
@@ -399,19 +475,19 @@ export const VidyPlayer: React.FC = () => {
             </button>
             {poster && <img src={poster} alt="" className="w-8 h-11 rounded-lg object-cover hidden sm:block border border-white/10 shadow" />}
             <div className="min-w-0">
-              <h1 className="font-bold text-sm sm:text-base text-white truncate max-w-sm sm:max-w-md md:max-w-lg">{title}</h1>
+              <h1 className="font-bold text-sm sm:text-base text-white truncate max-w-xs sm:max-w-md md:max-w-lg">{title}</h1>
               <div className="flex items-center gap-2 text-xs text-white/50 mt-0.5">
                 <span className="text-[rgb(var(--primary-color))] font-semibold">
-                  {isAnime ? `Episode ${episode} (${animeLang.toUpperCase()})` : isEpisode ? `Season ${season} · Episode ${episode}` : 'Movie'}
+                  {isAnime ? `Episode ${episode} (${animeLang.toUpperCase()})` : isEpisode ? `Season ${season} · Episode ${episode}` : 'Feature Film'}
                 </span>
                 <span>•</span>
-                <span className="flex items-center gap-1 text-emerald-400">
+                <span className="flex items-center gap-1 text-emerald-400 font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   {isAnime 
-                    ? (animeProvider === 'aniembed' ? 'AniEmbed (Server 1)' 
-                       : animeProvider === 'megavid' ? 'MegaVid (Server 2)' 
-                       : animeProvider === 'vidly' ? 'Vidly Pro (Server 3)' 
-                       : 'Anixo (Server 4)') 
+                    ? (animeProvider === 'aniembed' ? 'AniEmbed (S1)' 
+                       : animeProvider === 'megavid' ? 'MegaVid (S2)' 
+                       : animeProvider === 'vidly' ? 'Vidly Pro (S3)' 
+                       : 'Anixo (S4)') 
                     : (PROVIDERS.find(p => p.id === provider)?.name || provider)}
                 </span>
               </div>
@@ -419,11 +495,37 @@ export const VidyPlayer: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Watchlist Toggle */}
+            <button
+              type="button"
+              onClick={toggleWatchlist}
+              className={`p-2 rounded-xl transition-colors border cursor-pointer ${
+                isWatchlisted
+                  ? 'bg-[rgb(var(--primary-color))]/20 text-[rgb(var(--primary-color))] border-[rgb(var(--primary-color))]/40'
+                  : 'text-white/70 hover:text-white bg-white/5 hover:bg-white/10 border-white/10'
+              }`}
+              title={isWatchlisted ? 'In Watchlist' : 'Add to Watchlist'}
+              aria-label={isWatchlisted ? 'In Watchlist' : 'Add to Watchlist'}
+            >
+              {isWatchlisted ? <Bookmark className="w-4 h-4 fill-current" /> : <Plus className="w-4 h-4" />}
+            </button>
+
+            {/* Share Link */}
+            <button
+              type="button"
+              onClick={handleShare}
+              className="p-2 rounded-xl text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors border border-white/10 cursor-pointer hidden sm:block"
+              title="Share Stream URL"
+              aria-label="Share Stream URL"
+            >
+              <Share2 className="w-4 h-4" />
+            </button>
+
             {/* Dim Lights Toggle */}
             <button
               type="button"
               onClick={() => setIsLightsDimmed(prev => !prev)}
-              className={`p-2 rounded-xl transition-colors border ${
+              className={`p-2 rounded-xl transition-colors border cursor-pointer ${
                 isLightsDimmed 
                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' 
                   : 'text-white/70 hover:text-white bg-white/5 hover:bg-white/10 border-white/10'
@@ -438,7 +540,7 @@ export const VidyPlayer: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsTheaterMode(prev => !prev)}
-              className={`p-2 rounded-xl transition-colors border hidden sm:block ${
+              className={`p-2 rounded-xl transition-colors border hidden sm:block cursor-pointer ${
                 isTheaterMode 
                   ? 'bg-[rgb(var(--primary-color))]/20 text-[rgb(var(--primary-color))] border-[rgb(var(--primary-color))]/40' 
                   : 'text-white/70 hover:text-white bg-white/5 hover:bg-white/10 border-white/10'
@@ -453,7 +555,7 @@ export const VidyPlayer: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowShortcutsModal(true)}
-              className="p-2 rounded-xl text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors border border-white/10 hidden md:block"
+              className="p-2 rounded-xl text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors border border-white/10 hidden md:block cursor-pointer"
               title="Keyboard Shortcuts (?)"
               aria-label="Keyboard Shortcuts"
             >
@@ -464,7 +566,7 @@ export const VidyPlayer: React.FC = () => {
             <button
               type="button"
               onClick={retryPlayer}
-              className="p-2 rounded-xl text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
+              className="p-2 rounded-xl text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors border border-white/10 cursor-pointer"
               title="Reload player (R)"
               aria-label="Reload player"
             >
@@ -476,7 +578,7 @@ export const VidyPlayer: React.FC = () => {
               href={embedUrl} 
               target="_blank" 
               rel="noreferrer" 
-              className="p-2 rounded-xl text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors border border-white/10" 
+              className="p-2 rounded-xl text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors border border-white/10 cursor-pointer" 
               aria-label="Open in new tab" 
               title="Open in new tab"
             >
@@ -487,7 +589,7 @@ export const VidyPlayer: React.FC = () => {
             <button 
               type="button" 
               onClick={openFullscreen} 
-              className="p-2 rounded-xl text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors border border-white/10" 
+              className="p-2 rounded-xl text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors border border-white/10 cursor-pointer" 
               aria-label="Fullscreen (F)" 
               title="Fullscreen (F)"
             >
@@ -502,7 +604,7 @@ export const VidyPlayer: React.FC = () => {
       {isLightsDimmed && (
         <div 
           onClick={() => setIsLightsDimmed(false)}
-          className="fixed inset-0 bg-black/85 z-20 transition-opacity duration-500 cursor-pointer"
+          className="fixed inset-0 bg-black/90 z-20 transition-opacity duration-500 cursor-pointer"
           title="Click to restore lights"
         />
       )}
@@ -511,7 +613,7 @@ export const VidyPlayer: React.FC = () => {
       <div className={`flex-1 w-full ${isTheaterMode ? 'max-w-none px-2 sm:px-6' : 'max-w-[1440px]'} mx-auto py-4 flex flex-col space-y-4 transition-all duration-300`}>
         
         {/* ========================================================================= */}
-        {/* IF ANIME: SHOW EXCLUSIVE ANIME PLAYER CONTROLS (ANIEMBED & MEGAVID & VIDLY & ANIXO) */}
+        {/* IF ANIME: SHOW EXCLUSIVE ANIME PLAYER CONTROLS                           */}
         {/* ========================================================================= */}
         {isAnime ? (
           <div className="bg-[#111115] border border-pink-500/20 rounded-2xl p-3.5 sm:p-4 shadow-xl">
@@ -528,7 +630,7 @@ export const VidyPlayer: React.FC = () => {
                       Anime Players
                     </h2>
                     <p className="text-[11px] text-white/50">
-                      Switch if stream or episode isn't found
+                      Switch server if stream buffers or is missing
                     </p>
                   </div>
                 </div>
@@ -539,8 +641,9 @@ export const VidyPlayer: React.FC = () => {
                     onClick={() => {
                       setAnimeProvider('aniembed');
                       setIsLoading(true);
+                      showToast('Switched to AniEmbed (Server 1)');
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       animeProvider === 'aniembed'
                         ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
                         : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -554,8 +657,9 @@ export const VidyPlayer: React.FC = () => {
                     onClick={() => {
                       setAnimeProvider('megavid');
                       setIsLoading(true);
+                      showToast('Switched to MegaVid (Server 2)');
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       animeProvider === 'megavid'
                         ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
                         : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -569,8 +673,9 @@ export const VidyPlayer: React.FC = () => {
                     onClick={() => {
                       setAnimeProvider('vidly');
                       setIsLoading(true);
+                      showToast('Switched to Vidly Pro (Server 3)');
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       animeProvider === 'vidly'
                         ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
                         : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -584,8 +689,9 @@ export const VidyPlayer: React.FC = () => {
                     onClick={() => {
                       setAnimeProvider('anixo');
                       setIsLoading(true);
+                      showToast('Switched to Anixo (Server 4)');
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       animeProvider === 'anixo'
                         ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
                         : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -607,8 +713,9 @@ export const VidyPlayer: React.FC = () => {
                     onClick={() => {
                       setAnimeLang('sub');
                       setIsLoading(true);
+                      showToast('Audio set to Subtitled (JP)');
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       animeLang === 'sub'
                         ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
                         : 'text-white/60 hover:text-white'
@@ -622,8 +729,9 @@ export const VidyPlayer: React.FC = () => {
                     onClick={() => {
                       setAnimeLang('dub');
                       setIsLoading(true);
+                      showToast('Audio set to English Dub (EN)');
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       animeLang === 'dub'
                         ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
                         : 'text-white/60 hover:text-white'
@@ -639,8 +747,8 @@ export const VidyPlayer: React.FC = () => {
                   <button
                     disabled={episode <= 1}
                     onClick={() => handleEpisodeChange(episode - 1)}
-                    className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                    title="Previous Episode"
+                    className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                    title="Previous Episode (P)"
                     aria-label="Previous Episode"
                   >
                     <ChevronLeft className="w-4 h-4" />
@@ -651,8 +759,8 @@ export const VidyPlayer: React.FC = () => {
                   <button
                     disabled={totalEpisodesInSeason > 0 && episode >= totalEpisodesInSeason}
                     onClick={() => handleEpisodeChange(episode + 1)}
-                    className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                    title="Next Episode"
+                    className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                    title="Next Episode (N)"
                     aria-label="Next Episode"
                   >
                     <ChevronRight className="w-4 h-4" />
@@ -665,7 +773,7 @@ export const VidyPlayer: React.FC = () => {
           </div>
         ) : (
           /* ========================================================================= */
-          /* IF REGULAR MOVIE / TV: SHOW THE 8 SELECTABLE PLAYER SERVERS               */
+          /* IF REGULAR MOVIE / TV: SHOW THE 9 SELECTABLE PLAYER SERVERS               */
           /* ========================================================================= */
           <div className="bg-[#111115] border border-white/10 rounded-2xl p-3 sm:p-4 shadow-xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3">
@@ -677,16 +785,16 @@ export const VidyPlayer: React.FC = () => {
                   Select Player Source
                 </h2>
                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-white/10 text-white/80">
-                  {PROVIDERS.length} Servers
+                  {PROVIDERS.length} Streaming Mirrors
                 </span>
               </div>
               <p className="text-[11px] sm:text-xs text-white/50">
-                Switch provider below if playback buffers or is unavailable
+                Switch provider if playback buffers or is unavailable
               </p>
             </div>
 
             {/* Provider Buttons Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
               {PROVIDERS.map((p, idx) => {
                 const isActive = provider === p.id;
                 return (
@@ -695,8 +803,9 @@ export const VidyPlayer: React.FC = () => {
                     onClick={() => {
                       setProvider(p.id);
                       setIsLoading(true);
+                      showToast(`Switched to ${p.name}`);
                     }}
-                    className={`flex flex-col items-start text-left p-2.5 rounded-xl border transition-all relative overflow-hidden group ${
+                    className={`flex flex-col items-start text-left p-2.5 rounded-xl border transition-all relative overflow-hidden group cursor-pointer ${
                       isActive
                         ? 'bg-[rgb(var(--primary-color))]/20 border-[rgb(var(--primary-color))] ring-1 ring-[rgb(var(--primary-color))]/50 shadow-lg shadow-[rgb(var(--primary-color))]/15'
                         : 'bg-black/40 hover:bg-white/5 border-white/10 hover:border-white/20'
@@ -704,12 +813,12 @@ export const VidyPlayer: React.FC = () => {
                   >
                     <div className="flex items-center justify-between w-full mb-1">
                       <span className="text-[10px] font-mono uppercase text-white/50 group-hover:text-white/70">
-                        Server {idx + 1}
+                        S{idx + 1}
                       </span>
                       {isActive && (
                         <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                          Active
+                          Live
                         </span>
                       )}
                     </div>
@@ -722,7 +831,7 @@ export const VidyPlayer: React.FC = () => {
                           ? 'bg-[rgb(var(--primary-color))] text-white font-bold' 
                           : 'bg-white/10 text-white/60'
                       }`}>
-                        {p.id === 'vidy' ? 'Default' : 'Online'}
+                        {p.quality}
                       </span>
                     </div>
                   </button>
@@ -732,14 +841,34 @@ export const VidyPlayer: React.FC = () => {
           </div>
         )}
 
-        {/* Regular TV Episode Navigation (Only for non-anime TV series) */}
+        {/* Regular TV Season & Episode Navigation Bar */}
         {!isAnime && isEpisode && (
-          <div className="bg-[#111115] border border-white/10 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Tv className="w-4 h-4 text-[rgb(var(--primary-color))]" />
-              <span className="text-xs font-bold text-white uppercase tracking-wider">
-                Season {season} · Episode {episode}
-              </span>
+          <div className="bg-[#111115] border border-white/10 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Tv className="w-4 h-4 text-[rgb(var(--primary-color))]" />
+                <span className="text-xs font-bold text-white uppercase tracking-wider">
+                  Season {season} · Episode {episode}
+                </span>
+              </div>
+
+              {/* Interactive Season Dropdown Selector */}
+              {availableSeasons.length > 1 && (
+                <div className="relative">
+                  <select
+                    value={season}
+                    onChange={(e) => handleSeasonChange(Number(e.target.value))}
+                    className="bg-black/60 border border-white/15 text-white text-xs font-bold rounded-lg px-2.5 py-1.5 appearance-none pr-7 cursor-pointer hover:border-[rgb(var(--primary-color))] focus:outline-none"
+                  >
+                    {availableSeasons.map((s) => (
+                      <option key={s.id} value={s.season_number} className="bg-zinc-900 text-white">
+                        {s.name || `Season ${s.season_number}`} ({s.episode_count} eps)
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-white/50 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              )}
             </div>
 
             {/* Quick Prev / Next Buttons */}
@@ -747,7 +876,8 @@ export const VidyPlayer: React.FC = () => {
               <button
                 disabled={episode <= 1}
                 onClick={() => handleEpisodeChange(episode - 1)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-white/80 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-white/80 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                title="Previous Episode (P)"
               >
                 <ChevronLeft className="w-4 h-4" /> Prev Ep
               </button>
@@ -759,7 +889,8 @@ export const VidyPlayer: React.FC = () => {
               <button
                 disabled={episode >= totalEpisodesInSeason}
                 onClick={() => handleEpisodeChange(episode + 1)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[rgb(var(--primary-color))] hover:brightness-110 text-white text-xs font-bold transition-all shadow-md disabled:opacity-30 disabled:pointer-events-none"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[rgb(var(--primary-color))] hover:brightness-110 text-white text-xs font-bold transition-all shadow-md disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                title="Next Episode (N)"
               >
                 Next Ep <ChevronRight className="w-4 h-4" />
               </button>
@@ -787,7 +918,7 @@ export const VidyPlayer: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleEpisodeChange(episode - 1)}
-                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold transition-all border border-white/10"
+                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold transition-all border border-white/10 cursor-pointer"
                 >
                   Watch Episode {episode - 1}
                 </button>
@@ -795,7 +926,7 @@ export const VidyPlayer: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate(detailsUrl)}
-                className="px-5 py-2 rounded-xl bg-[rgb(var(--primary-color))] text-white text-xs font-bold transition-all hover:brightness-110 shadow-lg"
+                className="px-5 py-2 rounded-xl bg-[rgb(var(--primary-color))] text-white text-xs font-bold transition-all hover:brightness-110 shadow-lg cursor-pointer"
               >
                 Back to Show Details
               </button>
@@ -837,11 +968,11 @@ export const VidyPlayer: React.FC = () => {
                   <div className="text-center">
                     <p className="text-sm font-bold text-white">
                       {isAnime 
-                        ? `Connecting to ${animeProvider === 'aniembed' ? 'AniEmbed (Server 1)' : 'MegaVid (Server 2)'}...` 
+                        ? `Connecting to ${animeProvider === 'aniembed' ? 'AniEmbed (Server 1)' : animeProvider === 'megavid' ? 'MegaVid (Server 2)' : animeProvider === 'vidly' ? 'Vidly Pro (Server 3)' : 'Anixo (Server 4)'}...` 
                         : `Connecting to ${PROVIDERS.find(p => p.id === provider)?.name || provider}...`}
                     </p>
                     <p className="text-xs text-white/50 mt-1">
-                      {isAnime ? `Loading Episode ${episode} (${animeLang.toUpperCase()})` : 'Establishing high-speed stream connection'}
+                      {isAnime ? `Loading Episode ${episode} (${animeLang.toUpperCase()})` : 'Establishing secure media streaming handshake'}
                     </p>
                   </div>
                 </div>
@@ -865,12 +996,12 @@ export const VidyPlayer: React.FC = () => {
                 onClick={() => setShowEpisodeDrawer(prev => !prev)}
                 className="text-xs text-[rgb(var(--primary-color))] hover:underline font-semibold cursor-pointer"
               >
-                {showEpisodeDrawer ? 'Collapse' : 'Expand Episodes'}
+                {showEpisodeDrawer ? 'Collapse Episodes' : 'Expand Episodes'}
               </button>
             </div>
 
             {showEpisodeDrawer && (
-              <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar momentum-scroll">
+              <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
                 {seasonQuery.data?.episodes && seasonQuery.data.episodes.length > 0 ? (
                   seasonQuery.data.episodes.map(epItem => {
                     const isCur = episode === epItem.episode_number;
@@ -957,16 +1088,16 @@ export const VidyPlayer: React.FC = () => {
               <p className="text-xs sm:text-sm font-medium text-white/80">
                 {hasTimedOut 
                   ? isAnime
-                    ? `Stream taking longer than expected. Switch to ${animeProvider === 'aniembed' ? 'Server 2 (MegaVid)' : 'Server 1 (AniEmbed)'} or try Next Server.`
+                    ? `Stream taking longer than expected. Switch to Server 2 (MegaVid) or Server 3 (Vidly Pro).`
                     : 'Server taking longer than expected. Try switching to the next provider below.'
                   : isAnime 
-                    ? `Streaming anime with ${animeProvider === 'aniembed' ? 'AniEmbed (Server 1)' : 'MegaVid (Server 2)'} (${animeLang.toUpperCase()}).`
+                    ? `Streaming anime with ${animeProvider === 'aniembed' ? 'AniEmbed (Server 1)' : animeProvider === 'megavid' ? 'MegaVid (Server 2)' : animeProvider === 'vidly' ? 'Vidly Pro (Server 3)' : 'Anixo (Server 4)'} (${animeLang.toUpperCase()}).`
                     : `Currently streaming via ${PROVIDERS.find(p => p.id === provider)?.name}.`}
               </p>
               <p className="text-[11px] text-white/50 mt-0.5">
                 {isAnime 
-                  ? 'If AniEmbed cannot find this anime or episode, switch to MegaVid (Server 2).' 
-                  : 'If audio or video does not load, click any other provider in the list above.'}
+                  ? 'If a server cannot find this episode, switch to one of the 4 alternate anime servers above.' 
+                  : 'If video or audio is buffering, click Next Server or pick another mirror.'}
               </p>
             </div>
           </div>
@@ -976,7 +1107,7 @@ export const VidyPlayer: React.FC = () => {
               <button
                 type="button"
                 onClick={switchNextServer}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-xs sm:text-sm font-semibold transition-colors border border-amber-500/30 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-xs sm:text-sm font-semibold transition-colors border border-amber-500/30 cursor-pointer"
                 title="Switch to next provider"
               >
                 <Zap className="w-3.5 h-3.5 text-amber-400" />
@@ -987,13 +1118,14 @@ export const VidyPlayer: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  setAnimeProvider(prev => prev === 'aniembed' ? 'megavid' : 'aniembed');
+                  setAnimeProvider(prev => prev === 'aniembed' ? 'megavid' : prev === 'megavid' ? 'vidly' : prev === 'vidly' ? 'anixo' : 'aniembed');
                   setIsLoading(true);
+                  showToast('Switched to next anime player');
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-pink-500/15 hover:bg-pink-500/25 text-pink-300 text-xs sm:text-sm font-semibold transition-colors border border-pink-500/30 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-pink-500/15 hover:bg-pink-500/25 text-pink-300 text-xs sm:text-sm font-semibold transition-colors border border-pink-500/30 cursor-pointer"
               >
                 <RotateCw className="w-3.5 h-3.5" /> 
-                <span>Switch to {animeProvider === 'aniembed' ? 'MegaVid (S2)' : 'AniEmbed (S1)'}</span>
+                <span>Next Server</span>
               </button>
             )}
             <button 
@@ -1007,12 +1139,177 @@ export const VidyPlayer: React.FC = () => {
               href={embedUrl} 
               target="_blank" 
               rel="noreferrer" 
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[rgb(var(--primary-color))] hover:brightness-110 text-white text-xs sm:text-sm font-bold transition-all shadow-md"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[rgb(var(--primary-color))] hover:brightness-110 text-white text-xs sm:text-sm font-bold transition-all shadow-md cursor-pointer"
             >
               <ExternalLink className="w-3.5 h-3.5" /> Open in New Tab
             </a>
           </div>
         </div>
+
+        {/* Media Details & Cast Showcase Below Player */}
+        {details && (
+          <div className="bg-[#111115] border border-white/10 rounded-2xl p-4 sm:p-6 shadow-xl space-y-5">
+            <div className="flex flex-col sm:flex-row gap-5 items-start">
+              {poster && (
+                <img 
+                  src={poster} 
+                  alt={title} 
+                  className="w-24 sm:w-28 rounded-xl object-cover shadow-2xl shrink-0 border border-white/15" 
+                />
+              )}
+              <div className="space-y-2 min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                    {title}
+                  </h2>
+                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-white/10 text-white/80 border border-white/10 uppercase">
+                    {mediaType === MediaType.TV ? 'Series' : 'Movie'}
+                  </span>
+                </div>
+
+                {details.tagline && (
+                  <p className="text-xs sm:text-sm italic text-white/60">
+                    "{details.tagline}"
+                  </p>
+                )}
+
+                {/* Metadata Row */}
+                <div className="flex flex-wrap items-center gap-3 text-xs text-white/70">
+                  <div className="flex items-center gap-1 text-amber-400 font-bold">
+                    <Star className="w-3.5 h-3.5 fill-amber-400" />
+                    <span>{details.vote_average ? details.vote_average.toFixed(1) : '8.0'}</span>
+                  </div>
+                  <span>·</span>
+                  <span className="font-mono">
+                    {(details.first_air_date || details.release_date)?.split('-')[0]}
+                  </span>
+                  {details.runtime ? (
+                    <>
+                      <span>·</span>
+                      <span className="font-mono">{details.runtime} mins</span>
+                    </>
+                  ) : null}
+                  {details.genres && details.genres.length > 0 && (
+                    <>
+                      <span>·</span>
+                      <span>{details.genres.map(g => g.name).slice(0, 3).join(', ')}</span>
+                    </>
+                  )}
+                </div>
+
+                {/* Synopsis */}
+                {details.overview && (
+                  <p className="text-xs sm:text-sm text-white/75 leading-relaxed pt-1 line-clamp-3">
+                    {details.overview}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Cast Member Row */}
+            {details.credits?.cast && details.credits.cast.length > 0 && (
+              <div className="pt-3 border-t border-white/10">
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="w-4 h-4 text-[rgb(var(--primary-color))]" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-white">
+                    Featured Cast
+                  </h3>
+                </div>
+                <div className="flex items-center gap-3 overflow-x-auto pb-2 custom-scrollbar">
+                  {details.credits.cast.slice(0, 8).map(person => (
+                    <div 
+                      key={person.id}
+                      onClick={() => navigate(`/person/${person.id}`)}
+                      className="flex items-center gap-2.5 p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 shrink-0 cursor-pointer transition-all"
+                    >
+                      {person.profile_path ? (
+                        <img 
+                          src={`${TMDB_PROFILE_BASE}${person.profile_path}`} 
+                          alt={person.name} 
+                          className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/15" 
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-white/50 shrink-0">
+                          {person.name.charAt(0)}
+                        </div>
+                      )}
+                      <div className="text-left pr-2">
+                        <div className="text-xs font-bold text-white truncate max-w-[110px]">
+                          {person.name}
+                        </div>
+                        <div className="text-[10px] text-white/50 truncate max-w-[110px]">
+                          {person.character || 'Actor'}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Recommended & Similar Titles Row */}
+        {recommendationsQuery.data && recommendationsQuery.data.length > 0 && (
+          <div className="bg-[#111115] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-xl">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+                You May Also Like
+              </h3>
+            </div>
+
+            <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
+              {recommendationsQuery.data.slice(0, 10).map(rec => {
+                const recYear = (rec.release_date || rec.first_air_date)?.split('-')[0];
+                const recRating = rec.vote_average ? rec.vote_average.toFixed(1) : '7.5';
+                const recPoster = rec.poster_path ? `${TMDB_POSTER_BASE}${rec.poster_path}` : '';
+
+                return (
+                  <div
+                    key={rec.id}
+                    onClick={() => {
+                      const recType = rec.media_type === 'tv' ? MediaType.TV : MediaType.MOVIE;
+                      if (recType === MediaType.TV) {
+                        navigate(`/watch/tv/${rec.id}/1/1`);
+                      } else {
+                        navigate(`/watch/movie/${rec.id}`);
+                      }
+                    }}
+                    className="w-36 sm:w-44 shrink-0 group/card cursor-pointer flex flex-col space-y-1.5"
+                  >
+                    <div className="aspect-[2/3] w-full rounded-xl overflow-hidden bg-zinc-900 border border-white/10 relative shadow-md group-hover/card:border-[rgb(var(--primary-color))]/50 group-hover/card:shadow-xl transition-all">
+                      {recPoster ? (
+                        <img 
+                          src={recPoster} 
+                          alt={rec.title || rec.name} 
+                          className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-300" 
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xs text-white/40 p-2 text-center">
+                          {rec.title || rec.name}
+                        </div>
+                      )}
+                      <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 flex items-center justify-center text-white opacity-0 group-hover/card:opacity-100 transition-opacity">
+                        <Play className="w-3 h-3 fill-current ml-0.5" />
+                      </div>
+                    </div>
+                    <h4 className="text-xs font-bold text-white truncate group-hover/card:text-[rgb(var(--primary-color))] transition-colors">
+                      {rec.title || rec.name}
+                    </h4>
+                    <div className="flex items-center justify-between text-[10px] text-white/50 font-mono">
+                      <span>{recYear}</span>
+                      <span className="flex items-center gap-0.5 text-amber-400 font-bold">
+                        <Star className="w-2.5 h-2.5 fill-current" />
+                        <span>{recRating}</span>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
       </div>
 
@@ -1034,7 +1331,7 @@ export const VidyPlayer: React.FC = () => {
               <button 
                 type="button"
                 onClick={() => setShowShortcutsModal(false)} 
-                className="text-white/60 hover:text-white p-1 rounded-lg"
+                className="text-white/60 hover:text-white p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>

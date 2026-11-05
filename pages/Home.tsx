@@ -20,14 +20,14 @@ import {
   saveProgress,
   removeFromProgress 
 } from '../services/storage';
-import { TMDBResult, TMDBVideo, MediaType, ContinueWatchingItem } from '../types';
+import { TMDBResult, MediaType, ContinueWatchingItem } from '../types';
 import { MediaCard } from '../components/MediaCard';
 import { StreamingProvidersShowcase } from '../components/StreamingProvidersShowcase';
 import { TMDB_BACKDROP_W1280, TMDB_BACKDROP_W780, TMDB_BACKDROP_W300, TMDB_POSTER_BASE } from '../constants';
 import { 
-  Play, Info, TrendingUp, Star, Clock, ChevronLeft, ChevronRight, 
+  Play, Info, TrendingUp, Star, ChevronLeft, ChevronRight, 
   Plus, Check, Youtube, X, Flame, Sparkles, Film, Tv, Compass, 
-  CheckCircle2, Volume2, ShieldCheck, Eye
+  CheckCircle2, ArrowRight, Pause, RotateCcw
 } from 'lucide-react';
 import { RowSkeleton, Skeleton } from '../components/Skeleton';
 
@@ -35,20 +35,23 @@ interface HomeProps {
   onSelect?: (item: TMDBResult) => void;
 }
 
-// Interactive Horizontal Row with Desktop Left/Right Chevron Controls
+// Interactive Horizontal Row with Desktop Left/Right Chevron Controls & Optional View All Link
 const InteractiveRow = React.memo(({ 
   title, 
   items, 
   icon: Icon, 
   badge,
+  viewAllLink,
   onSelect 
 }: { 
   title: string; 
   items: TMDBResult[]; 
   icon?: React.ElementType; 
   badge?: string;
+  viewAllLink?: string;
   onSelect: (item: TMDBResult) => void; 
 }) => {
+  const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -78,7 +81,7 @@ const InteractiveRow = React.memo(({
       <div className="flex items-center justify-between mb-4 px-4 sm:px-6">
         <div className="flex items-center gap-3">
           {Icon && (
-            <div className="p-1.5 rounded-lg bg-[rgb(var(--primary-color))]/10 text-[rgb(var(--primary-color))]">
+            <div className="p-1.5 rounded-xl bg-[rgb(var(--primary-color))]/10 text-[rgb(var(--primary-color))]">
               <Icon className="w-5 h-5" />
             </div>
           )}
@@ -92,24 +95,36 @@ const InteractiveRow = React.memo(({
           )}
         </div>
 
-        {/* Desktop Arrow Controls */}
-        <div className="hidden sm:flex items-center gap-1.5 opacity-0 group-hover/row:opacity-100 transition-opacity">
-          <button
-            onClick={() => scroll('left')}
-            disabled={!canScrollLeft}
-            aria-label="Scroll left"
-            className="p-1.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-md"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => scroll('right')}
-            disabled={!canScrollRight}
-            aria-label="Scroll right"
-            className="p-1.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-md"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+        {/* Right Controls: View All + Desktop Arrow Controls */}
+        <div className="flex items-center gap-2">
+          {viewAllLink && (
+            <button
+              onClick={() => navigate(viewAllLink)}
+              className="flex items-center gap-1 text-xs font-semibold text-[rgb(var(--primary-color))] hover:brightness-110 transition-colors px-2.5 py-1 rounded-lg hover:bg-[rgb(var(--primary-color))]/10 cursor-pointer"
+            >
+              <span>Explore all</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          <div className="hidden sm:flex items-center gap-1.5 opacity-0 group-hover/row:opacity-100 transition-opacity">
+            <button
+              onClick={() => scroll('left')}
+              disabled={!canScrollLeft}
+              aria-label="Scroll left"
+              className="p-1.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-md cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => scroll('right')}
+              disabled={!canScrollRight}
+              aria-label="Scroll right"
+              className="p-1.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-md cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -178,9 +193,9 @@ const Top10Showcase = React.memo(({
           <div className="flex bg-[var(--bg-card)] p-1 rounded-xl border border-[var(--border-subtle)] text-xs font-semibold">
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                 activeTab === 'all' 
-                  ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm' 
+                  ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm font-bold' 
                   : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
               }`}
             >
@@ -188,9 +203,9 @@ const Top10Showcase = React.memo(({
             </button>
             <button
               onClick={() => setActiveTab('movies')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                 activeTab === 'movies' 
-                  ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm' 
+                  ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm font-bold' 
                   : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
               }`}
             >
@@ -198,9 +213,9 @@ const Top10Showcase = React.memo(({
             </button>
             <button
               onClick={() => setActiveTab('series')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                 activeTab === 'series' 
-                  ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm' 
+                  ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm font-bold' 
                   : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
               }`}
             >
@@ -211,14 +226,14 @@ const Top10Showcase = React.memo(({
           <div className="hidden sm:flex items-center gap-1">
             <button
               onClick={() => scroll('left')}
-              className="p-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] transition-all shadow"
+              className="p-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] transition-all shadow cursor-pointer"
               aria-label="Previous"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={() => scroll('right')}
-              className="p-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] transition-all shadow"
+              className="p-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] transition-all shadow cursor-pointer"
               aria-label="Next"
             >
               <ChevronRight className="w-4 h-4" />
@@ -342,6 +357,8 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
   // Local State
   const [heroIndex, setHeroIndex] = useState(0);
   const [isHeroHovered, setIsHeroHovered] = useState(false);
+  const [isHeroPaused, setIsHeroPaused] = useState(false);
+  const [slideProgress, setSlideProgress] = useState(0);
   const [continueWatchingList, setContinueWatchingList] = useState<ContinueWatchingItem[]>([]);
   const [selectedTrailerKey, setSelectedTrailerKey] = useState<string | null>(null);
   const [selectedTrailerTitle, setSelectedTrailerTitle] = useState<string>('');
@@ -350,6 +367,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
   const toastTimerRef = useRef<number | null>(null);
+  const SLIDE_DURATION_MS = 8000;
 
   const showToast = (message: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -384,7 +402,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
   }, []);
 
   const featuredList = useMemo(() => {
-    return trending?.slice(0, 5) || [];
+    return trending?.slice(0, 6) || [];
   }, [trending]);
 
   const currentHero = featuredList[heroIndex] || trending?.[0];
@@ -396,14 +414,37 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
     }
   }, [currentHero, heroIndex]);
 
-  // Auto-advance hero carousel every 7 seconds when not hovered
+  // Smooth slide timer ticker with visual progress indicator
   useEffect(() => {
-    if (featuredList.length <= 1 || isHeroHovered) return;
-    const interval = setInterval(() => {
-      setHeroIndex(prev => (prev + 1) % featuredList.length);
-    }, 7000);
-    return () => clearInterval(interval);
-  }, [featuredList.length, isHeroHovered]);
+    if (featuredList.length <= 1 || isHeroHovered || isHeroPaused) return;
+
+    const intervalTime = 100;
+    const increment = (intervalTime / SLIDE_DURATION_MS) * 100;
+
+    const timer = setInterval(() => {
+      setSlideProgress(prev => {
+        if (prev >= 100) {
+          setHeroIndex(curr => (curr + 1) % featuredList.length);
+          return 0;
+        }
+        return prev + increment;
+      });
+    }, intervalTime);
+
+    return () => clearInterval(timer);
+  }, [featuredList.length, isHeroHovered, isHeroPaused, heroIndex]);
+
+  const goToNextHero = () => {
+    if (featuredList.length <= 1) return;
+    setHeroIndex(prev => (prev + 1) % featuredList.length);
+    setSlideProgress(0);
+  };
+
+  const goToPrevHero = () => {
+    if (featuredList.length <= 1) return;
+    setHeroIndex(prev => (prev - 1 + featuredList.length) % featuredList.length);
+    setSlideProgress(0);
+  };
 
   const handleSelect = (item: TMDBResult) => {
     if (onSelect) {
@@ -479,24 +520,24 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
         setSelectedTrailerKey(yt.key);
         setSelectedTrailerTitle(item.title || item.name || 'Trailer');
       } else {
-        showToast('No trailer video found for this title');
+        showToast('No official trailer found for this title');
       }
-    } catch (err) {
-      showToast('Failed to load trailer');
+    } catch {
+      showToast('Unable to load trailer right now');
     }
   };
 
-  const isLoading = loadingTrending || loadingMovies || loadingSeries;
+  const isLoadingInitial = loadingTrending && loadingMovies && loadingSeries;
 
-  if (isLoading) {
+  if (isLoadingInitial) {
     return (
-      <div className="min-h-screen pb-20 bg-[var(--bg-main)]">
-        <div className="h-[80vh] w-full bg-[var(--bg-card)] relative mb-12 animate-pulse">
-          <Skeleton className="w-full h-full" />
-          <div className="absolute bottom-0 left-0 w-full px-6 pb-16 max-w-7xl mx-auto space-y-4">
-            <Skeleton width={180} height={32} className="rounded-full" />
-            <Skeleton width="60%" height={64} className="rounded-xl" />
-            <Skeleton width="45%" height={24} className="rounded-md" />
+      <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] pb-20">
+        <div className="relative h-[80vh] min-h-[580px] w-full bg-[var(--bg-card)] animate-pulse mb-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 h-full flex flex-col justify-end pb-16 space-y-4">
+            <Skeleton width={180} height={24} variant="rectangular" className="rounded-md" />
+            <Skeleton width={380} height={60} variant="rectangular" className="rounded-xl" />
+            <Skeleton width={260} height={20} variant="rectangular" className="rounded-md" />
+            <Skeleton width={520} height={70} variant="rectangular" className="rounded-xl" />
             <div className="flex gap-4 pt-2">
               <Skeleton width={160} height={50} variant="rectangular" className="rounded-xl" />
               <Skeleton width={140} height={50} variant="rectangular" className="rounded-xl" />
@@ -539,7 +580,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
               </div>
               <button 
                 onClick={() => setSelectedTrailerKey(null)}
-                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
                 aria-label="Close trailer"
               >
                 <X className="w-5 h-5" />
@@ -561,11 +602,11 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
       {/* Cinematic Hero Spotlight Carousel */}
       {currentHero && (
         <div 
-          className="relative h-[82vh] min-h-[580px] max-h-[820px] w-full mb-10 group/hero"
+          className="relative h-[84vh] min-h-[600px] max-h-[860px] w-full mb-10 group/hero"
           onMouseEnter={() => setIsHeroHovered(true)}
           onMouseLeave={() => setIsHeroHovered(false)}
         >
-          {/* Backdrop Images with Smooth Fade */}
+          {/* Backdrop Images with Smooth Cross-Fade & Gentle Ken Burns Effect */}
           <div className="absolute inset-0 z-0 overflow-hidden">
             {featuredList.map((item, idx) => (
               <div
@@ -587,35 +628,63 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
               </div>
             ))}
 
-            {/* Seamless Top Vignette (Blends into Navbar background with zero line) */}
-            <div className="absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-[var(--bg-main)] via-[var(--bg-main)]/60 to-transparent pointer-events-none z-10" />
+            {/* Seamless Top Vignette (Blends into Navbar background) */}
+            <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-[var(--bg-main)] via-[var(--bg-main)]/60 to-transparent pointer-events-none z-10" />
 
             {/* Left Vignette for Text Contrast */}
-            <div className="absolute inset-0 bg-gradient-to-r from-[var(--bg-main)] via-[var(--bg-main)]/80 to-transparent w-full lg:w-3/5 z-10" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[var(--bg-main)] via-[var(--bg-main)]/85 to-transparent w-full lg:w-3/5 z-10" />
 
             {/* Bottom Seamless Fade */}
-            <div className="absolute inset-x-0 bottom-0 h-52 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)]/75 to-transparent pointer-events-none z-10" />
+            <div className="absolute inset-x-0 bottom-0 h-60 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)]/80 to-transparent pointer-events-none z-10" />
             
             {/* Ambient Primary Glow */}
-            <div className="absolute top-1/3 left-1/4 w-80 h-80 bg-[rgb(var(--primary-color))]/15 rounded-full blur-[100px] pointer-events-none z-10" />
+            <div className="absolute top-1/3 left-1/4 w-80 h-80 bg-[rgb(var(--primary-color))]/15 rounded-full blur-[110px] pointer-events-none z-10" />
           </div>
+
+          {/* Desktop Direct Hero Chevrons (Hover) */}
+          <button
+            type="button"
+            onClick={goToPrevHero}
+            className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 text-white items-center justify-center opacity-0 group-hover/hero:opacity-100 transition-all hover:scale-110 shadow-2xl cursor-pointer"
+            aria-label="Previous Spotlight"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={goToNextHero}
+            className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 text-white items-center justify-center opacity-0 group-hover/hero:opacity-100 transition-all hover:scale-110 shadow-2xl cursor-pointer"
+            aria-label="Next Spotlight"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
 
           {/* Hero Content Body */}
           <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-end pb-16 sm:pb-20">
             <div className="max-w-2xl flex flex-col gap-3.5">
               
-              {/* Eyebrow Kicker */}
-              <div className="flex items-center gap-2 text-xs font-bold tracking-wider uppercase animate-fade-in">
+              {/* Eyebrow Kicker with Auto-Play Status Toggle */}
+              <div className="flex items-center gap-2.5 text-xs font-bold tracking-wider uppercase animate-fade-in">
                 <span className="flex items-center gap-1.5 text-rose-400">
                   <TrendingUp className="w-3.5 h-3.5" />
                   <span>Spotlight #{heroIndex + 1}</span>
                 </span>
                 <span className="text-white/30">·</span>
-                <span className="text-white/60 font-medium tracking-wide">Trending Worldwide</span>
+                <span className="text-white/70 font-medium tracking-wide">Trending Worldwide</span>
+                <span className="text-white/30">·</span>
+                <button
+                  type="button"
+                  onClick={() => setIsHeroPaused(p => !p)}
+                  className="flex items-center gap-1 text-[11px] font-mono text-white/50 hover:text-white transition-colors cursor-pointer px-1.5 py-0.5 rounded bg-white/5 border border-white/10"
+                  title={isHeroPaused ? 'Resume auto-play' : 'Pause auto-play'}
+                >
+                  {isHeroPaused ? <Play className="w-2.5 h-2.5 fill-current" /> : <Pause className="w-2.5 h-2.5 fill-current" />}
+                  <span>{isHeroPaused ? 'Paused' : 'Auto'}</span>
+                </button>
               </div>
 
-              {/* Title */}
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white leading-[1.08] tracking-tight drop-shadow-2xl animate-fade-in line-clamp-2">
+              {/* Title with Balanced Linebreaks */}
+              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white leading-[1.08] tracking-tight drop-shadow-2xl animate-fade-in line-clamp-2 max-w-xl" style={{ textWrap: 'balance' }}>
                 {currentHero.title || currentHero.name}
               </h1>
 
@@ -630,11 +699,11 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                   {currentHero.media_type === 'tv' ? 'TV Series' : 'Feature Film'}
                 </span>
                 <span className="text-white/30">·</span>
-                <span className="text-white/70">
+                <span className="text-white/70 font-mono">
                   {(currentHero.first_air_date || currentHero.release_date)?.split('-')[0]}
                 </span>
                 <span className="text-white/30">·</span>
-                <span className="text-emerald-400 font-semibold text-xs uppercase tracking-wider">
+                <span className="text-emerald-400 font-semibold text-xs uppercase tracking-wider font-mono">
                   Ultra HD 4K
                 </span>
               </div>
@@ -650,7 +719,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 {/* Watch Now Button */}
                 <button
                   onClick={() => handleQuickPlay(currentHero)}
-                  className="flex items-center gap-2.5 bg-[rgb(var(--primary-color))] hover:brightness-110 text-white px-7 py-3.5 rounded-xl font-bold text-sm sm:text-base shadow-xl shadow-[rgb(var(--primary-color))]/30 hover:-translate-y-0.5 transition-all group"
+                  className="flex items-center gap-2.5 bg-[rgb(var(--primary-color))] hover:brightness-110 text-white px-7 py-3.5 rounded-xl font-bold text-sm sm:text-base shadow-xl shadow-[rgb(var(--primary-color))]/30 hover:-translate-y-0.5 transition-all group cursor-pointer"
                 >
                   <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-current transition-transform group-hover:scale-110" />
                   <span>Watch Now</span>
@@ -659,7 +728,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 {/* Trailer Button */}
                 <button
                   onClick={() => handleOpenTrailer(currentHero)}
-                  className="flex items-center gap-2 bg-black/40 hover:bg-black/60 border border-white/20 text-white px-5 py-3.5 rounded-xl font-semibold text-sm backdrop-blur-md transition-all hover:border-red-500/50 hover:text-red-400 group"
+                  className="flex items-center gap-2 bg-black/40 hover:bg-black/60 border border-white/20 text-white px-5 py-3.5 rounded-xl font-semibold text-sm backdrop-blur-md transition-all hover:border-red-500/50 hover:text-red-400 group cursor-pointer"
                 >
                   <Youtube className="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform" />
                   <span>Trailer</span>
@@ -668,7 +737,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 {/* Details Button */}
                 <button
                   onClick={() => handleSelect(currentHero)}
-                  className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/15 text-white px-5 py-3.5 rounded-xl font-semibold text-sm backdrop-blur-md transition-all"
+                  className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/15 text-white px-5 py-3.5 rounded-xl font-semibold text-sm backdrop-blur-md transition-all cursor-pointer"
                 >
                   <Info className="w-4 h-4" />
                   <span>Details</span>
@@ -677,7 +746,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 {/* Watchlist Toggle Button */}
                 <button
                   onClick={toggleWatchlistForHero}
-                  className={`p-3.5 rounded-xl border backdrop-blur-md transition-all flex items-center justify-center ${
+                  className={`p-3.5 rounded-xl border backdrop-blur-md transition-all flex items-center justify-center cursor-pointer ${
                     inWatchlistState
                       ? 'bg-[rgb(var(--primary-color))]/25 border-[rgb(var(--primary-color))] text-[rgb(var(--primary-color))]'
                       : 'bg-black/40 hover:bg-black/60 border-white/15 text-white/80 hover:text-white'
@@ -690,30 +759,43 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
               </div>
             </div>
 
-            {/* Carousel Navigation Thumbnails (Bottom Right) */}
-            <div className="hidden lg:flex items-center gap-2.5 absolute bottom-16 right-8 z-20 bg-black/40 p-2 rounded-2xl border border-white/15 backdrop-blur-md">
-              {featuredList.map((item, idx) => (
-                <button
-                  key={item.id}
-                  onClick={() => setHeroIndex(idx)}
-                  className={`relative w-20 h-12 rounded-xl overflow-hidden border-2 transition-all group ${
-                    idx === heroIndex 
-                      ? 'border-[rgb(var(--primary-color))] scale-105 shadow-lg' 
-                      : 'border-transparent opacity-60 hover:opacity-100'
-                  }`}
-                  title={item.title || item.name}
-                >
-                  <img 
-                    src={`${TMDB_BACKDROP_W300}${item.backdrop_path}`} 
-                    alt="" 
-                    className="w-full h-full object-cover" 
-                  />
-                  <div className="absolute inset-0 bg-black/30 group-hover:bg-transparent transition-colors" />
-                  {idx === heroIndex && (
-                    <div className="absolute bottom-1 left-1.5 w-1.5 h-1.5 rounded-full bg-[rgb(var(--primary-color))]" />
-                  )}
-                </button>
-              ))}
+            {/* Carousel Navigation Filmstrip with Active Duration Progress (Bottom Right) */}
+            <div className="hidden lg:flex items-center gap-2.5 absolute bottom-16 right-8 z-20 bg-black/50 p-2 rounded-2xl border border-white/15 backdrop-blur-md shadow-2xl">
+              {featuredList.map((item, idx) => {
+                const isActive = idx === heroIndex;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setHeroIndex(idx);
+                      setSlideProgress(0);
+                    }}
+                    className={`relative w-20 h-12 rounded-xl overflow-hidden border-2 transition-all group cursor-pointer ${
+                      isActive 
+                        ? 'border-[rgb(var(--primary-color))] scale-105 shadow-lg ring-1 ring-[rgb(var(--primary-color))]/40' 
+                        : 'border-transparent opacity-60 hover:opacity-100 hover:scale-102'
+                    }`}
+                    title={item.title || item.name}
+                  >
+                    <img 
+                      src={`${TMDB_BACKDROP_W300}${item.backdrop_path}`} 
+                      alt="" 
+                      className="w-full h-full object-cover" 
+                    />
+                    <div className="absolute inset-0 bg-black/30 group-hover:bg-transparent transition-colors" />
+                    
+                    {/* Active Slide Timer Line */}
+                    {isActive && (
+                      <div className="absolute inset-x-0 bottom-0 h-1 bg-black/50 overflow-hidden">
+                        <div 
+                          className="h-full bg-[rgb(var(--primary-color))] transition-all duration-100 ease-linear shadow-sm"
+                          style={{ width: `${slideProgress}%` }}
+                        />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Mobile Pager Dots */}
@@ -721,9 +803,12 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
               {featuredList.map((_, idx) => (
                 <button
                   key={idx}
-                  onClick={() => setHeroIndex(idx)}
+                  onClick={() => {
+                    setHeroIndex(idx);
+                    setSlideProgress(0);
+                  }}
                   aria-label={`Go to slide ${idx + 1}`}
-                  className={`h-1.5 rounded-full transition-all ${
+                  className={`h-1.5 rounded-full transition-all cursor-pointer ${
                     idx === heroIndex ? 'w-6 bg-[rgb(var(--primary-color))]' : 'w-2 bg-white/40'
                   }`}
                 />
@@ -736,8 +821,8 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
       {/* Main Content Layout */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10 relative z-10 -mt-6">
 
-        {/* Quick Category Jumper Pill Bar */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 fancy-scrollbar">
+        {/* Quick Category Jumper Segmented Toolbar */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
           {[
             { id: 'all', label: 'All Entertainment', icon: Sparkles },
             { id: 'movies', label: 'Movies', icon: Film },
@@ -751,107 +836,99 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border ${
                   isActive
-                    ? 'bg-[rgb(var(--primary-color))] text-white shadow-md shadow-[rgb(var(--primary-color))]/25'
-                    : 'bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
+                    ? 'bg-[rgb(var(--primary-color))] text-white border-[rgb(var(--primary-color))] shadow-lg shadow-[rgb(var(--primary-color))]/20'
+                    : 'bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isActive ? 'text-white' : 'text-[var(--text-muted)]'}`} />
                 <span>{cat.label}</span>
               </button>
             );
           })}
         </div>
 
-        {/* Continue Watching Shelf (Only if user has watch history) */}
+        {/* Continue Watching Row */}
         {continueWatchingList.length > 0 && activeCategory === 'all' && (
-          <div className="mb-12 bg-gradient-to-r from-[var(--bg-card)] to-transparent p-5 sm:p-6 rounded-3xl border border-[var(--border-subtle)] shadow-xl">
-            <div className="flex items-center justify-between mb-4">
+          <div className="mb-10 animate-fade-in content-visibility-auto">
+            <div className="flex items-center justify-between mb-4 px-4 sm:px-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-[rgb(var(--primary-color))]/15 text-[rgb(var(--primary-color))]">
-                  <Clock className="w-5 h-5" />
+                <div className="p-1.5 rounded-xl bg-gradient-to-tr from-[rgb(var(--primary-color))] to-pink-500 text-white shadow-md">
+                  <Play className="w-4 h-4 fill-current ml-0.5" />
                 </div>
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-[var(--text-main)]">Continue Watching</h2>
-                  <p className="text-xs text-[var(--text-muted)]">Jump straight back where you left off</p>
+                  <h2 className="text-xl sm:text-2xl font-bold text-[var(--text-main)] tracking-tight">
+                    Continue Watching
+                  </h2>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Pick up right where you left off
+                  </p>
                 </div>
               </div>
+
+              <span className="text-xs font-mono text-[var(--text-muted)]">
+                {continueWatchingList.length} in progress
+              </span>
             </div>
 
-            <div className="flex overflow-x-auto space-x-4 pb-2 custom-scrollbar momentum-scroll">
+            <div className="flex overflow-x-auto space-x-4 px-4 sm:px-6 pb-4 custom-scrollbar scroll-smooth">
               {continueWatchingList.map(cw => {
-                const percent = Math.min(
-                  100, 
-                  Math.max(
-                    5, 
-                    cw.progress ?? (
-                      cw.duration && cw.duration > 0
-                        ? Math.round(((cw.currentTime || 0) / cw.duration) * 100)
-                        : (cw.currentTime && cw.currentTime > 0 ? 30 : 15)
-                    )
-                  )
-                );
-                const timeText = cw.currentTime && cw.currentTime > 0 ? formatTime(cw.currentTime) : null;
-                const mediaLabel = cw.anilist_id 
-                  ? `Anime · Ep ${cw.episode || 1}` 
-                  : cw.season 
-                    ? `S${cw.season} · Ep ${cw.episode || 1}` 
-                    : 'Movie';
-
-                const fallbackSvg = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22300%22%20height%3D%22170%22%20viewBox%3D%220%200%20300%20170%22%3E%3Crect%20fill%3D%22%2318181b%22%20width%3D%22300%22%20height%3D%22170%22%2F%3E%3Ctext%20fill%3D%22%2371717a%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22bold%22%20x%3D%2250%25%22%20y%3D%2250%25%22%20text-anchor%3D%22middle%22%3EStreamHub%3C%2Ftext%3E%3C%2Fsvg%3E';
-                const posterSrc = cw.poster_path?.startsWith('http')
-                  ? cw.poster_path
-                  : cw.poster_path
-                    ? `${TMDB_POSTER_BASE}${cw.poster_path}`
-                    : fallbackSvg;
+                const percent = Math.min(100, Math.max(5, Math.round(cw.progress || 10)));
+                const timeText = formatTime(cw.currentTime);
 
                 return (
                   <div
-                    key={`${cw.media_type}_${cw.id}`}
+                    key={`${cw.media_type}_${cw.id}_${cw.season || 0}_${cw.episode || 0}`}
                     onClick={() => handleResumeContinueWatching(cw)}
-                    className="w-68 sm:w-72 shrink-0 bg-[var(--bg-main)] rounded-2xl overflow-hidden border border-[var(--border-subtle)] hover:border-[rgb(var(--primary-color))]/60 transition-all cursor-pointer group shadow-md flex flex-col gpu-layer"
+                    className="relative w-64 sm:w-72 shrink-0 bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:border-[rgb(var(--primary-color))]/50 rounded-2xl overflow-hidden group cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 flex flex-col"
                   >
-                    <div className="relative aspect-[16/9] w-full bg-[var(--bg-hover)] overflow-hidden">
-                      <img 
-                        src={posterSrc} 
-                        alt={cw.title} 
-                        onError={(e) => {
-                          e.currentTarget.src = fallbackSvg;
-                        }}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                    {/* Thumbnail Image Stage with Hover Resume Overlay */}
+                    <div className="relative aspect-video w-full bg-zinc-900 overflow-hidden">
+                      <img
+                        src={cw.poster_path ? `${TMDB_BACKDROP_W300}${cw.poster_path}` : ''}
+                        alt={cw.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
                       />
-                      <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                        <div className="w-11 h-11 rounded-full bg-[rgb(var(--primary-color))] text-white flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
-                          <Play className="w-5 h-5 fill-current ml-0.5" />
-                        </div>
-                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
 
-                      {/* Delete button */}
+                      {/* Floating Remove Button */}
                       <button
+                        type="button"
                         onClick={(e) => handleRemoveContinueWatching(e, cw.id)}
-                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 hover:bg-red-600 text-white transition-colors border border-white/10 z-10"
-                        title="Remove from continue watching"
-                        aria-label="Remove"
+                        className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-black/60 hover:bg-black/90 text-white/70 hover:text-white border border-white/20 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 z-20 cursor-pointer shadow-lg"
+                        title="Remove from Continue Watching"
+                        aria-label="Remove from Continue Watching"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
 
-                      {/* Episode / Type Tag */}
-                      <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-sm text-[11px] font-bold text-white border border-white/15 font-mono">
-                        {mediaLabel}
-                      </span>
+                      {/* Play Button Icon Overlay */}
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="w-11 h-11 rounded-full bg-[rgb(var(--primary-color))] text-white flex items-center justify-center shadow-2xl transform scale-75 group-hover:scale-100 transition-transform">
+                          <Play className="w-5 h-5 fill-current ml-0.5" />
+                        </div>
+                      </div>
+
+                      {/* Episode Badge if Series */}
+                      {cw.media_type === 'tv' && cw.episode && (
+                        <div className="absolute bottom-2 left-2 z-10 px-2 py-0.5 rounded bg-black/80 border border-white/15 text-[10px] font-mono font-bold text-white uppercase tracking-wider">
+                          S{cw.season || 1} : E{cw.episode}
+                        </div>
+                      )}
                     </div>
 
-                    <div className="p-3.5 flex flex-col justify-between flex-1">
+                    {/* Bottom Metadata & Progress Bar */}
+                    <div className="p-3.5 flex flex-col justify-between flex-grow">
                       <div>
-                        <h4 className="text-sm font-bold text-[var(--text-main)] truncate group-hover:text-[rgb(var(--primary-color))] transition-colors">
+                        <h4 className="font-bold text-sm text-[var(--text-main)] truncate group-hover:text-[rgb(var(--primary-color))] transition-colors">
                           {cw.title}
                         </h4>
                         
                         <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] mt-1.5 font-medium">
                           <span>{percent}% watched</span>
-                          {timeText && <span>{timeText} elapsed</span>}
+                          {timeText && <span className="font-mono">{timeText}</span>}
                         </div>
                       </div>
 
@@ -887,6 +964,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
             badge="HOT"
             items={trendingWeek} 
             icon={TrendingUp} 
+            viewAllLink="/discover?type=movie"
             onSelect={handleSelect} 
           />
         )}
@@ -903,6 +981,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
             badge="MOVIES"
             items={movies} 
             icon={Film} 
+            viewAllLink="/discover?type=movie&sort=popularity.desc"
             onSelect={handleSelect} 
           />
         )}
@@ -914,6 +993,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
             badge="SERIES"
             items={series} 
             icon={Tv} 
+            viewAllLink="/discover?type=tv&sort=popularity.desc"
             onSelect={handleSelect} 
           />
         )}
@@ -925,6 +1005,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
             badge="PREMIERE"
             items={nowPlaying} 
             icon={Sparkles} 
+            viewAllLink="/discover?type=movie"
             onSelect={handleSelect} 
           />
         )}
@@ -936,6 +1017,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
             badge="TOP RATED"
             items={topRatedMovies} 
             icon={Star} 
+            viewAllLink="/discover?type=movie&sort=vote_average.desc"
             onSelect={handleSelect} 
           />
         )}
@@ -947,6 +1029,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
             badge="UPCOMING"
             items={upcomingMovies} 
             icon={Compass} 
+            viewAllLink="/discover?type=movie"
             onSelect={handleSelect} 
           />
         )}
@@ -958,6 +1041,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
             badge="CRITICS' CHOICE"
             items={topRatedSeries} 
             icon={Star} 
+            viewAllLink="/discover?type=tv&sort=vote_average.desc"
             onSelect={handleSelect} 
           />
         )}
