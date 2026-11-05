@@ -154,7 +154,16 @@ export interface TMDBDetail extends TMDBResult {
   images?: {
     backdrops?: { file_path: string; width: number; height: number; vote_average: number }[];
     posters?: { file_path: string; width: number; height: number; vote_average: number }[];
-    logos?: { file_path: string; width: number; height: number; file_type?: string }[];
+    logos?: { 
+      file_path: string; 
+      width: number; 
+      height: number; 
+      file_type?: string; 
+      iso_639_1?: string | null; 
+      vote_average?: number; 
+      vote_count?: number; 
+      aspect_ratio?: number; 
+    }[];
   };
   credits?: {
     cast: CastMember[];

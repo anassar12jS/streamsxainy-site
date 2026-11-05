@@ -490,11 +490,36 @@ export const Details: React.FC = () => {
     return fetchedDetail.images.backdrops.slice(0, 16);
   }, [fetchedDetail]);
 
-  // English Logo (if available)
+  // English or Original Language Logo artwork (never unrelated 3rd languages)
   const officialLogo = useMemo(() => {
-    if (!fetchedDetail?.images?.logos) return null;
-    return fetchedDetail.images.logos[0]?.file_path || null;
-  }, [fetchedDetail]);
+    const logos = fetchedDetail?.images?.logos;
+    if (!logos || logos.length === 0) return null;
+
+    const origLang = (fetchedDetail?.original_language || detail?.original_language || '').toLowerCase();
+
+    // 1. First priority: English logo
+    const enLogos = logos.filter(l => l.iso_639_1?.toLowerCase() === 'en');
+    if (enLogos.length > 0) {
+      return enLogos.sort((a, b) => ((b.vote_average || 0) * 10 + (b.vote_count || 0)) - ((a.vote_average || 0) * 10 + (a.vote_count || 0)))[0].file_path;
+    }
+
+    // 2. Second priority: Original show language logo (e.g. ja for anime, ko for k-drama, fr for French)
+    if (origLang && origLang !== 'en') {
+      const origLogos = logos.filter(l => l.iso_639_1?.toLowerCase() === origLang);
+      if (origLogos.length > 0) {
+        return origLogos.sort((a, b) => ((b.vote_average || 0) * 10 + (b.vote_count || 0)) - ((a.vote_average || 0) * 10 + (a.vote_count || 0)))[0].file_path;
+      }
+    }
+
+    // 3. Third priority: Language neutral logo (null, empty, or 'xx')
+    const neutralLogos = logos.filter(l => !l.iso_639_1 || l.iso_639_1 === 'xx' || l.iso_639_1 === 'null');
+    if (neutralLogos.length > 0) {
+      return neutralLogos.sort((a, b) => ((b.vote_average || 0) * 10 + (b.vote_count || 0)) - ((a.vote_average || 0) * 10 + (a.vote_count || 0)))[0].file_path;
+    }
+
+    // Never fallback to an unrelated foreign language
+    return null;
+  }, [fetchedDetail, detail]);
 
   if (isError) {
     return (
@@ -709,9 +734,28 @@ export const Details: React.FC = () => {
                       </span>
                     )}
                   </div>
+                  {officialLogo && (
+                    <div className="mb-2 max-w-[180px]">
+                      <img 
+                        src={`${TMDB_IMAGE_BASE}${officialLogo}`} 
+                        alt={title} 
+                        className="max-h-12 w-auto object-contain filter drop-shadow-md" 
+                      />
+                    </div>
+                  )}
                   <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight break-words">
                     {title}
                   </h1>
+                  {detail?.original_title && detail.original_title.toLowerCase() !== title.toLowerCase() && (
+                    <p className="text-xs text-white/60 mt-0.5">
+                      ({detail.original_title})
+                    </p>
+                  )}
+                  {!detail?.original_title && detail?.original_name && detail.original_name.toLowerCase() !== title.toLowerCase() && (
+                    <p className="text-xs text-white/60 mt-0.5">
+                      ({detail.original_name})
+                    </p>
+                  )}
                   <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-white/70 mt-1.5">
                     <span className="inline-flex items-center gap-1 text-amber-400 font-bold">
                       <Star className="w-3.5 h-3.5 fill-amber-400" /> {rating}
@@ -752,20 +796,35 @@ export const Details: React.FC = () => {
                   )}
                 </div>
 
-                {/* Title or Transparent Logo */}
-                {officialLogo ? (
-                  <div className="mb-4 max-w-md">
-                    <img 
-                      src={`${TMDB_IMAGE_BASE}${officialLogo}`} 
-                      alt={title} 
-                      className="max-h-24 w-auto object-contain filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]" 
-                    />
-                  </div>
-                ) : (
-                  <h1 className="text-4xl xl:text-5xl font-black text-white tracking-tight leading-[1.08] max-w-4xl drop-shadow-md mb-3">
+                {/* Title and Transparent Logo Header */}
+                <div className="mb-4">
+                  {officialLogo && (
+                    <div className="mb-3 max-w-md">
+                      <img 
+                        src={`${TMDB_IMAGE_BASE}${officialLogo}`} 
+                        alt={title} 
+                        className="max-h-24 w-auto object-contain filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]" 
+                      />
+                    </div>
+                  )}
+
+                  {/* Primary Title in Main Show Language / English */}
+                  <h1 className="text-3xl sm:text-4xl xl:text-5xl font-black text-white tracking-tight leading-[1.08] max-w-4xl drop-shadow-md">
                     {title}
                   </h1>
-                )}
+
+                  {/* Original Language Title if different */}
+                  {detail?.original_title && detail.original_title.toLowerCase() !== title.toLowerCase() && (
+                    <p className="text-sm font-medium text-white/60 tracking-normal mt-1">
+                      Original: <span className="text-white/80">{detail.original_title}</span>
+                    </p>
+                  )}
+                  {!detail?.original_title && detail?.original_name && detail.original_name.toLowerCase() !== title.toLowerCase() && (
+                    <p className="text-sm font-medium text-white/60 tracking-normal mt-1">
+                      Original: <span className="text-white/80">{detail.original_name}</span>
+                    </p>
+                  )}
+                </div>
 
                 {/* Tagline */}
                 {detail?.tagline && (

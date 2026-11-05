@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { TMDBResult, MediaType } from '../types';
 import { discoverMedia, getGenres } from '../services/tmdb';
 import { MediaCard } from '../components/MediaCard';
 import { TMDB_POSTER_BASE } from '../constants';
+import { STREAMING_PROVIDERS } from '../components/StreamingProvidersShowcase';
 import { 
   Filter, Dices, X, Loader2, Play, RefreshCw, Star, 
   Sparkles, Film, Tv, Calendar, ArrowUpDown, AlertCircle
@@ -13,11 +15,16 @@ interface DiscoverProps {
 }
 
 export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
+  const [searchParams] = useSearchParams();
+  const initialProvider = searchParams.get('provider') ? Number(searchParams.get('provider')) : undefined;
+  const initialType = searchParams.get('type') === 'tv' ? MediaType.TV : MediaType.MOVIE;
+
   const [items, setItems] = useState<TMDBResult[]>([]);
-  const [mediaType, setMediaType] = useState<MediaType>(MediaType.MOVIE);
+  const [mediaType, setMediaType] = useState<MediaType>(initialType);
   const [genres, setGenres] = useState<{ id: number; name: string }[]>([]);
   const [selectedGenre, setSelectedGenre] = useState<number | undefined>(undefined);
   const [selectedYear, setSelectedYear] = useState<number | undefined>(undefined);
+  const [selectedProvider, setSelectedProvider] = useState<number | undefined>(initialProvider);
   const [sortBy, setSortBy] = useState('popularity.desc');
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -40,7 +47,7 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
     const fetch = async () => {
       setLoading(true);
       try {
-        const res = await discoverMedia(mediaType, sortBy, selectedGenre, selectedYear, currentPage);
+        const res = await discoverMedia(mediaType, sortBy, selectedGenre, selectedYear, currentPage, selectedProvider);
         if (currentPage === 1) {
           setItems(res);
         } else {
@@ -57,7 +64,7 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
       }
     };
     fetch();
-  }, [mediaType, sortBy, selectedGenre, selectedYear, currentPage]);
+  }, [mediaType, sortBy, selectedGenre, selectedYear, currentPage, selectedProvider]);
 
   const handleFilterChange = () => {
     setCurrentPage(1);
@@ -157,7 +164,7 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
 
       {/* Filter Selectors Bar */}
       <div className="bg-[var(--bg-card)] p-4 rounded-2xl border border-[var(--border-subtle)] shadow-lg mb-8">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           
           {/* Genre Dropdown */}
           <div className="flex flex-col gap-1">
@@ -169,6 +176,21 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
             >
               <option value="">All Genres</option>
               {genres.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+          </div>
+
+          {/* Streaming Provider Dropdown */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Streaming Platform</label>
+            <select 
+              value={selectedProvider || ''}
+              onChange={(e) => { setSelectedProvider(e.target.value ? Number(e.target.value) : undefined); handleFilterChange(); }}
+              className="w-full bg-[var(--bg-main)] border border-[var(--border-subtle)] text-[var(--text-main)] text-xs sm:text-sm rounded-xl px-3.5 py-2.5 focus:border-[rgb(var(--primary-color))] outline-none font-medium cursor-pointer"
+            >
+              <option value="">All Platforms</option>
+              {STREAMING_PROVIDERS.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
             </select>
           </div>
 

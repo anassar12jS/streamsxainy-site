@@ -225,7 +225,8 @@ export const discoverMedia = async (
   sortBy: string = 'popularity.desc', 
   genreId?: number, 
   year?: number,
-  page: number = 1
+  page: number = 1,
+  watchProviderId?: number
 ): Promise<TMDBResult[]> => {
   const params: Record<string, string> = {
     sort_by: sortBy,
@@ -243,9 +244,34 @@ export const discoverMedia = async (
     if (type === MediaType.MOVIE) params.primary_release_year = year.toString();
     if (type === MediaType.TV) params.first_air_date_year = year.toString();
   }
+  if (watchProviderId) {
+    params.with_watch_providers = watchProviderId.toString();
+    params.watch_region = 'US';
+  }
 
   const data = await fetchTMDB(`/discover/${type}`, params);
-  return data.results.map((item: any) => ({ ...item, media_type: type }));
+  return (data.results || []).map((item: any) => ({ ...item, media_type: type }));
+};
+
+export const getProviderMedia = async (
+  providerId: number,
+  type: MediaType = MediaType.MOVIE,
+  page: number = 1
+): Promise<TMDBResult[]> => {
+  try {
+    const data = await fetchTMDB(`/discover/${type}`, {
+      sort_by: 'popularity.desc',
+      with_watch_providers: providerId.toString(),
+      watch_region: 'US',
+      include_adult: 'false',
+      include_video: 'false',
+      page: page.toString(),
+    });
+    return (data.results || []).map((item: any) => ({ ...item, media_type: type }));
+  } catch (e) {
+    console.error(`Failed to fetch media for provider ${providerId}:`, e);
+    return [];
+  }
 };
 
 export interface WatchProviderItem {

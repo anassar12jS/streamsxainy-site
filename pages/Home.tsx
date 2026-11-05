@@ -22,6 +22,7 @@ import {
 } from '../services/storage';
 import { TMDBResult, TMDBVideo, MediaType, ContinueWatchingItem } from '../types';
 import { MediaCard } from '../components/MediaCard';
+import { StreamingProvidersShowcase } from '../components/StreamingProvidersShowcase';
 import { TMDB_BACKDROP_W1280, TMDB_BACKDROP_W780, TMDB_BACKDROP_W300, TMDB_POSTER_BASE } from '../constants';
 import { 
   Play, Info, TrendingUp, Star, Clock, ChevronLeft, ChevronRight, 
@@ -888,6 +889,11 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
             icon={TrendingUp} 
             onSelect={handleSelect} 
           />
+        )}
+
+        {/* Streaming Providers ("WHERE TO WATCH") Showcase */}
+        {(activeCategory === 'all' || activeCategory === 'movies' || activeCategory === 'series') && (
+          <StreamingProvidersShowcase onSelect={handleSelect} />
         )}
 
         {/* Popular Blockbusters */}
