@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { 
   Play, Star, ChevronLeft, ChevronRight, ExternalLink, 
-  Film, Tv, Sparkles, Loader2 
+  Film, Tv 
 } from 'lucide-react';
 import { TMDBResult, MediaType } from '../types';
 import { getProviderMedia } from '../services/tmdb';
@@ -12,29 +12,107 @@ import { TMDB_IMAGE_BASE, TMDB_BACKDROP_W780 } from '../constants';
 export interface StreamingProvider {
   id: number;
   name: string;
+  logoPath: string;
   brandColor: string;
-  logo: string;
-  bg: string;
-  tagline?: string;
 }
 
 export const STREAMING_PROVIDERS: StreamingProvider[] = [
-  { id: 8, name: 'Netflix', brandColor: '#E50914', logo: '/rK1KljqmbvO9HQa1PBFLILWah72.png', bg: '#1a0b0d' },
-  { id: 9, name: 'Prime Video', brandColor: '#00A8E1', logo: '/gMZdpavHmxFNnLpMHwVxfqeux2g.png', bg: '#0b172a' },
-  { id: 350, name: 'Apple TV+', brandColor: '#E5E5E7', logo: '/9icYBfYFcwgCbky5VdGUIKJ4C5i.png', bg: '#18181b' },
-  { id: 337, name: 'Disney+', brandColor: '#113CCF', logo: '/5eZ872CghnHFLB1j8grszbrx0dx.png', bg: '#0c1638' },
-  { id: 1899, name: 'Max', brandColor: '#002BE7', logo: '/skypuy7SXuugIQeYg0IglmzoKaS.png', bg: '#08123b' },
-  { id: 15, name: 'Hulu', brandColor: '#1CE783', logo: '/44uAnmSqvA4yBOdbPWN8YgQHjWm.png', bg: '#0b2014' },
-  { id: 531, name: 'Paramount+', brandColor: '#0064FF', logo: '/bxX0YVOCY7bI85BKRlJAAQ2EjUR.png', bg: '#0b1b3d' },
-  { id: 386, name: 'Peacock', brandColor: '#00A651', logo: '/a1UIdq5BrkcAxnxcUhFsNbXnxeu.png', bg: '#101712' },
-  { id: 283, name: 'Crunchyroll', brandColor: '#F47521', logo: '/uFL3c4Cq8M6WoLymlC5Y8bmGytV.png', bg: '#25160b' },
-  { id: 43, name: 'Starz', brandColor: '#E50914', logo: '/h25xjouKmiSmFiiqw0aDXbxGZo7.png', bg: '#18181b' },
-  { id: 528, name: 'AMC+', brandColor: '#00843D', logo: '/tg5ufQ1GkYDCMxSSxemfeKWcvRe.png', bg: '#0e1c14' },
-  { id: 11, name: 'MUBI', brandColor: '#002446', logo: '/k7iSlvgWzZuO4zU5PcBjhABMuia.png', bg: '#0a1626' },
-  { id: 99, name: 'Shudder', brandColor: '#DA291C', logo: '/58O6yqUFM6qoOiBNAddJs7xNKc.png', bg: '#220b0b' },
-  { id: 582, name: 'Discovery+', brandColor: '#002E72', logo: '/bxX0YVOCY7bI85BKRlJAAQ2EjUR.png', bg: '#0c1a36' },
-  { id: 73, name: 'Tubi', brandColor: '#FA4729', logo: '/9dEuvA8wg5TSeFBZlPxSVxFdimJ.png', bg: '#26120e' },
-  { id: 300, name: 'Pluto TV', brandColor: '#FFE000', logo: '/fN4czqaMQNLeF6sSSIjGbAWzvwK.png', bg: '#23200a' },
+  {
+    id: 8,
+    name: 'Netflix',
+    logoPath: '/rK1KljqmbvO9HQa1PBFLILWah72.png',
+    brandColor: '#E50914',
+  },
+  {
+    id: 9,
+    name: 'Prime Video',
+    logoPath: '/gMZdpavHmxFNnLpMHwVxfqeux2g.png',
+    brandColor: '#00A8E1',
+  },
+  {
+    id: 350,
+    name: 'Apple TV+',
+    logoPath: '/9icYBfYFcwgCbky5VdGUIKJ4C5i.png',
+    brandColor: '#FFFFFF',
+  },
+  {
+    id: 337,
+    name: 'Disney+',
+    logoPath: '/5eZ872CghnHFLB1j8grszbrx0dx.png',
+    brandColor: '#113CCF',
+  },
+  {
+    id: 1899,
+    name: 'Max',
+    logoPath: '/skypuy7SXuugIQeYg0IglmzoKaS.png',
+    brandColor: '#002BE7',
+  },
+  {
+    id: 15,
+    name: 'Hulu',
+    logoPath: '/44uAnmSqvA4yBOdbPWN8YgQHjWm.png',
+    brandColor: '#1CE783',
+  },
+  {
+    id: 531,
+    name: 'Paramount+',
+    logoPath: '/pkx3klJlwW5JdtaulvDx6hDNtch.png',
+    brandColor: '#0064FF',
+  },
+  {
+    id: 386,
+    name: 'Peacock',
+    logoPath: '/a1UIdq5BrkcAxnxcUhFsNbXnxeu.png',
+    brandColor: '#F59E0B',
+  },
+  {
+    id: 283,
+    name: 'Crunchyroll',
+    logoPath: '/uFL3c4Cq8M6WoLymlC5Y8bmGytV.png',
+    brandColor: '#F47521',
+  },
+  {
+    id: 43,
+    name: 'Starz',
+    logoPath: '/h25xjouKmiSmFiiqw0aDXbxGZo7.png',
+    brandColor: '#FFFFFF',
+  },
+  {
+    id: 528,
+    name: 'AMC+',
+    logoPath: '/tg5ufQ1GkYDCMxSSxemfeKWcvRe.png',
+    brandColor: '#0D7B64',
+  },
+  {
+    id: 11,
+    name: 'MUBI',
+    logoPath: '/k7iSlvgWzZuO4zU5PcBjhABMuia.png',
+    brandColor: '#0066FF',
+  },
+  {
+    id: 99,
+    name: 'Shudder',
+    logoPath: '/58O6yqUFM6qoOiBNAddJs7xNKc.png',
+    brandColor: '#EF4444',
+  },
+  {
+    id: 520,
+    name: 'Discovery+',
+    logoPath: '/tHseJEgZaUdVlLtBpOGmKPfzbQ8.png',
+    brandColor: '#06B6D4',
+  },
+  {
+    id: 73,
+    name: 'Tubi',
+    logoPath: '/9dEuvA8wg5TSeFBZlPxSVxFdimJ.png',
+    brandColor: '#F97316',
+  },
+  {
+    id: 300,
+    name: 'Pluto TV',
+    logoPath: '/fN4czqaMQNLeF6sSSIjGbAWzvwK.png',
+    brandColor: '#FACC15',
+  },
 ];
 
 interface StreamingProvidersShowcaseProps {
@@ -79,7 +157,7 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
   };
 
   return (
-    <section className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5 animate-fade-in">
+    <section className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 animate-fade-in">
       
       {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -95,7 +173,7 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
           </h2>
         </div>
 
-        {/* Right Toggle Controls (Movies / TV Shows / All) */}
+        {/* Right Toggle Controls (Movies / TV Shows / All / Chevrons) */}
         <div className="flex items-center gap-2 self-start sm:self-auto">
           {/* Movies / TV Segmented Control */}
           <div className="flex items-center bg-black/60 p-1 rounded-2xl border border-white/10 backdrop-blur-md shadow-sm">
@@ -104,7 +182,7 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
               onClick={() => setMediaType(MediaType.MOVIE)}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
                 mediaType === MediaType.MOVIE
-                  ? 'bg-white text-zinc-950 shadow-md scale-100 font-black'
+                  ? 'bg-white text-zinc-950 shadow-md font-black'
                   : 'text-white/60 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -117,7 +195,7 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
               onClick={() => setMediaType(MediaType.TV)}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
                 mediaType === MediaType.TV
-                  ? 'bg-white text-zinc-950 shadow-md scale-100 font-black'
+                  ? 'bg-white text-zinc-950 shadow-md font-black'
                   : 'text-white/60 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -135,34 +213,34 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
             <span>All</span>
             <ExternalLink className="w-3 h-3" />
           </button>
+
+          {/* Ribbon Scroll Chevrons in Header (Clean, never overlapping icons) */}
+          <div className="hidden sm:flex items-center gap-1 bg-white/5 p-1 rounded-2xl border border-white/10">
+            <button
+              type="button"
+              onClick={() => scrollProviders('left')}
+              className="p-1 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Previous providers"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollProviders('right')}
+              className="p-1 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Next providers"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Streaming Providers Horizontal Ribbon */}
-      <div className="relative group/providers">
-        {/* Scroll Left Button */}
-        <button
-          type="button"
-          onClick={() => scrollProviders('left')}
-          className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-20 w-8 h-8 rounded-full bg-black/80 hover:bg-black border border-white/20 text-white items-center justify-center shadow-xl opacity-0 group-hover/providers:opacity-100 transition-opacity"
-          aria-label="Scroll providers left"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-
-        {/* Scroll Right Button */}
-        <button
-          type="button"
-          onClick={() => scrollProviders('right')}
-          className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-20 w-8 h-8 rounded-full bg-black/80 hover:bg-black border border-white/20 text-white items-center justify-center shadow-xl opacity-0 group-hover/providers:opacity-100 transition-opacity"
-          aria-label="Scroll providers right"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-
+      {/* Streaming Providers Horizontal Ribbon (Previous authentic TMDB logos, cleanly styled without colored glow) */}
+      <div className="relative py-1">
         <div
           ref={providerScrollRef}
-          className="flex items-center gap-3.5 sm:gap-4 overflow-x-auto custom-scrollbar py-2 px-1 scroll-smooth snap-x"
+          className="flex items-center gap-4 sm:gap-5 overflow-x-auto custom-scrollbar py-3 px-1 scroll-smooth snap-x"
         >
           {STREAMING_PROVIDERS.map((prov) => {
             const isSelected = selectedProvider.id === prov.id;
@@ -171,42 +249,30 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
                 key={prov.id}
                 type="button"
                 onClick={() => setSelectedProvider(prov)}
-                className="group/item flex flex-col items-center shrink-0 snap-start transition-transform focus:outline-none"
+                className="group/item relative flex flex-col items-center shrink-0 snap-start transition-all duration-200 focus:outline-none"
               >
-                {/* Provider Logo App Icon Box */}
+                {/* Tile Container - Clean, crisp, NO colored glow */}
                 <div
-                  className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center p-2.5 transition-all duration-300 relative border overflow-hidden ${
+                  className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center p-2.5 transition-all duration-200 relative select-none ${
                     isSelected
-                      ? 'scale-105 border-white ring-2 ring-white/60 shadow-2xl'
-                      : 'border-white/10 hover:border-white/30 hover:scale-105 bg-zinc-900/90'
+                      ? 'scale-105 -translate-y-1 border-2 border-white ring-1 ring-white/30 bg-zinc-800/90 shadow-xl shadow-black/80'
+                      : 'border border-white/15 hover:border-white/40 hover:scale-105 hover:-translate-y-0.5 bg-zinc-900/80 shadow-md shadow-black/40'
                   }`}
-                  style={{
-                    backgroundColor: prov.bg,
-                    boxShadow: isSelected
-                      ? `0 12px 28px -6px ${prov.brandColor}99, 0 0 16px ${prov.brandColor}66`
-                      : 'none',
-                  }}
                 >
                   <img
-                    src={`https://image.tmdb.org/t/p/w154${prov.logo}`}
+                    src={`https://image.tmdb.org/t/p/original${prov.logoPath}`}
                     alt={prov.name}
-                    className="w-full h-full object-contain filter drop-shadow-md transition-transform group-hover/item:scale-110"
+                    className="w-full h-full object-contain rounded-xl drop-shadow-sm pointer-events-none"
                     loading="lazy"
                   />
-
-                  {/* Active Indicator Glow */}
-                  {isSelected && (
-                    <div
-                      className="absolute inset-0 pointer-events-none opacity-20"
-                      style={{ backgroundColor: prov.brandColor }}
-                    />
-                  )}
                 </div>
 
                 {/* Provider Name */}
                 <span
-                  className={`text-[11px] font-semibold tracking-tight text-center truncate max-w-[70px] mt-2 transition-colors ${
-                    isSelected ? 'text-white font-bold' : 'text-white/60 group-hover/item:text-white/90'
+                  className={`text-[11px] tracking-tight text-center truncate max-w-[75px] mt-2 transition-colors ${
+                    isSelected 
+                      ? 'text-white font-bold' 
+                      : 'text-white/60 font-medium group-hover/item:text-white'
                   }`}
                 >
                   {prov.name}
@@ -217,35 +283,25 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
         </div>
       </div>
 
-      {/* Active Provider Showcase Banner */}
+      {/* Active Provider Showcase Banner with Subtle Ambient Accent */}
       <div 
-        className="rounded-2xl border border-white/10 p-3.5 sm:p-4 flex items-center justify-between shadow-xl transition-all duration-500 relative overflow-hidden"
+        className="rounded-2xl border border-white/15 p-4 sm:p-5 flex items-center justify-between shadow-xl transition-all duration-300 relative overflow-hidden"
         style={{
-          background: `linear-gradient(90deg, ${selectedProvider.bg}ee 0%, #111116f5 60%, #0d0d12f5 100%)`,
-          boxShadow: `0 8px 30px -10px ${selectedProvider.brandColor}33`,
+          background: `linear-gradient(90deg, ${selectedProvider.brandColor}26 0%, #15151ef5 45%, #0f0f16f5 100%)`,
         }}
       >
-        {/* Subtle Ambient Brand Glow */}
-        <div 
-          className="absolute -left-10 top-0 bottom-0 w-48 opacity-30 pointer-events-none blur-2xl"
-          style={{ backgroundColor: selectedProvider.brandColor }}
-        />
-
-        <div className="flex items-center gap-3 sm:gap-4 relative z-10 min-w-0">
+        <div className="flex items-center gap-3.5 sm:gap-4 relative z-10 min-w-0">
           {/* Provider App Icon */}
-          <div
-            className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl p-2 shrink-0 border border-white/15 flex items-center justify-center shadow-md"
-            style={{ backgroundColor: selectedProvider.bg }}
-          >
+          <div className="w-11 h-11 sm:w-13 sm:h-13 rounded-xl p-2 shrink-0 bg-zinc-900/90 border border-white/20 flex items-center justify-center shadow-md">
             <img
-              src={`https://image.tmdb.org/t/p/w154${selectedProvider.logo}`}
+              src={`https://image.tmdb.org/t/p/original${selectedProvider.logoPath}`}
               alt={selectedProvider.name}
-              className="w-full h-full object-contain"
+              className="w-full h-full object-contain rounded-lg"
             />
           </div>
 
           <div className="min-w-0">
-            <span className="text-[10px] sm:text-[11px] font-mono tracking-widest text-white/50 uppercase block">
+            <span className="text-[10px] sm:text-[11px] font-mono tracking-widest text-white/50 uppercase block font-semibold">
               POPULAR {mediaType === MediaType.MOVIE ? 'MOVIES' : 'TV SHOWS'} ON
             </span>
             <h3 className="text-base sm:text-xl font-black text-white tracking-tight truncate">
@@ -258,7 +314,7 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
         <button
           type="button"
           onClick={handleViewAll}
-          className="relative z-10 px-4 py-2 rounded-full bg-white hover:bg-white/90 text-zinc-950 font-black text-xs transition-all shadow-md flex items-center gap-1.5 shrink-0 hover:scale-105 active:scale-95"
+          className="relative z-10 px-4 sm:px-5 py-2 rounded-full bg-white hover:bg-white/90 text-zinc-950 font-black text-xs transition-all shadow-lg flex items-center gap-1.5 shrink-0 hover:scale-105 active:scale-95"
         >
           <span>View all</span>
           <ExternalLink className="w-3.5 h-3.5" />
@@ -292,7 +348,6 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
           className="flex items-start gap-4 sm:gap-5 overflow-x-auto custom-scrollbar pb-3 pt-1 scroll-smooth snap-x"
         >
           {isLoading ? (
-            // Skeleton Loaders matching 16:9 widescreen card layout
             Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="w-64 sm:w-80 md:w-96 shrink-0 space-y-2">
                 <div className="aspect-video rounded-2xl bg-white/5 animate-pulse border border-white/5" />
@@ -342,7 +397,7 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
                     {/* Dark Cinematic Vignette */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent pointer-events-none" />
 
-                    {/* Stylized Centered / Bottom Title Overlay Artwork (matching user's screenshot) */}
+                    {/* Stylized Centered Title Overlay Artwork */}
                     <div className="absolute inset-0 flex items-center justify-center p-4 text-center pointer-events-none">
                       <h4 className="text-white font-black tracking-wider uppercase text-base sm:text-lg md:text-xl drop-shadow-[0_4px_12px_rgba(0,0,0,0.95)] line-clamp-2 max-w-[85%] font-sans opacity-95 group-hover/card:scale-105 transition-transform">
                         {title}
