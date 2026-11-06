@@ -173,11 +173,21 @@ export const mapAniListToTMDB = (anime: AniListResult): TMDBResult => {
     };
 };
 
+import { getSpellCorrection } from './searchUtils';
+
 /**
- * Search AniList by query returning a list of anime results
+ * Search AniList by query returning a list of anime results with typo tolerance
  */
 export const searchAnimeList = async (search: string): Promise<AniListResult[]> => {
   if (!search || !search.trim()) return [];
+  const clean = search.trim();
+  const correction = getSpellCorrection(clean);
+  const termsToTry = [clean];
+  if (correction && correction.toLowerCase() !== clean.toLowerCase()) {
+    // Put corrected term first so it retrieves matches even if raw query had a typo
+    termsToTry.unshift(correction);
+  }
+
   const query = `
     query ($search: String) {
       Page (page: 1, perPage: 16) {
@@ -209,7 +219,13 @@ export const searchAnimeList = async (search: string): Promise<AniListResult[]> 
     }
   `;
   try {
-    return await fetchAniList(query, { search: search.trim() });
+    for (const term of termsToTry) {
+      const list = await fetchAniList(query, { search: term });
+      if (list && list.length > 0) {
+        return list;
+      }
+    }
+    return [];
   } catch {
     return [];
   }
@@ -221,6 +237,12 @@ export const searchAnimeList = async (search: string): Promise<AniListResult[]> 
 export const searchAnimeByTitle = async (title: string): Promise<number | null> => {
   if (!title || !title.trim()) return null;
   const cleanTitle = title.trim();
+  const correction = getSpellCorrection(cleanTitle);
+  const titlesToTry = [cleanTitle];
+  if (correction && correction.toLowerCase() !== cleanTitle.toLowerCase()) {
+    titlesToTry.push(correction);
+  }
+
   const query = `
     query ($search: String) {
       Media (search: $search, type: ANIME) {
@@ -233,20 +255,24 @@ export const searchAnimeByTitle = async (title: string): Promise<number | null> 
     }
   `;
   try {
-    const response = await fetch(GRAPHQL_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({
-        query,
-        variables: { search: cleanTitle }
-      })
-    });
-    if (!response.ok) return null;
-    const json = await response.json();
-    return json?.data?.Media?.id || null;
+    for (const t of titlesToTry) {
+      const response = await fetch(GRAPHQL_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          query,
+          variables: { search: t }
+        })
+      });
+      if (!response.ok) continue;
+      const json = await response.json();
+      const id = json?.data?.Media?.id;
+      if (id) return id;
+    }
+    return null;
   } catch {
     return null;
   }

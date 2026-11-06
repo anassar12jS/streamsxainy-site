@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 
 export const Footer: React.FC = () => {
   return (
-    <footer className="bg-[var(--bg-card)] border-t border-[var(--border-subtle)] pt-12 pb-8 mt-auto transition-colors duration-300">
+    <footer className="bg-[var(--bg-card)] border-t border-white/10 pt-12 pb-8 mt-auto transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-10">
           
@@ -119,7 +119,7 @@ export const Footer: React.FC = () => {
 
         </div>
 
-        <div className="border-t border-[var(--border-subtle)] pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--text-muted)]">
+        <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--text-muted)]">
           <p>© {new Date().getFullYear()} StreamHub. Built for cinema enthusiasts worldwide.</p>
           <div className="flex items-center gap-4">
             <a 

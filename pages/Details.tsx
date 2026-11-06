@@ -588,7 +588,7 @@ export const Details: React.FC = () => {
 
       {/* Floating Sticky Bar on Scroll */}
       <div 
-        className={`fixed top-0 inset-x-0 z-40 bg-[var(--bg-main)]/90 backdrop-blur-md border-b border-[var(--border-color)] transition-all duration-300 py-2.5 px-4 sm:px-8 flex items-center justify-between shadow-lg ${
+        className={`fixed top-[57px] inset-x-0 z-30 bg-[var(--bg-main)]/95 backdrop-blur-xl border-b border-white/10 transition-all duration-300 py-2.5 px-4 sm:px-8 flex items-center justify-between shadow-lg ${
           showStickyHeader ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-full pointer-events-none'
         }`}
       >

@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { searchMedia } from '../services/tmdb';
 import { searchAnimeList, mapAniListToTMDB } from '../services/anilist';
-import { categorizeResults, rankSearchResults } from '../services/searchUtils';
+import { categorizeResults, rankSearchResults, getSpellCorrection } from '../services/searchUtils';
 import { MediaCard } from '../components/MediaCard';
 import { TMDBResult, MediaType } from '../types';
 import { 
@@ -28,6 +28,16 @@ export const Search: React.FC<SearchProps> = ({ onSelect }) => {
   // Keep inputVal in sync with query parameter
   useEffect(() => {
     setInputVal(query);
+  }, [query]);
+
+  // Compute typo spell correction if query was misspelled
+  const spellCorrection = useMemo(() => {
+    if (!query) return null;
+    const correction = getSpellCorrection(query);
+    if (correction && correction.toLowerCase() !== query.toLowerCase().trim()) {
+      return correction;
+    }
+    return null;
   }, [query]);
 
   // Query for TMDB media results
@@ -86,9 +96,9 @@ export const Search: React.FC<SearchProps> = ({ onSelect }) => {
       }
     }
 
-    // Rank the entire combined list of both TMDB and AniList together based on relevance and popularity!
-    return rankSearchResults(list, query);
-  }, [animeResults, tmdbResults, query]);
+    // Rank the entire combined list of both TMDB and AniList together based on relevance, vote count and popularity!
+    return rankSearchResults(list, query, spellCorrection || undefined);
+  }, [animeResults, tmdbResults, query, spellCorrection]);
 
   const filteredItems = useMemo(() => {
     if (activeTab === 'movie') return categorized.movies;
@@ -248,6 +258,33 @@ export const Search: React.FC<SearchProps> = ({ onSelect }) => {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Spell Correction / Did You Mean Banner */}
+      {spellCorrection && query && (
+        <div className="mb-6 p-3.5 sm:p-4 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm animate-fade-in shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+            </div>
+            <div>
+              <span className="text-[var(--text-muted)] text-xs sm:text-sm">Did you mean: </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setInputVal(spellCorrection);
+                  setSearchParams({ q: spellCorrection });
+                }}
+                className="font-bold text-[rgb(var(--primary-color))] hover:underline capitalize ml-1 text-sm sm:text-base inline-flex items-center gap-1"
+              >
+                {spellCorrection}
+              </button>
+            </div>
+          </div>
+          <div className="text-xs text-[var(--text-muted)] sm:self-center">
+            Typo-tolerant search applied automatically
+          </div>
         </div>
       )}
 

@@ -35,7 +35,10 @@
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <meta name="theme-color" content="#09090b" />
 
-    <!-- Performance: Preconnect & DNS-Prefetch -->
+    <!-- Performance & Fonts: Preconnect & DNS-Prefetch -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
     <link rel="dns-prefetch" href="https://image.tmdb.org" />
     <link rel="preconnect" href="https://api.themoviedb.org" crossorigin />
@@ -48,6 +51,10 @@
         darkMode: ['class', '[data-theme="dark"]'],
         theme: {
           extend: {
+            fontFamily: {
+              sans: ['"Plus Jakarta Sans"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+              mono: ['"JetBrains Mono"', 'monospace'],
+            },
             colors: {
               background: 'var(--bg-main)',
               foreground: 'var(--text-main)',

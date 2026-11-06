@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { searchMedia } from '../services/tmdb';
 import { searchAnimeList, mapAniListToTMDB } from '../services/anilist';
+import { rankSearchResults, getSpellCorrection } from '../services/searchUtils';
 import { TMDBResult, MediaType } from '../types';
 import { TMDB_POSTER_BASE, POSTER_FALLBACK_SVG } from '../constants';
 import { Search, Film, Tv, Star, X, Loader2, ArrowRight, CornerDownLeft, Sparkles, Ghost } from 'lucide-react';
@@ -84,8 +85,8 @@ export const CommandSearchModal: React.FC<CommandSearchModalProps> = ({
       }
     }
 
-    return combined;
-  }, [animeResultsRaw, tmdbResults]);
+    return rankSearchResults(combined, query);
+  }, [animeResultsRaw, tmdbResults, query]);
 
   const isLoading = (isTmdbLoading || isAnimeLoading) && results.length === 0;
 

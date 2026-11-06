@@ -159,7 +159,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onClick, onWatchlist
 
         {/* Rating Score Top Right (Unboxed text with gold star) */}
         {typeof item.vote_average === 'number' && item.vote_average > 0 && (
-          <div className="absolute top-2.5 right-2.5 bg-black/70 backdrop-blur-md px-2 py-0.5 rounded-md text-[11px] font-bold text-amber-400 flex items-center gap-1 border border-white/10 shadow-sm z-10">
+          <div className="absolute top-2.5 right-2.5 bg-black/75 backdrop-blur-md px-2 py-0.5 rounded-md text-[11px] font-bold text-amber-400 flex items-center gap-1 border border-white/10 shadow-sm z-10 font-mono tabular-nums">
             <Star className="w-3 h-3 fill-amber-400" />
             <span>{item.vote_average.toFixed(1)}</span>
           </div>
@@ -168,11 +168,11 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onClick, onWatchlist
         {/* Live Airing Episode Countdown Pill */}
         {item.next_airing_episode ? (
           <div className="absolute bottom-2 inset-x-2 bg-black/85 backdrop-blur-md px-2 py-1 rounded-lg text-[10px] font-bold text-emerald-400 flex items-center justify-between border border-emerald-500/30 shadow-md z-10">
-            <span className="flex items-center gap-1 font-mono">
+            <span className="flex items-center gap-1 font-mono tabular-nums">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Ep {item.next_airing_episode.episode}
             </span>
-            <span className="text-[9px] text-zinc-300 font-mono">
+            <span className="text-[9px] text-zinc-300 font-mono tabular-nums">
               {item.next_airing_episode.airingAt - Math.floor(Date.now() / 1000) <= 0
                 ? 'Airing Now'
                 : item.next_airing_episode.airingAt - Math.floor(Date.now() / 1000) > 86400
@@ -202,7 +202,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onClick, onWatchlist
         
         {/* Zero-Pill Clean Typographic Metadata */}
         <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] mt-1">
-          {year && <span>{year}</span>}
+          {year && <span className="font-mono tabular-nums">{year}</span>}
           {year && <span aria-hidden="true" className="opacity-40">·</span>}
           <span className="capitalize font-medium">{mediaLabel}</span>
         </div>

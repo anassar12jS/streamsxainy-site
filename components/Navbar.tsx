@@ -253,7 +253,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
                     Search movies, shows...
                   </span>
                   <div className="ml-1 shrink-0 flex items-center justify-center gap-0.5 text-[10px] font-mono text-[var(--text-muted)] bg-[var(--bg-main)] h-5 px-1.5 rounded-md border border-white/10 group-hover:border-[rgb(var(--primary-color))]/40 transition-colors">
-                    <Command className="w-2.5 h-2.5" />
+                    {typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent || '') ? (
+                      <Command className="w-2.5 h-2.5" />
+                    ) : (
+                      <span className="text-[9px] font-semibold">Ctrl</span>
+                    )}
                     <span>K</span>
                   </div>
                 </div>

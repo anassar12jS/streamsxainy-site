@@ -487,6 +487,23 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
     setSlideProgress(0);
   };
 
+  // Keyboard navigation for Hero Spotlight (Left/Right Arrows)
+  useEffect(() => {
+    const handleHeroKeyDown = (e: KeyboardEvent) => {
+      const activeTag = document.activeElement?.tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+      if (window.scrollY < 450) {
+        if (e.key === 'ArrowRight') {
+          goToNextHero();
+        } else if (e.key === 'ArrowLeft') {
+          goToPrevHero();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleHeroKeyDown);
+    return () => window.removeEventListener('keydown', handleHeroKeyDown);
+  }, [featuredList.length]);
+
   const handleSelect = (item: TMDBResult) => {
     if (onSelect) {
       onSelect(item);

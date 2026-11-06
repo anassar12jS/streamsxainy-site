@@ -1,6 +1,6 @@
 import { TMDB_API_KEY, TMDB_BASE_URL } from '../constants';
 import { TMDBResult, TMDBDetail, TMDBVideo, MediaType, PersonDetail, Collection, TMDBSeasonDetail } from '../types';
-import { rankSearchResults } from './searchUtils';
+import { rankSearchResults, getSpellCorrection, correctQueryTokens, extractYearFromQuery } from './searchUtils';
 
 const fetchTMDB = async (endpoint: string, params: Record<string, string> = {}) => {
   const url = new URL(`${TMDB_BASE_URL}${endpoint}`);
@@ -101,50 +101,87 @@ export const searchMedia = async (query: string): Promise<TMDBResult[]> => {
   const yearMatch = trimmed.match(/\b(19\d\d|20\d\d)\b/);
   const cleanTitle = yearMatch ? trimmed.replace(/\b(19\d\d|20\d\d)\b/g, '').trim() : '';
 
-  // Generate sensible search queries to maximize recall
-  const searchQueries: { q: string; page?: string }[] = [
-    { q: trimmed, page: '1' },
-    { q: trimmed, page: '2' },
-  ];
+  // 1. Detect dictionary-based typo corrections
+  const spellCorrection = getSpellCorrection(trimmed) || (cleanTitle ? getSpellCorrection(cleanTitle) : null);
+  const tokenCorrection = correctQueryTokens(trimmed);
 
-  if (cleanTitle && cleanTitle.length >= 2 && cleanTitle.toLowerCase() !== trimmed.toLowerCase()) {
-    searchQueries.push({ q: cleanTitle, page: '1' });
+  // 2. Assemble candidate search terms to send to TMDB
+  const queryTerms = new Set<string>();
+  queryTerms.add(trimmed);
+
+  if (cleanTitle && cleanTitle.length >= 2) {
+    queryTerms.add(cleanTitle);
   }
 
-  // Handle common compound words or sub-phrases (e.g., "mousetrap" -> "mouse trap")
-  if (trimmed.toLowerCase() === 'mousetrap') {
-    searchQueries.push({ q: 'mouse trap', page: '1' });
-    searchQueries.push({ q: 'mouse', page: '1' });
-  } else if (trimmed.toLowerCase().includes('judge returns')) {
-    searchQueries.push({ q: 'the judge', page: '1' });
-    searchQueries.push({ q: 'devil judge', page: '1' });
-    searchQueries.push({ q: 'judge from hell', page: '1' });
+  if (spellCorrection && spellCorrection.toLowerCase() !== trimmed.toLowerCase()) {
+    queryTerms.add(spellCorrection);
   }
 
-  // Run searches in parallel
-  const searchPromises = searchQueries.map(async ({ q, page }) => {
-    try {
-      const data = await fetchTMDB('/search/multi', { query: q, page: page || '1', include_adult: 'false' });
-      return data?.results || [];
-    } catch {
-      return [];
-    }
-  });
+  if (tokenCorrection && tokenCorrection.toLowerCase() !== trimmed.toLowerCase()) {
+    queryTerms.add(tokenCorrection);
+  }
+
+  // Handle multi-word queries: if user typed "stranger thngs 4" or "spider man homecoming",
+  // also extract high-information tokens (length >= 4 and non-stopword)
+  const words = trimmed.split(/\s+/).filter(w => w.length >= 4 && !/^(the|and|for|with|from)$/i.test(w));
+  if (words.length >= 2) {
+    queryTerms.add(words.slice(0, 2).join(' '));
+  }
+
+  // 3. Build parallel requests across TMDB multi-search
+  const searchPromises: Promise<any[]>[] = [];
+  const queryList = Array.from(queryTerms).slice(0, 5); // cap to 5 parallel searches
+
+  for (const q of queryList) {
+    searchPromises.push(
+      fetchTMDB('/search/multi', { query: q, page: '1', include_adult: 'false' })
+        .then(d => d?.results || [])
+        .catch(() => [])
+    );
+  }
+
+  // If primary query has 2+ words, also query movie & tv endpoints for higher recall
+  if (queryList[0]) {
+    searchPromises.push(
+      fetchTMDB('/search/movie', { query: queryList[0], page: '1', include_adult: 'false' })
+        .then(d => (d?.results || []).map((m: any) => ({ ...m, media_type: MediaType.MOVIE })))
+        .catch(() => []),
+      fetchTMDB('/search/tv', { query: queryList[0], page: '1', include_adult: 'false' })
+        .then(d => (d?.results || []).map((t: any) => ({ ...t, media_type: MediaType.TV })))
+        .catch(() => [])
+    );
+  }
 
   const settleResults = await Promise.all(searchPromises);
   const flatResults = settleResults.flat();
 
-  const formatted: TMDBResult[] = flatResults
-    .filter((r: any) => r && (r.media_type === 'movie' || r.media_type === 'tv' || r.media_type === 'person' || (!r.media_type && (r.title || r.name))))
-    .map((r: any) => ({
-      ...r,
-      media_type: r.media_type || (r.title ? MediaType.MOVIE : MediaType.TV),
-      poster_path: r.poster_path || r.profile_path || null,
-      backdrop_path: r.backdrop_path || null,
-    }));
+  // Deduplicate raw TMDB results by ID and MediaType
+  const seen = new Set<string>();
+  const formatted: TMDBResult[] = [];
 
-  // Apply smart ranking with fuzzy matching, year boosting, and relevance scoring
-  return rankSearchResults(formatted, trimmed);
+  for (const r of flatResults) {
+    if (!r) continue;
+    const media_type = r.media_type || (r.title ? MediaType.MOVIE : MediaType.TV);
+    const key = `${media_type}_${r.id}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      formatted.push({
+        ...r,
+        media_type,
+        poster_path: r.poster_path || r.profile_path || null,
+        backdrop_path: r.backdrop_path || null,
+      });
+    }
+  }
+
+  // 4. Apply smart ranking with fuzzy matching, year boosting, and popularity/vote weighting
+  const effectiveCorrection = (spellCorrection && spellCorrection.toLowerCase() !== trimmed.toLowerCase())
+    ? spellCorrection
+    : (tokenCorrection && tokenCorrection.toLowerCase() !== trimmed.toLowerCase())
+      ? tokenCorrection
+      : undefined;
+
+  return rankSearchResults(formatted, trimmed, effectiveCorrection);
 };
 
 export const getDetails = async (id: number, type: MediaType): Promise<TMDBDetail> => {

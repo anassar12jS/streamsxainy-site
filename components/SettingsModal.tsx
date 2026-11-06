@@ -46,6 +46,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   
   const [saved, setSaved] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [notice, setNotice] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -56,6 +57,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setAutoplayState(getAutoplayNext());
       setProviders(getStreamProviders());
       setConfirmClear(false);
+      setNotice(null);
     }
   }, [isOpen]);
 
@@ -107,6 +109,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    setNotice({ message: 'Backup file generated and downloaded.', type: 'success' });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,10 +119,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     reader.onload = (event) => {
       const json = event.target?.result as string;
       if (importData(json)) {
-        alert('Data imported successfully! Reloading...');
-        window.location.reload();
+        setNotice({ message: 'Data imported successfully! Reloading...', type: 'success' });
+        setTimeout(() => window.location.reload(), 900);
       } else {
-        alert('Invalid backup file format.');
+        setNotice({ message: 'Invalid backup file format.', type: 'error' });
       }
     };
     reader.readAsText(file);
@@ -128,17 +131,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const handleClearHistory = () => {
     clearAllWatchData();
     setConfirmClear(false);
-    alert('Watch history, continue watching progress, and favorites cleared.');
+    setNotice({ message: 'Watch history, continue watching progress, and favorites cleared.', type: 'success' });
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in">
       <div 
-        className="w-full max-w-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full max-w-2xl bg-[var(--bg-card)] border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-main)]/50">
+        <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between bg-[var(--bg-main)]/50">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-2xl bg-[rgb(var(--primary-color))]/15 text-[rgb(var(--primary-color))]">
               <Settings className="w-5 h-5" />
@@ -156,8 +159,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           </button>
         </div>
 
+        {/* In-Modal Notice Banner */}
+        {notice && (
+          <div className={`mx-6 mt-4 p-3 rounded-xl border text-xs font-semibold flex items-center justify-between animate-fade-in ${
+            notice.type === 'success' 
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+              : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+          }`}>
+            <span>{notice.message}</span>
+            <button onClick={() => setNotice(null)} className="p-1 hover:opacity-75">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Tab Navigation */}
-        <div className="flex border-b border-[var(--border-subtle)] px-6 bg-[var(--bg-main)]/30 overflow-x-auto">
+        <div className="flex border-b border-white/10 px-6 bg-[var(--bg-main)]/30 overflow-x-auto">
           {[
             { id: 'appearance', label: 'Appearance', icon: Palette },
             { id: 'streaming', label: 'Playback', icon: Play },
