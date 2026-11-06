@@ -582,7 +582,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
   if (isLoadingInitial) {
     return (
       <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] pb-20">
-        <div className="relative h-[80vh] min-h-[580px] w-full bg-[var(--bg-card)] animate-pulse mb-8">
+        <div className="relative h-[calc(100vh-4.5rem)] min-h-[460px] max-h-[720px] w-full bg-[var(--bg-card)] animate-pulse mb-8">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 h-full flex flex-col justify-end pb-16 space-y-4">
             <Skeleton width={180} height={24} variant="rectangular" className="rounded-md" />
             <Skeleton width={380} height={60} variant="rectangular" className="rounded-xl" />
@@ -652,7 +652,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
       {/* Cinematic Hero Spotlight Carousel */}
       {currentHero && (
         <div 
-          className="relative h-[84vh] min-h-[600px] max-h-[860px] w-full mb-10 group/hero"
+          className="relative h-[calc(100vh-4.5rem)] min-h-[460px] max-h-[720px] w-full mb-8 sm:mb-10 group/hero"
           onMouseEnter={() => setIsHeroHovered(true)}
           onMouseLeave={() => setIsHeroHovered(false)}
         >
@@ -679,13 +679,13 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
             ))}
 
             {/* Seamless Top Vignette */}
-            <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-[var(--bg-main)] via-[var(--bg-main)]/60 to-transparent pointer-events-none z-10" />
+            <div className="absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-[var(--bg-main)] via-[var(--bg-main)]/60 to-transparent pointer-events-none z-10" />
 
             {/* Left Vignette for Text Contrast */}
             <div className="absolute inset-0 bg-gradient-to-r from-[var(--bg-main)] via-[var(--bg-main)]/85 to-transparent w-full lg:w-3/5 z-10" />
 
             {/* Bottom Seamless Fade */}
-            <div className="absolute inset-x-0 bottom-0 h-60 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)]/80 to-transparent pointer-events-none z-10" />
+            <div className="absolute inset-x-0 bottom-0 h-48 sm:h-56 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)]/80 to-transparent pointer-events-none z-10" />
             
             {/* Ambient Primary Glow */}
             <div className="absolute top-1/3 left-1/4 w-80 h-80 bg-[rgb(var(--primary-color))]/15 rounded-full blur-[110px] pointer-events-none z-10" />
@@ -710,11 +710,11 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
           </button>
 
           {/* Hero Content Body */}
-          <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-end pb-16 sm:pb-20">
-            <div className="max-w-2xl flex flex-col gap-3.5">
+          <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-end pb-8 sm:pb-10 lg:pb-12">
+            <div className="max-w-2xl flex flex-col gap-2.5 sm:gap-3">
               
               {/* Eyebrow Kicker with Auto-Play Status Toggle */}
-              <div className="flex items-center gap-2.5 text-xs font-bold tracking-wider uppercase animate-fade-in flex-wrap">
+              <div className="flex items-center gap-2 text-xs font-bold tracking-wider uppercase animate-fade-in flex-wrap">
                 <span className="flex items-center gap-1.5 text-rose-400">
                   <TrendingUp className="w-3.5 h-3.5" />
                   <span>Spotlight #{heroIndex + 1}</span>
@@ -740,13 +740,13 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
               </div>
 
               {/* Title with Balanced Linebreaks */}
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white leading-[1.08] tracking-tight drop-shadow-2xl animate-fade-in line-clamp-2 max-w-xl" style={{ textWrap: 'balance' }}>
+              <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white leading-[1.1] tracking-tight drop-shadow-2xl animate-fade-in line-clamp-2 max-w-xl" style={{ textWrap: 'balance' }}>
                 {currentHero.title || currentHero.name}
               </h1>
 
               {/* Metadata Row */}
-              <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm font-medium text-white/80 animate-fade-in">
-                <span className="flex items-center gap-1.5 text-amber-400 font-bold">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 text-xs sm:text-sm font-medium text-white/80 animate-fade-in">
+                <span className="flex items-center gap-1 text-amber-400 font-bold">
                   <Star className="w-3.5 h-3.5 fill-amber-400 shrink-0" />
                   <span>{currentHero.vote_average ? currentHero.vote_average.toFixed(1) : '8.5'}</span>
                 </span>
@@ -769,26 +769,26 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
               </div>
 
               {/* Synopsis */}
-              <p className="text-zinc-200/90 text-sm sm:text-base line-clamp-3 max-w-xl drop-shadow-sm font-normal leading-relaxed animate-fade-in">
+              <p className="text-zinc-200/90 text-xs sm:text-sm lg:text-base line-clamp-2 sm:line-clamp-3 max-w-xl drop-shadow-sm font-normal leading-relaxed animate-fade-in">
                 {currentHero.overview}
               </p>
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-3 pt-3 animate-fade-in">
+              <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 pt-1.5 sm:pt-2 animate-fade-in">
                 
                 {/* Watch Now Button */}
                 <button
                   onClick={() => handleQuickPlay(currentHero)}
-                  className="flex items-center gap-2.5 bg-[rgb(var(--primary-color))] hover:brightness-110 text-white px-7 py-3.5 rounded-xl font-bold text-sm sm:text-base shadow-xl shadow-[rgb(var(--primary-color))]/30 hover:-translate-y-0.5 transition-all group cursor-pointer"
+                  className="flex items-center gap-2 bg-[rgb(var(--primary-color))] hover:brightness-110 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm shadow-xl shadow-[rgb(var(--primary-color))]/30 hover:-translate-y-0.5 transition-all group cursor-pointer"
                 >
-                  <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-current transition-transform group-hover:scale-110" />
+                  <Play className="w-4 h-4 fill-current transition-transform group-hover:scale-110" />
                   <span>Watch Now</span>
                 </button>
 
                 {/* Trailer Button */}
                 <button
                   onClick={() => handleOpenTrailer(currentHero)}
-                  className="flex items-center gap-2 bg-black/40 hover:bg-black/60 border border-white/20 text-white px-5 py-3.5 rounded-xl font-semibold text-sm backdrop-blur-md transition-all hover:border-red-500/50 hover:text-red-400 group cursor-pointer"
+                  className="flex items-center gap-2 bg-black/40 hover:bg-black/60 border border-white/20 text-white px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm backdrop-blur-md transition-all hover:border-red-500/50 hover:text-red-400 group cursor-pointer"
                 >
                   <Youtube className="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform" />
                   <span>Trailer</span>
@@ -797,7 +797,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 {/* Details Button */}
                 <button
                   onClick={() => handleSelect(currentHero)}
-                  className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/15 text-white px-5 py-3.5 rounded-xl font-semibold text-sm backdrop-blur-md transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/15 text-white px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm backdrop-blur-md transition-all cursor-pointer"
                 >
                   <Info className="w-4 h-4" />
                   <span>Details</span>
@@ -806,7 +806,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 {/* Watchlist Toggle Button */}
                 <button
                   onClick={toggleWatchlistForHero}
-                  className={`p-3.5 rounded-xl border backdrop-blur-md transition-all flex items-center justify-center cursor-pointer ${
+                  className={`p-2.5 sm:p-3 rounded-xl border backdrop-blur-md transition-all flex items-center justify-center cursor-pointer ${
                     inWatchlistState
                       ? 'bg-[rgb(var(--primary-color))]/25 border-[rgb(var(--primary-color))] text-[rgb(var(--primary-color))]'
                       : 'bg-black/40 hover:bg-black/60 border-white/15 text-white/80 hover:text-white'
@@ -814,13 +814,13 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                   title={inWatchlistState ? 'In Watchlist' : 'Add to Watchlist'}
                   aria-label={inWatchlistState ? 'In Watchlist' : 'Add to Watchlist'}
                 >
-                  {inWatchlistState ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                  {inWatchlistState ? <Check className="w-4 h-4 sm:w-5 sm:h-5" /> : <Plus className="w-4 h-4 sm:w-5 sm:h-5" />}
                 </button>
               </div>
             </div>
 
             {/* Carousel Navigation Filmstrip with Active Duration Progress (Bottom Right) */}
-            <div className="hidden lg:flex items-center gap-2.5 absolute bottom-16 right-8 z-20 bg-black/50 p-2 rounded-2xl border border-white/15 backdrop-blur-md shadow-2xl">
+            <div className="hidden lg:flex items-center gap-2 absolute bottom-8 sm:bottom-10 lg:bottom-12 right-6 lg:right-8 z-20 bg-black/60 p-1.5 sm:p-2 rounded-2xl border border-white/15 backdrop-blur-md shadow-2xl">
               {featuredList.map((item, idx) => {
                 const isActive = idx === heroIndex;
                 return (
@@ -830,7 +830,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                       setHeroIndex(idx);
                       setSlideProgress(0);
                     }}
-                    className={`relative w-20 h-12 rounded-xl overflow-hidden border-2 transition-all group cursor-pointer ${
+                    className={`relative w-16 h-10 xl:w-20 xl:h-12 rounded-xl overflow-hidden border-2 transition-all group cursor-pointer ${
                       isActive 
                         ? 'border-[rgb(var(--primary-color))] scale-105 shadow-lg ring-1 ring-[rgb(var(--primary-color))]/40' 
                         : 'border-transparent opacity-60 hover:opacity-100 hover:scale-102'
@@ -857,6 +857,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 );
               })}
             </div>
+
 
             {/* Mobile Pager Dots */}
             <div className="flex lg:hidden items-center justify-center gap-1.5 pt-4">
