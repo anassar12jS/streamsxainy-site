@@ -2081,7 +2081,7 @@ export const Sports: React.FC = () => {
   ));
 
   // Data Partitioning based on chosen region, competition, and day filter
-  const { live, visibleUpcomingGroups, favMatches, upcomingCount, totalLiveCount, totalResultsCount } = useMemo(() => {
+  const { live, visibleUpcomingGroups, upcomingPool, favMatches, upcomingCount, totalLiveCount, totalResultsCount } = useMemo(() => {
     const now = clockNow;
     const q = searchQuery.toLowerCase().trim();
 
@@ -2189,6 +2189,7 @@ export const Sports: React.FC = () => {
     return {
       live: liveList,
       visibleUpcomingGroups: visibleGroups,
+      upcomingPool: upcomingList,
       favMatches: favsList,
       upcomingCount: schedulePool.length,
       totalLiveCount: liveList.length,
@@ -2208,11 +2209,7 @@ export const Sports: React.FC = () => {
   }, [matches]);
 
   const handlePlayMatch = (m: SportsMatch, streamIndex = 0) => {
-    if (!m.sources?.length) {
-      setPreviewMatch(m);
-      return;
-    }
-    navigate('/sports/watch', { state: { match: m, initialSourceIndex: streamIndex } });
+    navigate(`/sports/watch?id=${encodeURIComponent(m.id || getMatchUniqueId(m))}`, { state: { match: m, initialSourceIndex: streamIndex } });
   };
 
   // Scroll to top button
@@ -2813,25 +2810,123 @@ export const Sports: React.FC = () => {
                 </div>
               )}
             </div>
+          ) : upcomingPool.length > 0 ? (
+            <div className="space-y-6 animate-fade-in">
+              {/* Radar Active Notice */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0">
+                    <Clock className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-[var(--text-main)] flex items-center gap-2">
+                      <span>Between Live Match Windows</span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold uppercase tracking-wider">
+                        Radar Active
+                      </span>
+                    </h3>
+                    <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                      {hasActiveFilters 
+                        ? 'No live events in play for this specific filter. Showing next upcoming kickoffs below.' 
+                        : 'No matches in play right now. Explore upcoming fixtures, countdowns, and kickoffs below.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                  {hasActiveFilters && (
+                    <button
+                      type="button"
+                      onClick={clearSportsFilters}
+                      className="px-3.5 py-1.5 rounded-xl bg-[var(--bg-main)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-xs font-bold text-[var(--text-main)] transition-colors cursor-pointer"
+                    >
+                      Reset Filter
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setTabMode('upcoming')}
+                    className="px-4 py-2 rounded-xl bg-[rgb(var(--primary-color))] text-white text-xs font-bold shadow-md hover:scale-105 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Full Schedule ({upcomingCount})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Next Kickoffs Row Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-amber-400" />
+                  <h2 className="text-sm font-black uppercase tracking-wider text-[var(--text-main)]">
+                    Next Kickoffs & Featured Fixtures
+                  </h2>
+                </div>
+                <span className="text-xs text-[var(--text-muted)] font-mono">
+                  {upcomingPool.length} fixtures in queue
+                </span>
+              </div>
+
+              {/* Upcoming Matches Grid or List */}
+              {layoutMode === 'grid' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 xl:gap-6">
+                  {upcomingPool.slice(0, 12).map(match => (
+                    <MatchGridCard
+                      key={getMatchUniqueId(match)}
+                      match={match}
+                      isLive={false}
+                      onPlay={handlePlayMatch}
+                      onToggleFav={toggleFavorite}
+                      isFav={favorites.includes(getMatchUniqueId(match))}
+                      selectedRegion={selectedRegion}
+                      now={clockNow}
+                      timezoneOffsetMs={apiTimezoneOffsetMs}
+                      onOpenMatchCenter={(m) => setPreviewMatch(m)}
+                      onToggleReminder={toggleReminder}
+                      isReminder={reminders.includes(getMatchUniqueId(match))}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {upcomingPool.slice(0, 12).map(match => (
+                    <MatchListRow
+                      key={getMatchUniqueId(match)}
+                      match={match}
+                      isLive={false}
+                      onPlay={handlePlayMatch}
+                      onToggleFav={toggleFavorite}
+                      isFav={favorites.includes(getMatchUniqueId(match))}
+                      selectedRegion={selectedRegion}
+                      now={clockNow}
+                      timezoneOffsetMs={apiTimezoneOffsetMs}
+                      onOpenMatchCenter={(m) => setPreviewMatch(m)}
+                      onToggleReminder={toggleReminder}
+                      isReminder={reminders.includes(getMatchUniqueId(match))}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           ) : (
             <div className="py-20 text-center flex flex-col items-center max-w-md mx-auto">
               <div className="w-16 h-16 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] flex items-center justify-center mb-4 text-[var(--text-muted)] shadow-md">
                 <Radio className="w-8 h-8 opacity-40" />
               </div>
               <h3 className="text-lg font-black text-[var(--text-main)] mb-1">
-                {hasActiveFilters ? 'No live matches match these filters' : 'No live matches right now'}
+                {hasActiveFilters ? 'No matches match these filters' : 'No upcoming matches right now'}
               </h3>
               <p className="text-xs text-[var(--text-muted)] mb-5 leading-relaxed">
                 {hasActiveFilters
-                  ? 'Clear the search or sport filter to see all live events.'
-                  : 'There may be no game in progress, or a sports data provider may be temporarily unavailable. Try the schedule or refresh.'}
+                  ? 'Clear the search or sport filter to see all events.'
+                  : 'Try switching to the full schedule or refreshing live scores.'}
               </p>
               <div className="flex flex-wrap justify-center gap-2">
                 {hasActiveFilters && (
                   <button
                     type="button"
                     onClick={clearSportsFilters}
-                    className="px-5 py-2.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] font-bold text-xs"
+                    className="px-5 py-2.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] font-bold text-xs cursor-pointer"
                   >
                     Clear Filters
                   </button>
@@ -2839,7 +2934,7 @@ export const Sports: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setTabMode('upcoming')}
-                  className="px-6 py-2.5 rounded-xl bg-[rgb(var(--primary-color))] text-white font-bold text-xs shadow-lg hover:scale-105 transition-all"
+                  className="px-6 py-2.5 rounded-xl bg-[rgb(var(--primary-color))] text-white font-bold text-xs shadow-lg hover:scale-105 transition-all cursor-pointer"
                 >
                   Browse Full Schedule
                 </button>

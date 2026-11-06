@@ -48,6 +48,14 @@ const SplashScreen = () => (
     </div>
 );
 
+const ScrollToTop: React.FC = () => {
+  const { pathname, search } = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [pathname, search]);
+  return null;
+};
+
 const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [themeColor, setThemeColor] = useState('147, 51, 234'); 
@@ -110,6 +118,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] font-sans flex flex-col transition-colors duration-300" style={({ '--primary-color': themeColor } as React.CSSProperties)}>
+      <ScrollToTop />
       {!isPlayer && (
         <Navbar 
             onOpenSettings={() => setIsSettingsOpen(true)} 

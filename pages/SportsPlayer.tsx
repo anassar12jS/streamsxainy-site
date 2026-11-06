@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { SportsMatch, SportsMatchSource, SportsStream, SportsChannel247, LiveMatchScoreboard } from '../types';
 import { getMatchStreams, getAllMatches, getExpectedMatchDurationMs, getLiveScoreboard, isLiveMatchStatus, isMatchFinished } from '../services/sports';
@@ -40,8 +40,17 @@ const getSportIcon = (cat?: string) => {
 export const SportsPlayer: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const paramId = searchParams.get('id');
   const rawMatch = location.state?.match as SportsMatch | undefined;
   const channel = location.state?.channel as SportsChannel247 | undefined;
+
+  // Fetch all matches for the "Other Live Matches" row AND lookup if state.match is missing on page refresh/direct link
+  const { data: allMatches = [], isLoading: isLoadingAllMatches } = useQuery({
+    queryKey: ['matches'],
+    queryFn: getAllMatches,
+    staleTime: 1000 * 60,
+  });
 
   const match: SportsMatch | undefined = useMemo(() => {
     if (rawMatch) return rawMatch;
@@ -57,8 +66,12 @@ export const SportsPlayer: React.FC = () => {
         ]
       };
     }
+    if (paramId && allMatches.length > 0) {
+      const found = allMatches.find(m => m.id === paramId || String(m.id) === paramId || m.title === paramId);
+      if (found) return found;
+    }
     return undefined;
-  }, [rawMatch, channel]);
+  }, [rawMatch, channel, paramId, allMatches]);
 
   const playerRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -142,13 +155,6 @@ export const SportsPlayer: React.FC = () => {
     }, offsetMs);
   }, [match?.date, selectedRegion.tz, offsetMs]);
 
-  // Fetch all matches for the "Other Live Matches" row
-  const { data: allMatches = [] } = useQuery({
-    queryKey: ['matches'],
-    queryFn: getAllMatches,
-    staleTime: 1000 * 60,
-  });
-
   // Calculate live matches excluding this one
   const otherLiveMatches = useMemo(() => {
     if (!match) return [];
@@ -163,7 +169,12 @@ export const SportsPlayer: React.FC = () => {
 
   useEffect(() => {
     if (!match) {
-      navigate('/sports', { replace: true });
+      if (!isLoadingAllMatches && !paramId) {
+        navigate('/sports', { replace: true });
+      } else if (!isLoadingAllMatches && paramId && allMatches.length > 0) {
+        // ID param was provided, but not found in any match
+        navigate('/sports', { replace: true });
+      }
       return;
     }
 
@@ -178,8 +189,11 @@ export const SportsPlayer: React.FC = () => {
         : 0;
       const targetSource = match.sources[initialIdx] || match.sources[0];
       loadSource(targetSource);
+    } else {
+      // Auto-fallback source for matches with no explicit stream source attached
+      loadSource({ source: 'streamfree', id: match.id || match.title });
     }
-  }, [match, navigate]);
+  }, [match, navigate, isLoadingAllMatches, paramId, allMatches.length]);
 
   const loadSource = async (source: SportsMatchSource) => {
     const key = `${source.source}-${source.id}`;
@@ -288,7 +302,26 @@ export const SportsPlayer: React.FC = () => {
     );
   }, [currentStreams, selectedLanguageFilter]);
 
-  if (!match) return null;
+  if (!match) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+        <div className="w-12 h-12 rounded-2xl bg-[rgb(var(--primary-color))]/15 flex items-center justify-center mb-3">
+          <Loader2 className="w-6 h-6 text-[rgb(var(--primary-color))] animate-spin" />
+        </div>
+        <h2 className="text-base font-bold text-white mb-1">Locating Live Broadcast...</h2>
+        <p className="text-xs text-[var(--text-muted)] max-w-sm mb-4">
+          Connecting to satellite broadcast feeds and scoreboards.
+        </p>
+        <button
+          onClick={() => navigate('/sports')}
+          className="px-4 py-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-xs font-bold text-[var(--text-main)] hover:bg-[var(--bg-hover)] transition-colors flex items-center gap-1.5"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Sports Schedule</span>
+        </button>
+      </div>
+    );
+  }
 
   const sportIcon = getSportIcon(match.category);
   const hasTeams = match.teams?.home && match.teams?.away;

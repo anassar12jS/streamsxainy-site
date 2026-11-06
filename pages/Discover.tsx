@@ -15,20 +15,40 @@ interface DiscoverProps {
 }
 
 export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialGenre = searchParams.get('genre') ? Number(searchParams.get('genre')) : undefined;
   const initialProvider = searchParams.get('provider') ? Number(searchParams.get('provider')) : undefined;
   const initialType = searchParams.get('type') === 'tv' ? MediaType.TV : MediaType.MOVIE;
+  const initialYear = searchParams.get('year') ? Number(searchParams.get('year')) : undefined;
+  const initialSortBy = searchParams.get('sortBy') || 'popularity.desc';
 
   const [items, setItems] = useState<TMDBResult[]>([]);
   const [mediaType, setMediaType] = useState<MediaType>(initialType);
   const [genres, setGenres] = useState<{ id: number; name: string }[]>([]);
-  const [selectedGenre, setSelectedGenre] = useState<number | undefined>(undefined);
-  const [selectedYear, setSelectedYear] = useState<number | undefined>(undefined);
+  const [selectedGenre, setSelectedGenre] = useState<number | undefined>(initialGenre);
+  const [selectedYear, setSelectedYear] = useState<number | undefined>(initialYear);
   const [selectedProvider, setSelectedProvider] = useState<number | undefined>(initialProvider);
-  const [sortBy, setSortBy] = useState('popularity.desc');
+  const [sortBy, setSortBy] = useState(initialSortBy);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [rouletteError, setRouletteError] = useState<string | null>(null);
+
+  // Sync state when searchParams change (e.g. from Explore by Mood & Genre on Home)
+  useEffect(() => {
+    const pGenre = searchParams.get('genre') ? Number(searchParams.get('genre')) : undefined;
+    const pProvider = searchParams.get('provider') ? Number(searchParams.get('provider')) : undefined;
+    const pType = searchParams.get('type') === 'tv' ? MediaType.TV : MediaType.MOVIE;
+    const pYear = searchParams.get('year') ? Number(searchParams.get('year')) : undefined;
+    const pSort = searchParams.get('sortBy') || 'popularity.desc';
+
+    setSelectedGenre(pGenre);
+    setSelectedProvider(pProvider);
+    setMediaType(pType);
+    setSelectedYear(pYear);
+    setSortBy(pSort);
+    setCurrentPage(1);
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [searchParams]);
 
   // Roulette State
   const [isRouletteOpen, setIsRouletteOpen] = useState(false);
@@ -65,6 +85,36 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
     };
     fetch();
   }, [mediaType, sortBy, selectedGenre, selectedYear, currentPage, selectedProvider]);
+
+  const handleGenreChange = (genreId?: number) => {
+    setSelectedGenre(genreId);
+    setCurrentPage(1);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (genreId) {
+        next.set('genre', genreId.toString());
+        const match = genres.find(g => g.id === genreId);
+        if (match) next.set('genreName', match.name);
+      } else {
+        next.delete('genre');
+        next.delete('genreName');
+      }
+      return next;
+    });
+  };
+
+  const handleMediaTypeChange = (type: MediaType) => {
+    setMediaType(type);
+    setSelectedGenre(undefined);
+    setCurrentPage(1);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('type', type === MediaType.TV ? 'tv' : 'movie');
+      next.delete('genre');
+      next.delete('genreName');
+      return next;
+    });
+  };
 
   const handleFilterChange = () => {
     setCurrentPage(1);
@@ -138,7 +188,7 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
         {/* Media Type Segmented Switcher */}
         <div className="flex items-center gap-1 bg-[var(--bg-card)] p-1 rounded-xl border border-[var(--border-subtle)] shadow-sm">
           <button
-            onClick={() => { setMediaType(MediaType.MOVIE); setSelectedGenre(undefined); setCurrentPage(1); }}
+            onClick={() => handleMediaTypeChange(MediaType.MOVIE)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all ${
               mediaType === MediaType.MOVIE
                 ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
@@ -149,7 +199,7 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
             <span>Movies</span>
           </button>
           <button
-            onClick={() => { setMediaType(MediaType.TV); setSelectedGenre(undefined); setCurrentPage(1); }}
+            onClick={() => handleMediaTypeChange(MediaType.TV)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all ${
               mediaType === MediaType.TV
                 ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
@@ -171,7 +221,7 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
             <label className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Genre</label>
             <select 
               value={selectedGenre || ''}
-              onChange={(e) => { setSelectedGenre(e.target.value ? Number(e.target.value) : undefined); handleFilterChange(); }}
+              onChange={(e) => handleGenreChange(e.target.value ? Number(e.target.value) : undefined)}
               className="w-full bg-[var(--bg-main)] border border-[var(--border-subtle)] text-[var(--text-main)] text-xs sm:text-sm rounded-xl px-3.5 py-2.5 focus:border-[rgb(var(--primary-color))] outline-none font-medium cursor-pointer"
             >
               <option value="">All Genres</option>
@@ -230,7 +280,7 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
             Quick:
           </span>
           <button
-            onClick={() => { setSelectedGenre(undefined); handleFilterChange(); }}
+            onClick={() => handleGenreChange(undefined)}
             className={`shrink-0 px-3 py-1 rounded-lg font-medium transition-all ${
               selectedGenre === undefined 
                 ? 'bg-[rgb(var(--primary-color))] text-white shadow-xs' 
@@ -242,7 +292,7 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
           {genres.slice(0, 8).map(g => (
             <button
               key={g.id}
-              onClick={() => { setSelectedGenre(g.id); handleFilterChange(); }}
+              onClick={() => handleGenreChange(g.id)}
               className={`shrink-0 px-3 py-1 rounded-lg font-medium transition-all ${
                 selectedGenre === g.id 
                   ? 'bg-[rgb(var(--primary-color))] text-white shadow-xs' 
@@ -257,10 +307,27 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
 
       {/* Grid of Results */}
       <div>
+        {selectedGenre && (
+          <div className="flex items-center gap-2 mb-5 bg-[rgb(var(--primary-color))]/10 border border-[rgb(var(--primary-color))]/30 rounded-xl px-3.5 py-2 w-fit animate-fade-in shadow-xs">
+            <Sparkles className="w-3.5 h-3.5 text-[rgb(var(--primary-color))]" />
+            <span className="text-xs font-semibold text-[var(--text-main)]">
+              Filtered by: <strong className="text-[rgb(var(--primary-color))]">{searchParams.get('genreName') || genres.find(g => g.id === selectedGenre)?.name || 'Selected Category'}</strong>
+            </span>
+            <button
+              onClick={() => handleGenreChange(undefined)}
+              className="ml-2 flex items-center gap-1 text-[11px] font-bold text-[rgb(var(--primary-color))] hover:underline cursor-pointer"
+              title="Clear genre filter"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Clear Filter</span>
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <h2 className="text-xl sm:text-2xl font-bold text-[var(--text-main)]">
-              {selectedGenre ? genres.find(g => g.id === selectedGenre)?.name : 'Curated'} {mediaType === MediaType.TV ? 'Series' : 'Films'}
+              {searchParams.get('genreName') || (selectedGenre ? genres.find(g => g.id === selectedGenre)?.name : 'Curated')} {mediaType === MediaType.TV ? 'Series' : 'Films'}
             </h2>
             <span className="text-xs text-[var(--text-muted)] font-medium">({items.length} titles loaded)</span>
           </div>
