@@ -27,13 +27,54 @@ import { TMDB_BACKDROP_W1280, TMDB_BACKDROP_W780, TMDB_BACKDROP_W300, TMDB_POSTE
 import { 
   Play, Info, TrendingUp, Star, ChevronLeft, ChevronRight, 
   Plus, Check, Youtube, X, Flame, Sparkles, Film, Tv, Compass, 
-  CheckCircle2, ArrowRight, Pause, RotateCcw
+  CheckCircle2, ArrowRight, Pause, Layers, Zap
 } from 'lucide-react';
 import { RowSkeleton, Skeleton } from '../components/Skeleton';
 
 interface HomeProps {
   onSelect?: (item: TMDBResult) => void;
 }
+
+const TMDB_GENRE_MAP: Record<number, string> = {
+  28: 'Action',
+  12: 'Adventure',
+  16: 'Animation',
+  35: 'Comedy',
+  80: 'Crime',
+  99: 'Documentary',
+  18: 'Drama',
+  10751: 'Family',
+  14: 'Fantasy',
+  36: 'History',
+  27: 'Horror',
+  10402: 'Music',
+  9648: 'Mystery',
+  10749: 'Romance',
+  878: 'Sci-Fi',
+  10770: 'TV Movie',
+  53: 'Thriller',
+  10752: 'War',
+  37: 'Western',
+  10759: 'Action & Adventure',
+  10762: 'Kids',
+  10763: 'News',
+  10764: 'Reality',
+  10765: 'Sci-Fi & Fantasy',
+  10766: 'Soap',
+  10767: 'Talk',
+  10768: 'War & Politics'
+};
+
+const POPULAR_GENRE_HUBS = [
+  { id: 28, name: 'Action', icon: Flame, color: 'from-orange-500/20 via-red-600/15 to-transparent', border: 'hover:border-red-500/50' },
+  { id: 878, name: 'Sci-Fi & Fantasy', icon: Sparkles, color: 'from-cyan-500/20 via-blue-600/15 to-transparent', border: 'hover:border-cyan-500/50' },
+  { id: 18, name: 'Drama', icon: Film, color: 'from-purple-500/20 via-indigo-600/15 to-transparent', border: 'hover:border-purple-500/50' },
+  { id: 35, name: 'Comedy', icon: Zap, color: 'from-amber-500/20 via-yellow-600/15 to-transparent', border: 'hover:border-amber-500/50' },
+  { id: 27, name: 'Horror & Suspense', icon: Flame, color: 'from-rose-500/20 via-pink-600/15 to-transparent', border: 'hover:border-rose-500/50' },
+  { id: 53, name: 'Crime & Mystery', icon: Compass, color: 'from-emerald-500/20 via-teal-600/15 to-transparent', border: 'hover:border-emerald-500/50' },
+  { id: 16, name: 'Anime & Animation', icon: Tv, color: 'from-pink-500/20 via-rose-600/15 to-transparent', border: 'hover:border-pink-500/50' },
+  { id: 99, name: 'Documentary', icon: Layers, color: 'from-blue-500/20 via-slate-600/15 to-transparent', border: 'hover:border-blue-500/50' },
+];
 
 // Interactive Horizontal Row with Desktop Left/Right Chevron Controls & Optional View All Link
 const InteractiveRow = React.memo(({ 
@@ -527,6 +568,15 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
     }
   };
 
+  const heroGenres = useMemo(() => {
+    if (!currentHero?.genre_ids) return '';
+    return currentHero.genre_ids
+      .slice(0, 3)
+      .map(id => TMDB_GENRE_MAP[id])
+      .filter(Boolean)
+      .join(' · ');
+  }, [currentHero?.genre_ids]);
+
   const isLoadingInitial = loadingTrending && loadingMovies && loadingSeries;
 
   if (isLoadingInitial) {
@@ -628,7 +678,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
               </div>
             ))}
 
-            {/* Seamless Top Vignette (Blends into Navbar background) */}
+            {/* Seamless Top Vignette */}
             <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-[var(--bg-main)] via-[var(--bg-main)]/60 to-transparent pointer-events-none z-10" />
 
             {/* Left Vignette for Text Contrast */}
@@ -641,7 +691,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
             <div className="absolute top-1/3 left-1/4 w-80 h-80 bg-[rgb(var(--primary-color))]/15 rounded-full blur-[110px] pointer-events-none z-10" />
           </div>
 
-          {/* Desktop Direct Hero Chevrons (Hover) */}
+          {/* Desktop Direct Hero Chevrons */}
           <button
             type="button"
             onClick={goToPrevHero}
@@ -664,13 +714,19 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
             <div className="max-w-2xl flex flex-col gap-3.5">
               
               {/* Eyebrow Kicker with Auto-Play Status Toggle */}
-              <div className="flex items-center gap-2.5 text-xs font-bold tracking-wider uppercase animate-fade-in">
+              <div className="flex items-center gap-2.5 text-xs font-bold tracking-wider uppercase animate-fade-in flex-wrap">
                 <span className="flex items-center gap-1.5 text-rose-400">
                   <TrendingUp className="w-3.5 h-3.5" />
                   <span>Spotlight #{heroIndex + 1}</span>
                 </span>
                 <span className="text-white/30">·</span>
                 <span className="text-white/70 font-medium tracking-wide">Trending Worldwide</span>
+                {heroGenres && (
+                  <>
+                    <span className="text-white/30">·</span>
+                    <span className="text-amber-300/90 font-medium tracking-wide">{heroGenres}</span>
+                  </>
+                )}
                 <span className="text-white/30">·</span>
                 <button
                   type="button"
@@ -705,6 +761,10 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 <span className="text-white/30">·</span>
                 <span className="text-emerald-400 font-semibold text-xs uppercase tracking-wider font-mono">
                   Ultra HD 4K
+                </span>
+                <span className="text-white/30">·</span>
+                <span className="text-cyan-300 font-mono text-[11px]">
+                  Dolby Atmos
                 </span>
               </div>
 
@@ -972,6 +1032,59 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
         {/* Streaming Providers ("WHERE TO WATCH") Showcase */}
         {(activeCategory === 'all' || activeCategory === 'movies' || activeCategory === 'series') && (
           <StreamingProvidersShowcase onSelect={handleSelect} />
+        )}
+
+        {/* Curated Genre & Mood Discovery Strip */}
+        {activeCategory === 'all' && (
+          <div className="mb-12 content-visibility-auto">
+            <div className="flex items-center justify-between mb-4 px-4 sm:px-6">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-600/30 text-amber-400">
+                  <Compass className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-[var(--text-main)] tracking-tight">
+                    Explore by Mood & Genre
+                  </h2>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Dive directly into curated cinematic categories
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => navigate('/discover')}
+                className="flex items-center gap-1 text-xs font-semibold text-[rgb(var(--primary-color))] hover:brightness-110 px-2.5 py-1 rounded-lg hover:bg-[rgb(var(--primary-color))]/10 transition-colors cursor-pointer"
+              >
+                <span>Browse all</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 px-4 sm:px-6">
+              {POPULAR_GENRE_HUBS.map(hub => {
+                const HubIcon = hub.icon;
+                return (
+                  <button
+                    key={hub.id}
+                    onClick={() => navigate(`/discover?type=movie&genre=${hub.id}&genreName=${encodeURIComponent(hub.name)}`)}
+                    className={`p-3.5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] ${hub.border} hover:scale-105 transition-all text-left group cursor-pointer flex flex-col justify-between h-24 relative overflow-hidden shadow-sm hover:shadow-xl`}
+                  >
+                    <div className={`absolute inset-0 bg-gradient-to-br ${hub.color} opacity-30 group-hover:opacity-70 transition-opacity`} />
+                    <div className="relative z-10 p-1.5 rounded-xl bg-black/40 border border-white/10 w-fit text-white/90 group-hover:text-white transition-colors">
+                      <HubIcon className="w-4 h-4" />
+                    </div>
+                    <div className="relative z-10 flex items-center justify-between w-full">
+                      <span className="text-xs font-bold text-[var(--text-main)] truncate group-hover:text-white transition-colors">
+                        {hub.name}
+                      </span>
+                      <ArrowRight className="w-3 h-3 text-[var(--text-muted)] group-hover:text-white group-hover:translate-x-0.5 transition-all" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {/* Popular Blockbusters */}

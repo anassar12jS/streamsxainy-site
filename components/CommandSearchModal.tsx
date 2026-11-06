@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { searchMedia } from '../services/tmdb';
 import { searchAnimeList, mapAniListToTMDB } from '../services/anilist';
 import { TMDBResult, MediaType } from '../types';
-import { TMDB_POSTER_BASE } from '../constants';
+import { TMDB_POSTER_BASE, POSTER_FALLBACK_SVG } from '../constants';
 import { Search, Film, Tv, Star, X, Loader2, ArrowRight, CornerDownLeft, Sparkles, Ghost } from 'lucide-react';
 
 interface CommandSearchModalProps {
@@ -166,7 +166,7 @@ export const CommandSearchModal: React.FC<CommandSearchModalProps> = ({
                 const year = (item.release_date || item.first_air_date)?.split('-')[0] || '';
                 const poster = item.poster_path 
                   ? (item.poster_path.startsWith('http') ? item.poster_path : `${TMDB_POSTER_BASE}${item.poster_path}`)
-                  : 'https://via.placeholder.com/60x90?text=No+Cover';
+                  : POSTER_FALLBACK_SVG;
 
                 return (
                   <div

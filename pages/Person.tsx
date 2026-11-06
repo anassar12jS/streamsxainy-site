@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getPerson, getPersonCredits } from '../services/tmdb';
 import { TMDBResult, PersonDetail } from '../types';
-import { TMDB_POSTER_BASE } from '../constants';
+import { TMDB_POSTER_BASE, AVATAR_FALLBACK_SVG } from '../constants';
 import { MediaCard } from '../components/MediaCard';
 import { ArrowLeft, Calendar, MapPin } from 'lucide-react';
 
@@ -45,7 +45,7 @@ export const Person: React.FC<PersonProps> = ({ onSelect }) => {
     return <div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[rgb(var(--primary-color))]"></div></div>;
   }
 
-  const profileUrl = detail.profile_path ? `${TMDB_POSTER_BASE}${detail.profile_path}` : 'https://via.placeholder.com/300x450?text=No+Image';
+  const profileUrl = detail.profile_path ? `${TMDB_POSTER_BASE}${detail.profile_path}` : AVATAR_FALLBACK_SVG;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 min-h-screen animate-fade-in">

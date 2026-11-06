@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { TMDBResult, MediaType } from '../types';
 import { discoverMedia, getGenres } from '../services/tmdb';
 import { MediaCard } from '../components/MediaCard';
-import { TMDB_POSTER_BASE } from '../constants';
+import { TMDB_POSTER_BASE, POSTER_FALLBACK_SVG } from '../constants';
 import { STREAMING_PROVIDERS } from '../components/StreamingProvidersShowcase';
 import { 
   Filter, Dices, X, Loader2, Play, RefreshCw, Star, 
@@ -379,7 +379,7 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
               {displayItem && (
                 <>
                   <img 
-                    src={displayItem.poster_path ? `${TMDB_POSTER_BASE}${displayItem.poster_path}` : 'https://via.placeholder.com/500x750?text=No+Poster'} 
+                    src={displayItem.poster_path ? `${TMDB_POSTER_BASE}${displayItem.poster_path}` : POSTER_FALLBACK_SVG} 
                     alt="Poster" 
                     className="w-full h-full object-cover"
                   />

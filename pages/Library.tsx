@@ -7,7 +7,7 @@ import {
   Bookmark, Heart, Play, Clock, Tv2, 
   Trash2, X, Compass, Search, Film, Tv, Ghost, Sparkles
 } from 'lucide-react';
-import { TMDB_POSTER_BASE } from '../constants';
+import { TMDB_POSTER_BASE, BACKDROP_FALLBACK_SVG } from '../constants';
 
 interface LibraryProps {
   onSelect: (item: TMDBResult) => void;
@@ -237,7 +237,7 @@ export const Library: React.FC<LibraryProps> = ({ onSelect }) => {
                 ? item.poster_path
                 : item.poster_path
                   ? `${TMDB_POSTER_BASE}${item.poster_path}`
-                  : 'https://via.placeholder.com/300x170?text=StreamHub';
+                  : BACKDROP_FALLBACK_SVG;
 
               return (
                 <div 
@@ -250,7 +250,7 @@ export const Library: React.FC<LibraryProps> = ({ onSelect }) => {
                       src={posterSrc} 
                       alt={item.title} 
                       onError={(e) => {
-                        e.currentTarget.src = 'https://via.placeholder.com/300x170?text=StreamHub';
+                        e.currentTarget.src = BACKDROP_FALLBACK_SVG;
                       }}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                     />

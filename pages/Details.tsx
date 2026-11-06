@@ -25,10 +25,14 @@ const POSTER_FALLBACK_SVG = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%
 
 const FAST_SERVERS = [
   { id: 'vidy', name: 'Vidy Prime', speed: 'Fast ⚡', badge: 'Default' },
+  { id: 'vidlypro', name: 'Vidly Pro', speed: 'Ultra ⚡', badge: 'Fast 4K' },
   { id: 'vidlink', name: 'VidLink Pro', speed: 'Instant 🚀', badge: 'Top Rated' },
   { id: 'videasy', name: 'Videasy HD', speed: 'Smooth 🎬', badge: 'Clean' },
   { id: 'vidsrc-sh', name: 'VidSrc Direct', speed: 'Fast ⚡', badge: 'Stable' },
   { id: 'cinemaos', name: 'CinemaOS', speed: 'Cinema 💎', badge: 'HQ' },
+  { id: 'vidsrc-wtf', name: 'VidSrc WTF', speed: 'Fast ⚡', badge: 'Mirror 1' },
+  { id: 'vidora', name: 'Vidora Stream', speed: 'Adaptive 🌐', badge: 'Mirror 2' },
+  { id: 'vidfastpro', name: 'VidFast HQ', speed: 'Rapid ⚡', badge: 'Mirror 3' },
 ];
 
 export const Details: React.FC = () => {

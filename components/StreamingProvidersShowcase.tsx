@@ -3,11 +3,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { 
   Play, Star, ChevronLeft, ChevronRight, ExternalLink, 
-  Film, Tv 
+  Film, Tv, Bookmark, Plus, Check, Sparkles
 } from 'lucide-react';
 import { TMDBResult, MediaType } from '../types';
 import { getProviderMedia } from '../services/tmdb';
 import { TMDB_IMAGE_BASE, TMDB_BACKDROP_W780 } from '../constants';
+import { addToWatchlist, removeFromWatchlist, isInWatchlist } from '../services/storage';
 
 export interface StreamingProvider {
   id: number;
@@ -115,6 +116,27 @@ export const STREAMING_PROVIDERS: StreamingProvider[] = [
   },
 ];
 
+const MOVIE_GENRES = [
+  { id: 0, name: 'All Popular' },
+  { id: 28, name: 'Action' },
+  { id: 35, name: 'Comedy' },
+  { id: 878, name: 'Sci-Fi' },
+  { id: 18, name: 'Drama' },
+  { id: 27, name: 'Horror' },
+  { id: 53, name: 'Thriller' },
+  { id: 16, name: 'Animation' },
+];
+
+const TV_GENRES = [
+  { id: 0, name: 'All Popular' },
+  { id: 10759, name: 'Action & Adventure' },
+  { id: 35, name: 'Comedy' },
+  { id: 10765, name: 'Sci-Fi & Fantasy' },
+  { id: 18, name: 'Drama' },
+  { id: 9648, name: 'Mystery' },
+  { id: 16, name: 'Animation' },
+];
+
 interface StreamingProvidersShowcaseProps {
   onSelect: (item: TMDBResult) => void;
 }
@@ -123,21 +145,29 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
   const navigate = useNavigate();
   const [selectedProvider, setSelectedProvider] = useState<StreamingProvider>(STREAMING_PROVIDERS[0]);
   const [mediaType, setMediaType] = useState<MediaType>(MediaType.MOVIE);
+  const [selectedGenre, setSelectedGenre] = useState<number>(0);
+  const [sortBy, setSortBy] = useState<string>('popularity.desc');
 
   const providerScrollRef = useRef<HTMLDivElement>(null);
   const contentScrollRef = useRef<HTMLDivElement>(null);
 
-  // Fetch popular media for selected provider
+  // Fetch popular media for selected provider, mediaType, genre, and sort
   const { data: mediaItems = [], isLoading } = useQuery({
-    queryKey: ['provider-media', selectedProvider.id, mediaType],
-    queryFn: () => getProviderMedia(selectedProvider.id, mediaType, 1),
+    queryKey: ['provider-media', selectedProvider.id, mediaType, selectedGenre, sortBy],
+    queryFn: () => getProviderMedia(
+      selectedProvider.id, 
+      mediaType, 
+      1, 
+      selectedGenre > 0 ? selectedGenre : undefined,
+      sortBy
+    ),
     staleTime: 1000 * 60 * 30, // 30 min cache
   });
 
   const scrollProviders = (dir: 'left' | 'right') => {
     if (providerScrollRef.current) {
       providerScrollRef.current.scrollBy({
-        left: dir === 'left' ? -260 : 260,
+        left: dir === 'left' ? -280 : 280,
         behavior: 'smooth'
       });
     }
@@ -153,11 +183,24 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
   };
 
   const handleViewAll = () => {
-    navigate(`/discover?type=${mediaType}&provider=${selectedProvider.id}&providerName=${encodeURIComponent(selectedProvider.name)}`);
+    const genreParam = selectedGenre > 0 ? `&genre=${selectedGenre}` : '';
+    navigate(`/discover?type=${mediaType}&provider=${selectedProvider.id}&providerName=${encodeURIComponent(selectedProvider.name)}${genreParam}`);
   };
 
+  const handleQuickPlay = (e: React.MouseEvent, item: TMDBResult) => {
+    e.stopPropagation();
+    const type = item.media_type === 'tv' || mediaType === MediaType.TV ? MediaType.TV : MediaType.MOVIE;
+    if (type === MediaType.MOVIE) {
+      navigate(`/watch/movie/${item.id}`);
+    } else {
+      navigate(`/watch/tv/${item.id}/1/1`);
+    }
+  };
+
+  const currentGenres = mediaType === MediaType.MOVIE ? MOVIE_GENRES : TV_GENRES;
+
   return (
-    <section className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 animate-fade-in">
+    <section className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 animate-fade-in content-visibility-auto">
       
       {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -174,13 +217,16 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
         </div>
 
         {/* Right Toggle Controls (Movies / TV Shows / All / Chevrons) */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
           {/* Movies / TV Segmented Control */}
           <div className="flex items-center bg-black/60 p-1 rounded-2xl border border-white/10 backdrop-blur-md shadow-sm">
             <button
               type="button"
-              onClick={() => setMediaType(MediaType.MOVIE)}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              onClick={() => {
+                setMediaType(MediaType.MOVIE);
+                setSelectedGenre(0);
+              }}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 mediaType === MediaType.MOVIE
                   ? 'bg-white text-zinc-950 shadow-md font-black'
                   : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -192,8 +238,11 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
 
             <button
               type="button"
-              onClick={() => setMediaType(MediaType.TV)}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              onClick={() => {
+                setMediaType(MediaType.TV);
+                setSelectedGenre(0);
+              }}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 mediaType === MediaType.TV
                   ? 'bg-white text-zinc-950 shadow-md font-black'
                   : 'text-white/60 hover:text-white hover:bg-white/5'
@@ -208,18 +257,18 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
           <button
             type="button"
             onClick={handleViewAll}
-            className="flex items-center gap-1 px-3.5 py-2 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-white/80 hover:text-white transition-all shadow-sm"
+            className="flex items-center gap-1 px-3.5 py-2 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-white/80 hover:text-white transition-all shadow-sm cursor-pointer"
           >
             <span>All</span>
             <ExternalLink className="w-3 h-3" />
           </button>
 
-          {/* Ribbon Scroll Chevrons in Header (Clean, never overlapping icons) */}
+          {/* Ribbon Scroll Chevrons in Header */}
           <div className="hidden sm:flex items-center gap-1 bg-white/5 p-1 rounded-2xl border border-white/10">
             <button
               type="button"
               onClick={() => scrollProviders('left')}
-              className="p-1 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+              className="p-1 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               aria-label="Previous providers"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -227,7 +276,7 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
             <button
               type="button"
               onClick={() => scrollProviders('right')}
-              className="p-1 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+              className="p-1 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               aria-label="Next providers"
             >
               <ChevronRight className="w-4 h-4" />
@@ -236,8 +285,25 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
         </div>
       </div>
 
-      {/* Streaming Providers Horizontal Ribbon (Previous authentic TMDB logos, cleanly styled without colored glow) */}
-      <div className="relative py-1">
+      {/* Streaming Providers Horizontal Ribbon (Pristine TMDB logos with clean white active styling, no scuffed glow) */}
+      <div className="relative py-1 group/ribbon">
+        <button
+          type="button"
+          onClick={() => scrollProviders('left')}
+          className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 z-20 w-8 h-8 rounded-full bg-black/80 hover:bg-black border border-white/20 text-white items-center justify-center opacity-0 group-hover/ribbon:opacity-100 transition-opacity shadow-xl cursor-pointer"
+          aria-label="Scroll providers left"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => scrollProviders('right')}
+          className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 z-20 w-8 h-8 rounded-full bg-black/80 hover:bg-black border border-white/20 text-white items-center justify-center opacity-0 group-hover/ribbon:opacity-100 transition-opacity shadow-xl cursor-pointer"
+          aria-label="Scroll providers right"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+
         <div
           ref={providerScrollRef}
           className="flex items-center gap-4 sm:gap-5 overflow-x-auto custom-scrollbar py-3 px-1 scroll-smooth snap-x"
@@ -248,14 +314,17 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
               <button
                 key={prov.id}
                 type="button"
-                onClick={() => setSelectedProvider(prov)}
-                className="group/item relative flex flex-col items-center shrink-0 snap-start transition-all duration-200 focus:outline-none"
+                onClick={() => {
+                  setSelectedProvider(prov);
+                  setSelectedGenre(0);
+                }}
+                className="group/item relative flex flex-col items-center shrink-0 snap-start transition-all duration-200 focus:outline-none cursor-pointer"
               >
                 {/* Tile Container - Clean, crisp, NO colored glow */}
                 <div
                   className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center p-2.5 transition-all duration-200 relative select-none ${
                     isSelected
-                      ? 'scale-105 -translate-y-1 border-2 border-white ring-1 ring-white/30 bg-zinc-800/90 shadow-xl shadow-black/80'
+                      ? 'scale-105 -translate-y-1 border-2 border-white ring-2 ring-white/25 bg-zinc-800/95 shadow-xl shadow-black/80'
                       : 'border border-white/15 hover:border-white/40 hover:scale-105 hover:-translate-y-0.5 bg-zinc-900/80 shadow-md shadow-black/40'
                   }`}
                 >
@@ -277,48 +346,91 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
                 >
                   {prov.name}
                 </span>
+
+                {/* Subtle active pip indicator */}
+                {isSelected && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-white mt-1 shadow-sm" />
+                )}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Active Provider Showcase Banner with Subtle Ambient Accent */}
+      {/* Active Provider Showcase Banner with Genre Quick Filters */}
       <div 
-        className="rounded-2xl border border-white/15 p-4 sm:p-5 flex items-center justify-between shadow-xl transition-all duration-300 relative overflow-hidden"
+        className="rounded-2xl border border-white/15 p-4 sm:p-5 shadow-xl transition-all duration-300 relative overflow-hidden space-y-4"
         style={{
           background: `linear-gradient(90deg, ${selectedProvider.brandColor}26 0%, #15151ef5 45%, #0f0f16f5 100%)`,
         }}
       >
-        <div className="flex items-center gap-3.5 sm:gap-4 relative z-10 min-w-0">
-          {/* Provider App Icon */}
-          <div className="w-11 h-11 sm:w-13 sm:h-13 rounded-xl p-2 shrink-0 bg-zinc-900/90 border border-white/20 flex items-center justify-center shadow-md">
-            <img
-              src={`https://image.tmdb.org/t/p/original${selectedProvider.logoPath}`}
-              alt={selectedProvider.name}
-              className="w-full h-full object-contain rounded-lg"
-            />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
+            {/* Provider App Icon */}
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl p-2 shrink-0 bg-zinc-900/90 border border-white/20 flex items-center justify-center shadow-md">
+              <img
+                src={`https://image.tmdb.org/t/p/original${selectedProvider.logoPath}`}
+                alt={selectedProvider.name}
+                className="w-full h-full object-contain rounded-lg"
+              />
+            </div>
+
+            <div className="min-w-0">
+              <span className="text-[10px] sm:text-[11px] font-mono tracking-widest text-white/50 uppercase block font-semibold">
+                POPULAR {mediaType === MediaType.MOVIE ? 'MOVIES' : 'TV SHOWS'} ON
+              </span>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg sm:text-2xl font-black text-white tracking-tight truncate">
+                  {selectedProvider.name}
+                </h3>
+                <span className="hidden md:inline-flex text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-white/10 text-white/70 border border-white/10">
+                  US Catalog
+                </span>
+              </div>
+            </div>
           </div>
 
-          <div className="min-w-0">
-            <span className="text-[10px] sm:text-[11px] font-mono tracking-widest text-white/50 uppercase block font-semibold">
-              POPULAR {mediaType === MediaType.MOVIE ? 'MOVIES' : 'TV SHOWS'} ON
-            </span>
-            <h3 className="text-base sm:text-xl font-black text-white tracking-tight truncate">
-              {selectedProvider.name}
-            </h3>
+          {/* Right Action: Sort toggle + View All Button */}
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setSortBy(s => s === 'popularity.desc' ? 'vote_average.desc' : 'popularity.desc')}
+              className="px-3 py-1.5 rounded-xl bg-black/40 hover:bg-black/60 border border-white/15 text-white/80 hover:text-white text-xs font-semibold transition-colors cursor-pointer"
+            >
+              <span>Sort: {sortBy === 'popularity.desc' ? 'Most Popular' : 'Top Rated'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleViewAll}
+              className="px-4 sm:px-5 py-2 rounded-full bg-white hover:bg-white/90 text-zinc-950 font-black text-xs transition-all shadow-lg flex items-center gap-1.5 shrink-0 hover:scale-105 active:scale-95 cursor-pointer"
+            >
+              <span>View all</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
-        {/* View All Button */}
-        <button
-          type="button"
-          onClick={handleViewAll}
-          className="relative z-10 px-4 sm:px-5 py-2 rounded-full bg-white hover:bg-white/90 text-zinc-950 font-black text-xs transition-all shadow-lg flex items-center gap-1.5 shrink-0 hover:scale-105 active:scale-95"
-        >
-          <span>View all</span>
-          <ExternalLink className="w-3.5 h-3.5" />
-        </button>
+        {/* Interactive Genre Chips under Provider Banner */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar pt-1 border-t border-white/10">
+          {currentGenres.map((g) => {
+            const isGActive = selectedGenre === g.id;
+            return (
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => setSelectedGenre(g.id)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  isGActive
+                    ? 'bg-white text-zinc-950 font-bold shadow-md'
+                    : 'bg-black/40 hover:bg-white/10 text-white/70 hover:text-white border border-white/10'
+                }`}
+              >
+                {g.name}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Widescreen Media Cards Showcase Row */}
@@ -327,7 +439,7 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
         <button
           type="button"
           onClick={() => scrollContent('left')}
-          className="hidden sm:flex absolute left-0 top-1/3 -translate-y-1/2 -translate-x-3 z-20 w-9 h-9 rounded-full bg-black/80 hover:bg-black border border-white/20 text-white items-center justify-center shadow-xl opacity-0 group-hover/content:opacity-100 transition-opacity"
+          className="hidden sm:flex absolute left-0 top-1/3 -translate-y-1/2 -translate-x-3 z-20 w-10 h-10 rounded-full bg-black/80 hover:bg-black border border-white/20 text-white items-center justify-center shadow-xl opacity-0 group-hover/content:opacity-100 transition-opacity cursor-pointer"
           aria-label="Scroll movies left"
         >
           <ChevronLeft className="w-5 h-5" />
@@ -337,7 +449,7 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
         <button
           type="button"
           onClick={() => scrollContent('right')}
-          className="hidden sm:flex absolute right-0 top-1/3 -translate-y-1/2 translate-x-3 z-20 w-9 h-9 rounded-full bg-black/80 hover:bg-black border border-white/20 text-white items-center justify-center shadow-xl opacity-0 group-hover/content:opacity-100 transition-opacity"
+          className="hidden sm:flex absolute right-0 top-1/3 -translate-y-1/2 translate-x-3 z-20 w-10 h-10 rounded-full bg-black/80 hover:bg-black border border-white/20 text-white items-center justify-center shadow-xl opacity-0 group-hover/content:opacity-100 transition-opacity cursor-pointer"
           aria-label="Scroll movies right"
         >
           <ChevronRight className="w-5 h-5" />
@@ -360,7 +472,7 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
             ))
           ) : mediaItems.length === 0 ? (
             <div className="w-full py-12 text-center text-white/50 text-xs">
-              No popular titles found for {selectedProvider.name} in this category.
+              No popular titles found for {selectedProvider.name} with this filter. Try selecting "All Popular".
             </div>
           ) : (
             mediaItems.map((item) => {
@@ -404,16 +516,22 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
                       </h4>
                     </div>
 
-                    {/* Quick Play Hover Indicator */}
-                    <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white opacity-0 group-hover/card:opacity-100 group-hover/card:scale-110 transition-all duration-300 shadow-lg">
-                      <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
-                    </div>
+                    {/* Quick Play Hover Indicator (Launches directly into player) */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleQuickPlay(e, item)}
+                      className="absolute top-3 right-3 w-9 h-9 rounded-full bg-[rgb(var(--primary-color))] hover:brightness-110 text-white flex items-center justify-center shadow-xl opacity-0 group-hover/card:opacity-100 group-hover/card:scale-110 transition-all duration-300 z-10 cursor-pointer"
+                      title="Quick Play"
+                      aria-label="Quick Play"
+                    >
+                      <Play className="w-4 h-4 fill-white ml-0.5" />
+                    </button>
                   </div>
 
                   {/* Card Bottom Meta */}
                   <div className="pt-2.5 px-0.5 space-y-1">
                     {/* Title */}
-                    <h4 className="font-bold text-sm sm:text-base text-white truncate max-w-full group-hover/card:text-cyan-400 transition-colors">
+                    <h4 className="font-bold text-sm sm:text-base text-white truncate max-w-full group-hover/card:text-[rgb(var(--primary-color))] transition-colors">
                       {title}
                     </h4>
 

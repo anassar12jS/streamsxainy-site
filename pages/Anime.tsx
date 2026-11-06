@@ -14,7 +14,7 @@ import {
 import { searchMedia } from '../services/tmdb';
 import { addToWatchlist, removeFromWatchlist, isInWatchlist } from '../services/storage';
 import { TMDBResult, AniListResult, MediaType } from '../types';
-import { TMDB_POSTER_BASE } from '../constants';
+import { TMDB_POSTER_BASE, POSTER_FALLBACK_SVG } from '../constants';
 import { MediaCard } from '../components/MediaCard';
 import { 
   Ghost, TrendingUp, Calendar, Star, Flame, Play, AlertTriangle, 
@@ -528,7 +528,7 @@ export const Anime: React.FC<AnimeProps> = ({ onSelect }) => {
                   className="flex items-center gap-3 p-2.5 bg-[var(--bg-main)] hover:bg-[var(--bg-hover)] rounded-xl border border-[var(--border-subtle)] cursor-pointer transition-all hover:border-pink-500/50 group"
                 >
                   <img 
-                    src={candidate.poster_path ? `${TMDB_POSTER_BASE}${candidate.poster_path}` : 'https://via.placeholder.com/60x90?text=?'} 
+                    src={candidate.poster_path ? `${TMDB_POSTER_BASE}${candidate.poster_path}` : POSTER_FALLBACK_SVG} 
                     alt="" 
                     className="w-12 h-16 object-cover rounded-lg shrink-0 group-hover:scale-105 transition-transform" 
                   />

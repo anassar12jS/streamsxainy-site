@@ -256,17 +256,23 @@ export const discoverMedia = async (
 export const getProviderMedia = async (
   providerId: number,
   type: MediaType = MediaType.MOVIE,
-  page: number = 1
+  page: number = 1,
+  genreId?: number,
+  sortBy: string = 'popularity.desc'
 ): Promise<TMDBResult[]> => {
   try {
-    const data = await fetchTMDB(`/discover/${type}`, {
-      sort_by: 'popularity.desc',
+    const params: Record<string, string> = {
+      sort_by: sortBy,
       with_watch_providers: providerId.toString(),
       watch_region: 'US',
       include_adult: 'false',
       include_video: 'false',
       page: page.toString(),
-    });
+    };
+    if (genreId) {
+      params.with_genres = genreId.toString();
+    }
+    const data = await fetchTMDB(`/discover/${type}`, params);
     return (data.results || []).map((item: any) => ({ ...item, media_type: type }));
   } catch (e) {
     console.error(`Failed to fetch media for provider ${providerId}:`, e);
