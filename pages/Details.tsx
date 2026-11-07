@@ -6,7 +6,7 @@ import { getDetails, getVideos, getRecommendations, getSimilarMedia, getCollecti
 import { getAnimeById, mapAniListToTMDBDetail } from '../services/anilist';
 import { getStreams, getEpisodeStreams } from '../services/addonService';
 import { isInWatchlist, addToWatchlist, removeFromWatchlist, addToHistory, saveProgress, getProgressForId } from '../services/storage';
-import { TMDB_IMAGE_BASE, TMDB_POSTER_BASE } from '../constants';
+import { TMDB_IMAGE_BASE, TMDB_POSTER_BASE, TMDB_IMAGE_ORIGINAL, TMDB_BACKDROP_W1280, TMDB_BACKDROP_W780 } from '../constants';
 import { StreamList } from '../components/StreamList';
 import { MediaCard } from '../components/MediaCard';
 import { Skeleton } from '../components/Skeleton';
@@ -15,8 +15,22 @@ import {
   Info, Plus, Check, Sparkles, ChevronRight, Layers, Share2, 
   AlertTriangle, Home, Clock, Calendar, Users, Clapperboard, Film, 
   ExternalLink, Image, Copy, Zap, CheckCircle2, ChevronDown, ListFilter,
-  DollarSign, Globe, Award, Heart, Ghost, Search
+  DollarSign, Globe, Award, Heart, Ghost, Search, Maximize2
 } from 'lucide-react';
+
+export interface GalleryAssetItem {
+  id: string;
+  file_path: string;
+  width: number;
+  height: number;
+  vote_average?: number;
+  type: 'wallpaper' | 'logo' | 'poster';
+  title: string;
+  badge: string;
+  resolutionText: string;
+  aspectRatio: string;
+  iso_639_1?: string | null;
+}
 
 type TabKey = 'overview' | 'episodes' | 'streams' | 'videos' | 'photos';
 
@@ -54,6 +68,8 @@ export const Details: React.FC = () => {
   useEffect(() => {
     setLogoLoadFailed(false);
     setShowServerPicker(false);
+    setSelectedAssetIndex(null);
+    setIsFullResLoaded(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [id, type]);
 
@@ -157,7 +173,9 @@ export const Details: React.FC = () => {
   const [showTrailerModal, setShowTrailerModal] = useState(false);
   const [showNextEpButton, setShowNextEpButton] = useState(false);
   const [isAutoPlayingNext, setIsAutoPlayingNext] = useState(false);
-  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
+  const [selectedAssetIndex, setSelectedAssetIndex] = useState<number | null>(null);
+  const [galleryFilter, setGalleryFilter] = useState<'all' | 'wallpapers' | 'logos' | 'posters'>('all');
+  const [isFullResLoaded, setIsFullResLoaded] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showStickyHeader, setShowStickyHeader] = useState(false);
   const [overviewExpanded, setOverviewExpanded] = useState(false);
@@ -534,27 +552,102 @@ export const Details: React.FC = () => {
   const primaryTrailer = officialTrailers.find(v => v.type === 'Trailer') || officialTrailers[0] || allVideos[0];
   const trailerCount = officialTrailers.length > 0 ? officialTrailers.length : allVideos.length;
 
-  // Backdrops and Stills Gallery
-  const backdropsGallery = useMemo(() => {
-    if (!fetchedDetail?.images?.backdrops) return [];
-    return fetchedDetail.images.backdrops.slice(0, 16);
+  // Wallpapers (Backdrops)
+  const wallpapersList = useMemo<GalleryAssetItem[]>(() => {
+    const rawBackdrops = fetchedDetail?.images?.backdrops || [];
+    return rawBackdrops.map((img, idx) => {
+      let qualityBadge = 'HD';
+      if (img.width >= 7680) qualityBadge = '8K UHD';
+      else if (img.width >= 3840) qualityBadge = '4K UHD';
+      else if (img.width >= 2560) qualityBadge = '2K QHD';
+      else if (img.width >= 1920) qualityBadge = '1080p FHD';
+
+      return {
+        id: `wallpaper-${idx}`,
+        file_path: img.file_path,
+        width: img.width,
+        height: img.height,
+        vote_average: img.vote_average,
+        type: 'wallpaper',
+        title: `${qualityBadge} Wallpaper`,
+        badge: qualityBadge,
+        resolutionText: `${img.width} × ${img.height}`,
+        aspectRatio: 'aspect-video',
+      };
+    });
   }, [fetchedDetail]);
 
-  // Keyboard navigation for photo gallery lightbox
+  // Official Transparent PNG & Vector Logos
+  const logosList = useMemo<GalleryAssetItem[]>(() => {
+    const rawLogos = fetchedDetail?.images?.logos || [];
+    return rawLogos.map((logo, idx) => {
+      const lang = logo.iso_639_1 ? logo.iso_639_1.toUpperCase() : 'Official';
+      return {
+        id: `logo-${idx}`,
+        file_path: logo.file_path,
+        width: logo.width,
+        height: logo.height,
+        vote_average: logo.vote_average,
+        type: 'logo',
+        title: `Official Logo (${lang})`,
+        badge: 'PNG Logo',
+        resolutionText: `${logo.width} × ${logo.height}`,
+        aspectRatio: 'aspect-[16/9]',
+        iso_639_1: logo.iso_639_1,
+      };
+    });
+  }, [fetchedDetail]);
+
+  // Official Key Art Posters
+  const postersList = useMemo<GalleryAssetItem[]>(() => {
+    const rawPosters = fetchedDetail?.images?.posters || [];
+    return rawPosters.slice(0, 24).map((poster, idx) => ({
+      id: `poster-${idx}`,
+      file_path: poster.file_path,
+      width: poster.width,
+      height: poster.height,
+      vote_average: poster.vote_average,
+      type: 'poster',
+      title: 'Official Key Art Poster',
+      badge: poster.width >= 2000 ? '4K Poster' : 'HD Poster',
+      resolutionText: `${poster.width} × ${poster.height}`,
+      aspectRatio: 'aspect-[2/3]',
+    }));
+  }, [fetchedDetail]);
+
+  // Combined Gallery Assets (Wallpapers, Logos, Posters)
+  const allGalleryAssets = useMemo<GalleryAssetItem[]>(() => {
+    return [...wallpapersList, ...logosList, ...postersList];
+  }, [wallpapersList, logosList, postersList]);
+
+  // Filtered Assets based on Active Filter Chip
+  const filteredGalleryAssets = useMemo<GalleryAssetItem[]>(() => {
+    if (galleryFilter === 'wallpapers') return wallpapersList;
+    if (galleryFilter === 'logos') return logosList;
+    if (galleryFilter === 'posters') return postersList;
+    return allGalleryAssets;
+  }, [galleryFilter, wallpapersList, logosList, postersList, allGalleryAssets]);
+
+  // Reset loading status when switching selected asset
+  useEffect(() => {
+    setIsFullResLoaded(false);
+  }, [selectedAssetIndex]);
+
+  // Keyboard navigation for full-resolution lightbox
   useEffect(() => {
     const handleGalleryKey = (e: KeyboardEvent) => {
-      if (selectedPhotoIndex === null) return;
+      if (selectedAssetIndex === null) return;
       if (e.key === 'Escape') {
-        setSelectedPhotoIndex(null);
+        setSelectedAssetIndex(null);
       } else if (e.key === 'ArrowRight') {
-        setSelectedPhotoIndex(prev => (prev !== null && prev < backdropsGallery.length - 1 ? prev + 1 : 0));
+        setSelectedAssetIndex(prev => (prev !== null && prev < filteredGalleryAssets.length - 1 ? prev + 1 : 0));
       } else if (e.key === 'ArrowLeft') {
-        setSelectedPhotoIndex(prev => (prev !== null && prev > 0 ? prev - 1 : backdropsGallery.length - 1));
+        setSelectedAssetIndex(prev => (prev !== null && prev > 0 ? prev - 1 : filteredGalleryAssets.length - 1));
       }
     };
     window.addEventListener('keydown', handleGalleryKey);
     return () => window.removeEventListener('keydown', handleGalleryKey);
-  }, [selectedPhotoIndex, backdropsGallery.length]);
+  }, [selectedAssetIndex, filteredGalleryAssets.length]);
 
   // English or Original Language Logo artwork (never unrelated 3rd languages)
   const officialLogo = useMemo(() => {
@@ -1179,7 +1272,7 @@ export const Details: React.FC = () => {
               </button>
             )}
 
-            {backdropsGallery.length > 0 && (
+            {allGalleryAssets.length > 0 && (
               <button
                 onClick={() => setActiveTab('photos')}
                 className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
@@ -1188,12 +1281,12 @@ export const Details: React.FC = () => {
                     : 'bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-white/20'
                 }`}
               >
-                <Image className="w-4 h-4" />
-                <span>Gallery</span>
+                <Image className="w-4 h-4 text-purple-400" />
+                <span>Wallpapers & Logos</span>
                 <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-mono ${
                   activeTab === 'photos' ? 'bg-white/20 text-white' : 'bg-[var(--bg-hover)] text-[var(--text-muted)]'
                 }`}>
-                  {backdropsGallery.length}
+                  {allGalleryAssets.length}
                 </span>
               </button>
             )}
@@ -2032,28 +2125,127 @@ export const Details: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 5: STILLS & PHOTOS GALLERY */}
+          {/* TAB 5: WALLPAPERS & LOGOS GALLERY */}
           {activeTab === 'photos' && (
             <div className="space-y-6 animate-fade-in">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {backdropsGallery.map((img, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => setSelectedPhotoIndex(idx)}
-                    className="relative aspect-video rounded-xl overflow-hidden bg-[var(--bg-card)] border border-[var(--border-color)] cursor-pointer group shadow-md hover:shadow-2xl transition-all"
+              {/* Header and Filter Pills */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[var(--bg-card)] p-4 sm:p-5 rounded-2xl border border-[var(--border-color)]">
+                <div>
+                  <h3 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
+                    <Image className="w-5 h-5 text-purple-400" />
+                    <span>Official Wallpapers, Logos & Artwork</span>
+                  </h3>
+                  <p className="text-xs text-[var(--text-muted)] mt-1">
+                    Click any picture to open and inspect in full uncompressed resolution (loads full 4K UHD, 8K Ultra, and master PNG files).
+                  </p>
+                </div>
+
+                {/* Filter Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 shrink-0">
+                  <button
+                    onClick={() => setGalleryFilter('all')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      galleryFilter === 'all'
+                        ? 'bg-[rgb(var(--primary-color))] text-white shadow'
+                        : 'bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                    }`}
                   >
-                    <img 
-                      src={`${TMDB_IMAGE_BASE}${img.file_path}`} 
-                      alt="" 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <span className="text-xs font-semibold text-white bg-black/60 px-3 py-1.5 rounded-lg border border-white/20">
-                        View Fullscreen
-                      </span>
+                    All ({allGalleryAssets.length})
+                  </button>
+                  {wallpapersList.length > 0 && (
+                    <button
+                      onClick={() => setGalleryFilter('wallpapers')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                        galleryFilter === 'wallpapers'
+                          ? 'bg-[rgb(var(--primary-color))] text-white shadow'
+                          : 'bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                      }`}
+                    >
+                      <span>Wallpapers</span>
+                      <span className="opacity-75">({wallpapersList.length})</span>
+                    </button>
+                  )}
+                  {logosList.length > 0 && (
+                    <button
+                      onClick={() => setGalleryFilter('logos')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                        galleryFilter === 'logos'
+                          ? 'bg-[rgb(var(--primary-color))] text-white shadow'
+                          : 'bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                      }`}
+                    >
+                      <span>Logos</span>
+                      <span className="opacity-75">({logosList.length})</span>
+                    </button>
+                  )}
+                  {postersList.length > 0 && (
+                    <button
+                      onClick={() => setGalleryFilter('posters')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                        galleryFilter === 'posters'
+                          ? 'bg-[rgb(var(--primary-color))] text-white shadow'
+                          : 'bg-[var(--bg-input)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                      }`}
+                    >
+                      <span>Posters</span>
+                      <span className="opacity-75">({postersList.length})</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Grid of Assets */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredGalleryAssets.map((asset, idx) => {
+                  const isLogo = asset.type === 'logo';
+                  const isPoster = asset.type === 'poster';
+
+                  return (
+                    <div
+                      key={asset.id}
+                      onClick={() => setSelectedAssetIndex(idx)}
+                      className={`relative rounded-2xl overflow-hidden border border-[var(--border-color)] cursor-pointer group shadow-md hover:shadow-2xl hover:border-[rgb(var(--primary-color))] transition-all ${
+                        isPoster ? 'aspect-[2/3]' : 'aspect-video'
+                      } ${isLogo ? 'bg-[#121318] p-5 flex items-center justify-center' : 'bg-[var(--bg-card)]'}`}
+                    >
+                      <img 
+                        src={`${isLogo ? TMDB_IMAGE_BASE : TMDB_BACKDROP_W780}${asset.file_path}`} 
+                        alt={asset.title} 
+                        loading="lazy"
+                        className={`transition-transform duration-500 group-hover:scale-105 ${
+                          isLogo ? 'max-h-[85%] max-w-[85%] object-contain filter drop-shadow-md' : 'w-full h-full object-cover'
+                        }`} 
+                      />
+
+                      {/* Top Badges */}
+                      <div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between pointer-events-none z-10">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shadow-md backdrop-blur-md uppercase tracking-wider ${
+                          asset.width >= 3840 
+                            ? 'bg-amber-400 text-black font-black' 
+                            : isLogo 
+                              ? 'bg-purple-600/90 text-white' 
+                              : 'bg-black/75 text-white/90 border border-white/10'
+                        }`}>
+                          {asset.badge}
+                        </span>
+                        <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-md bg-black/75 text-white/90 border border-white/10 backdrop-blur-md">
+                          {asset.resolutionText}
+                        </span>
+                      </div>
+
+                      {/* Hover Overlay */}
+                      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-4 text-center z-20">
+                        <span className="text-xs font-bold text-white bg-black/85 px-3.5 py-1.5 rounded-xl border border-white/20 shadow-lg flex items-center gap-1.5">
+                          <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
+                          <span>View Full 4K/8K Quality</span>
+                        </span>
+                        <span className="text-[11px] text-white/80 font-mono">
+                          {asset.resolutionText} px
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -2122,58 +2314,164 @@ export const Details: React.FC = () => {
 
       </div>
 
-      {/* LIGHTBOX FOR STILLS / PHOTOS */}
-      {selectedPhotoIndex !== null && backdropsGallery[selectedPhotoIndex] && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in fade-in"
-          onClick={() => setSelectedPhotoIndex(null)}
-        >
-          <div className="absolute top-5 inset-x-5 flex items-center justify-between text-white/80 z-20 pointer-events-none">
-            <span className="text-xs font-mono font-semibold bg-black/60 px-3 py-1.5 rounded-xl border border-white/10 pointer-events-auto">
-              Photo {selectedPhotoIndex + 1} of {backdropsGallery.length}
-            </span>
-            <button 
-              onClick={() => setSelectedPhotoIndex(null)} 
-              className="text-white/80 hover:text-white bg-black/60 hover:bg-black/90 p-2.5 rounded-full border border-white/20 transition-colors pointer-events-auto cursor-pointer"
-              title="Close (Esc)"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+      {/* FULL QUALITY 4K / 8K LIGHTBOX FOR WALLPAPERS & LOGOS */}
+      {selectedAssetIndex !== null && filteredGalleryAssets[selectedAssetIndex] && (() => {
+        const currentAsset = filteredGalleryAssets[selectedAssetIndex];
+        const isLogo = currentAsset.type === 'logo';
+        const originalUrl = `${TMDB_IMAGE_ORIGINAL}${currentAsset.file_path}`;
+        const previewUrl = `${TMDB_BACKDROP_W1280}${currentAsset.file_path}`;
 
-          {backdropsGallery.length > 1 && (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedPhotoIndex(prev => prev !== null && prev > 0 ? prev - 1 : backdropsGallery.length - 1);
-                }}
-                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/20 transition-colors z-20 cursor-pointer shadow-xl"
-                title="Previous photo (Left Arrow)"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedPhotoIndex(prev => prev !== null && prev < backdropsGallery.length - 1 ? prev + 1 : 0);
-                }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/20 transition-colors z-20 cursor-pointer shadow-xl"
-                title="Next photo (Right Arrow)"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </>
-          )}
-          
-          <img 
-            src={`${TMDB_IMAGE_BASE}${backdropsGallery[selectedPhotoIndex].file_path}`} 
-            alt="" 
-            className="max-h-[90vh] max-w-[95vw] object-contain rounded-2xl shadow-2xl ring-1 ring-white/10" 
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+        return (
+          <div 
+            className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-black/95 backdrop-blur-xl p-3 sm:p-6 animate-in fade-in"
+            onClick={() => setSelectedAssetIndex(null)}
+          >
+            {/* Top Toolbar */}
+            <div 
+              className="w-full max-w-7xl flex items-center justify-between gap-3 text-white z-20 pointer-events-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Asset Info & Resolution Badge */}
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className={`text-xs font-black px-2.5 py-1 rounded-lg shadow uppercase tracking-wider ${
+                  currentAsset.width >= 7680
+                    ? 'bg-emerald-500 text-black'
+                    : currentAsset.width >= 3840
+                      ? 'bg-amber-400 text-black'
+                      : isLogo
+                        ? 'bg-purple-500 text-white'
+                        : 'bg-white/20 text-white'
+                }`}>
+                  {currentAsset.badge}
+                </span>
+
+                <div className="min-w-0 hidden sm:block">
+                  <p className="text-xs font-bold text-white truncate">{currentAsset.title}</p>
+                  <p className="text-[11px] text-white/60 font-mono">
+                    Full Resolution: <span className="text-emerald-400 font-bold">{currentAsset.resolutionText}</span> px
+                  </p>
+                </div>
+
+                <span className="text-xs font-mono bg-white/10 px-2.5 py-1 rounded-lg border border-white/10 text-white/80">
+                  {selectedAssetIndex + 1} / {filteredGalleryAssets.length}
+                </span>
+              </div>
+
+              {/* Controls: Download, New Tab, Close */}
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={originalUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  download
+                  className="bg-[rgb(var(--primary-color))] hover:brightness-110 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-[rgb(var(--primary-color))]/25 transition-all"
+                  title="Download full quality original file"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">Download</span>
+                  <span className="hidden lg:inline text-[10px] opacity-80 font-mono">({currentAsset.width}×{currentAsset.height})</span>
+                </a>
+
+                <a
+                  href={originalUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-white/10 hover:bg-white/20 text-white p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-white/15 transition-all"
+                  title="Open raw full resolution in new tab"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Open Raw</span>
+                </a>
+
+                <button 
+                  onClick={() => setSelectedAssetIndex(null)} 
+                  className="text-white/80 hover:text-white bg-white/10 hover:bg-red-600/80 p-2 rounded-xl border border-white/15 transition-colors cursor-pointer"
+                  title="Close (Esc)"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Central Media Canvas with Prev / Next */}
+            <div 
+              className="relative w-full max-w-7xl flex-1 flex items-center justify-center my-2 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {filteredGalleryAssets.length > 1 && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedAssetIndex(prev => prev !== null && prev > 0 ? prev - 1 : filteredGalleryAssets.length - 1);
+                    }}
+                    className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 p-3 sm:p-3.5 rounded-full bg-black/70 hover:bg-black/90 text-white border border-white/20 transition-all z-30 cursor-pointer shadow-2xl hover:scale-105"
+                    title="Previous (Left Arrow)"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedAssetIndex(prev => prev !== null && prev < filteredGalleryAssets.length - 1 ? prev + 1 : 0);
+                    }}
+                    className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 p-3 sm:p-3.5 rounded-full bg-black/70 hover:bg-black/90 text-white border border-white/20 transition-all z-30 cursor-pointer shadow-2xl hover:scale-105"
+                    title="Next (Right Arrow)"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+
+              {/* Full Resolution Image Container */}
+              <div className={`relative max-h-[82vh] max-w-[95vw] rounded-2xl overflow-hidden flex items-center justify-center ${
+                isLogo ? 'bg-[#121318]/90 p-8 border border-white/15 shadow-2xl' : 'shadow-2xl'
+              }`}>
+                {/* Instant blur preview while raw 4K/8K loads */}
+                {!isFullResLoaded && (
+                  <img 
+                    src={previewUrl} 
+                    alt="" 
+                    className="absolute inset-0 w-full h-full object-contain filter blur-sm scale-100 opacity-60" 
+                  />
+                )}
+
+                {/* Loading Banner for 4K / 8K */}
+                {!isFullResLoaded && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-10 pointer-events-none">
+                    <div className="flex items-center gap-2.5 text-xs font-bold text-white bg-black/85 px-4 py-2 rounded-xl border border-white/20 shadow-2xl">
+                      <Sparkles className="w-4 h-4 text-amber-400 animate-spin" />
+                      <span>Loading Full Quality ({currentAsset.resolutionText})...</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Full Uncompressed Original Image */}
+                <img 
+                  src={originalUrl} 
+                  alt={currentAsset.title} 
+                  onLoad={() => setIsFullResLoaded(true)}
+                  className={`max-h-[80vh] max-w-[92vw] object-contain transition-opacity duration-300 relative z-10 ${
+                    isFullResLoaded ? 'opacity-100' : 'opacity-0'
+                  }`} 
+                />
+              </div>
+            </div>
+
+            {/* Bottom Status Bar */}
+            <div 
+              className="text-center text-xs text-white/60 pointer-events-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span className="text-white/80 font-medium">Rendered at 100% Uncompressed Full Quality</span>
+              <span className="mx-2">·</span>
+              <span className="text-emerald-400 font-mono font-semibold">{currentAsset.resolutionText} px</span>
+              <span className="mx-2">·</span>
+              <span>Use Left/Right arrow keys to navigate, Esc to close</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* TRAILER MODAL DIALOG */}
       {showTrailerModal && selectedTrailer && (
