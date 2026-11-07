@@ -10,7 +10,9 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@lit/react": "^1.0.8",
     "@tanstack/react-query": "^5.28.4",
+    "@uimaxbai/am-lyrics": "^1.8.9",
     "fast-xml-parser": "^4.3.6",
     "hls.js": "^1.5.0",
     "lucide-react": "0.436.0",
@@ -18,6 +20,8 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.3",
     "react-window": "^1.8.10",
+    "shaka-player": "^5.3.4",
+    "youtubei.js": "^18.3.0",
     "zustand": "^4.5.2"
   },
   "devDependencies": {

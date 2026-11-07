@@ -1,0 +1,104 @@
+/* Apple Music CSS Custom Properties & Design Tokens (BitChord Web) */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..900;1,9..40,300..900&display=swap');
+
+:root {
+  --am-font: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --am-bg-main: #000000;
+  --am-bg-surface: #121214;
+  --am-bg-sidebar: #161618;
+  --am-bg-chrome: rgba(22, 22, 24, 0.82);
+  --am-bg-card: rgba(255, 255, 255, 0.04);
+  --am-bg-card-hover: rgba(255, 255, 255, 0.08);
+  --am-accent-red: #fa243c;
+  --am-accent-red-hover: #ff3b50;
+  --am-accent-red-glow: rgba(250, 36, 60, 0.28);
+  --am-accent-pink: #d60067;
+  --am-border: rgba(255, 255, 255, 0.08);
+  --am-border-strong: rgba(255, 255, 255, 0.16);
+  --am-text-primary: #ffffff;
+  --am-text-secondary: rgba(255, 255, 255, 0.72);
+  --am-text-muted: rgba(255, 255, 255, 0.45);
+  --am-now-playing-bg: rgba(255, 255, 255, 0.06);
+  --am-scrubber-track: rgba(255, 255, 255, 0.18);
+  --am-sidebar-width: 240px;
+  --am-header-height: 56px;
+}
+
+.am-shell {
+  font-family: var(--am-font);
+  background-color: var(--am-bg-main);
+  color: var(--am-text-primary);
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Glassmorphism Top Chrome */
+.am-chrome {
+  background: var(--am-bg-chrome);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border-bottom: 1px solid var(--am-border);
+}
+
+/* Apple Music Scrubber Slider */
+.am-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.am-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--am-scrubber-track);
+  transition: height 0.15s ease;
+}
+.am-slider:hover::-webkit-slider-runnable-track {
+  height: 6px;
+}
+.am-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  margin-top: -4px;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.am-slider:hover::-webkit-slider-thumb {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+/* Apple Music Scrollbar */
+.am-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.am-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.am-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+}
+.am-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+/* Horizontal Shelf Snap */
+.am-shelf-container {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  gap: 16px;
+  padding-bottom: 8px;
+}
+.am-shelf-item {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}

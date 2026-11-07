@@ -18,7 +18,7 @@ export const preloadRoute = (target: string): void => {
     } else if (normalized.includes('library')) {
       import('../pages/Library');
     } else if (normalized.includes('music')) {
-      import('../pages/Music');
+      import('../src/modules/music/MusicModule');
     } else if (normalized.includes('sports/watch') || normalized.includes('sportsplayer')) {
       import('../pages/SportsPlayer');
     } else if (normalized.includes('sports')) {
