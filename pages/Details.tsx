@@ -50,8 +50,10 @@ export const Details: React.FC = () => {
   const type = location.pathname.includes('/tv/') ? MediaType.TV : MediaType.MOVIE;
   const tmdbId = parseInt(id || '0');
 
-  // Scroll to top when page loads or id changes
+  // Scroll to top and reset transient state when page loads or id changes
   useEffect(() => {
+    setLogoLoadFailed(false);
+    setShowServerPicker(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [id, type]);
 
@@ -163,8 +165,12 @@ export const Details: React.FC = () => {
   const [selectedServer, setSelectedServer] = useState<string>('ishowstream');
   const [showServerPicker, setShowServerPicker] = useState<boolean>(false);
   const [episodeSearchQuery, setEpisodeSearchQuery] = useState<string>('');
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
+  const [videoFilter, setVideoFilter] = useState<'all' | 'trailers' | 'clips'>('all');
 
   const heroRef = useRef<HTMLDivElement>(null);
+  const actionRowRef = useRef<HTMLDivElement>(null);
+  const serverPickerRef = useRef<HTMLDivElement>(null);
   const sectionContainerRef = useRef<HTMLDivElement>(null);
   const toastTimeoutRef = useRef<number | null>(null);
 
@@ -177,18 +183,44 @@ export const Details: React.FC = () => {
     }, 2800);
   };
 
-  // Sticky header observer on scroll
+  // Sticky header observer: Only triggers once the hero action buttons have scrolled off the viewport
   useEffect(() => {
     const handleScroll = () => {
-      if (window.scrollY > 480) {
-        setShowStickyHeader(true);
+      if (actionRowRef.current) {
+        const rect = actionRowRef.current.getBoundingClientRect();
+        // 60px corresponds to the top navbar height
+        setShowStickyHeader(rect.bottom < 60);
       } else {
-        setShowStickyHeader(false);
+        setShowStickyHeader(window.scrollY > 680);
       }
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Close server picker on outside click or Escape key
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (serverPickerRef.current && !serverPickerRef.current.contains(e.target as Node)) {
+        setShowServerPicker(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowServerPicker(false);
+      }
+    };
+    if (showServerPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showServerPicker]);
+
 
   // Sync watchlist & history
   useEffect(() => {
@@ -481,19 +513,48 @@ export const Details: React.FC = () => {
     return Array.from(crewMap.values()).slice(0, 4);
   }, [fetchedDetail]);
 
-  // Trailers and Clips
-  const trailerVideos = useMemo(() => {
+  // Trailers and Clips categorized cleanly
+  const allVideos = useMemo(() => {
     if (!videos) return [];
     return videos.filter(v => v.site === 'YouTube');
   }, [videos]);
 
-  const primaryTrailer = trailerVideos.find(v => v.type === 'Trailer') || trailerVideos[0];
+  const officialTrailers = useMemo(() => {
+    return allVideos.filter(v => v.type === 'Trailer' || v.type === 'Teaser');
+  }, [allVideos]);
+
+  const otherClips = useMemo(() => {
+    return allVideos.filter(v => v.type !== 'Trailer' && v.type !== 'Teaser');
+  }, [allVideos]);
+
+  const sortedVideos = useMemo(() => {
+    return [...officialTrailers, ...otherClips];
+  }, [officialTrailers, otherClips]);
+
+  const primaryTrailer = officialTrailers.find(v => v.type === 'Trailer') || officialTrailers[0] || allVideos[0];
+  const trailerCount = officialTrailers.length > 0 ? officialTrailers.length : allVideos.length;
 
   // Backdrops and Stills Gallery
   const backdropsGallery = useMemo(() => {
     if (!fetchedDetail?.images?.backdrops) return [];
     return fetchedDetail.images.backdrops.slice(0, 16);
   }, [fetchedDetail]);
+
+  // Keyboard navigation for photo gallery lightbox
+  useEffect(() => {
+    const handleGalleryKey = (e: KeyboardEvent) => {
+      if (selectedPhotoIndex === null) return;
+      if (e.key === 'Escape') {
+        setSelectedPhotoIndex(null);
+      } else if (e.key === 'ArrowRight') {
+        setSelectedPhotoIndex(prev => (prev !== null && prev < backdropsGallery.length - 1 ? prev + 1 : 0));
+      } else if (e.key === 'ArrowLeft') {
+        setSelectedPhotoIndex(prev => (prev !== null && prev > 0 ? prev - 1 : backdropsGallery.length - 1));
+      }
+    };
+    window.addEventListener('keydown', handleGalleryKey);
+    return () => window.removeEventListener('keydown', handleGalleryKey);
+  }, [selectedPhotoIndex, backdropsGallery.length]);
 
   // English or Original Language Logo artwork (never unrelated 3rd languages)
   const officialLogo = useMemo(() => {
@@ -650,10 +711,10 @@ export const Details: React.FC = () => {
       </div>
 
       {/* Cinematic Hero Section */}
-      <div ref={heroRef} className="relative w-full min-h-[580px] lg:min-h-[660px] flex flex-col justify-end overflow-hidden">
+      <div ref={heroRef} className="relative w-full min-h-[580px] lg:min-h-[660px] flex flex-col justify-end overflow-visible">
         {/* Layer 1: High Resolution Backdrop Image */}
         {backdropUrl ? (
-          <div className="absolute inset-0 z-0">
+          <div className="absolute inset-0 z-0 overflow-hidden">
             <img 
               src={backdropUrl} 
               alt={title} 
@@ -739,18 +800,21 @@ export const Details: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  {officialLogo && (
-                    <div className="mb-2 max-w-[180px]">
+                  {officialLogo && !logoLoadFailed ? (
+                    <div className="mb-2 max-w-[200px]">
                       <img 
                         src={`${TMDB_IMAGE_BASE}${officialLogo}`} 
                         alt={title} 
-                        className="max-h-12 w-auto object-contain filter drop-shadow-md" 
+                        onError={() => setLogoLoadFailed(true)}
+                        className="max-h-14 w-auto object-contain filter drop-shadow-md" 
                       />
+                      <h1 className="sr-only">{title}</h1>
                     </div>
+                  ) : (
+                    <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight break-words">
+                      {title}
+                    </h1>
                   )}
-                  <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight break-words">
-                    {title}
-                  </h1>
                   {detail?.original_title && detail.original_title.toLowerCase() !== title.toLowerCase() && (
                     <p className="text-xs text-white/60 mt-0.5">
                       ({detail.original_title})
@@ -803,20 +867,21 @@ export const Details: React.FC = () => {
 
                 {/* Title and Transparent Logo Header */}
                 <div className="mb-4">
-                  {officialLogo && (
-                    <div className="mb-3 max-w-md">
+                  {officialLogo && !logoLoadFailed ? (
+                    <div className="mb-3 max-w-lg">
                       <img 
                         src={`${TMDB_IMAGE_BASE}${officialLogo}`} 
                         alt={title} 
-                        className="max-h-24 w-auto object-contain filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]" 
+                        onError={() => setLogoLoadFailed(true)}
+                        className="max-h-24 xl:max-h-28 w-auto object-contain filter drop-shadow-[0_4px_16px_rgba(0,0,0,0.85)]" 
                       />
+                      <h1 className="sr-only">{title}</h1>
                     </div>
+                  ) : (
+                    <h1 className="text-3xl sm:text-4xl xl:text-5xl font-black text-white tracking-tight leading-[1.08] max-w-4xl drop-shadow-md">
+                      {title}
+                    </h1>
                   )}
-
-                  {/* Primary Title in Main Show Language / English */}
-                  <h1 className="text-3xl sm:text-4xl xl:text-5xl font-black text-white tracking-tight leading-[1.08] max-w-4xl drop-shadow-md">
-                    {title}
-                  </h1>
 
                   {/* Original Language Title if different */}
                   {detail?.original_title && detail.original_title.toLowerCase() !== title.toLowerCase() && (
@@ -884,7 +949,7 @@ export const Details: React.FC = () => {
               </div>
 
               {/* Action Buttons Matrix */}
-              <div className="flex flex-wrap items-center gap-3 pt-2">
+              <div ref={actionRowRef} className="flex flex-wrap items-center gap-3 pt-2 relative z-30">
                 
                 {/* Primary Play Button */}
                 {isShowUnreleased ? (
@@ -899,7 +964,7 @@ export const Details: React.FC = () => {
                   <button
                     onClick={() => openVidyPlayer()}
                     disabled={loadingDetails}
-                    className="flex-1 sm:flex-initial flex items-center justify-center gap-3 py-3.5 px-7 rounded-xl font-bold text-base transition-all duration-200 bg-[rgb(var(--primary-color))] text-white hover:brightness-110 shadow-lg shadow-[rgb(var(--primary-color))]/25 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed group"
+                    className="flex-1 sm:flex-initial flex items-center justify-center gap-3 py-3.5 px-7 rounded-xl font-bold text-base transition-all duration-200 bg-[rgb(var(--primary-color))] text-white hover:brightness-110 shadow-lg shadow-[rgb(var(--primary-color))]/25 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
                   >
                     {loadingDetails ? (
                       <Server className="w-5 h-5 animate-spin" />
@@ -920,10 +985,10 @@ export const Details: React.FC = () => {
 
                 {/* Fast Server Quick Launch Selector */}
                 {!isShowUnreleased && (
-                  <div className="relative">
+                  <div className="relative" ref={serverPickerRef}>
                     <button
                       onClick={() => setShowServerPicker(!showServerPicker)}
-                      className="flex items-center gap-2 py-3 px-4 rounded-xl border border-white/20 bg-black/40 hover:bg-black/60 text-white backdrop-blur-md transition-all text-sm font-semibold group cursor-pointer"
+                      className="flex items-center gap-2 py-3 px-4 rounded-xl border border-white/20 bg-black/50 hover:bg-black/70 text-white backdrop-blur-md transition-all text-sm font-semibold group cursor-pointer shadow-md hover:border-white/40"
                       title="Choose Streaming Provider Server"
                     >
                       <Server className="w-4 h-4 text-[rgb(var(--primary-color))]" />
@@ -935,12 +1000,14 @@ export const Details: React.FC = () => {
                     </button>
 
                     {showServerPicker && (
-                      <div className="absolute top-full left-0 mt-2 w-64 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl shadow-2xl p-2 z-50 animate-fade-in backdrop-blur-xl">
-                        <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] px-3 py-1.5 border-b border-[var(--border-color)] flex items-center justify-between">
-                          <span>Select Server</span>
-                          <span className="text-[10px] text-amber-400">Ad-Free</span>
+                      <div className="absolute top-full left-0 mt-2.5 w-72 bg-[#121318]/95 border border-white/15 rounded-2xl shadow-2xl p-2.5 z-50 animate-in fade-in slide-in-from-top-2 backdrop-blur-2xl ring-1 ring-white/10">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] px-3 py-1.5 border-b border-white/10 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 text-white/80 font-bold">
+                            <Zap className="w-3.5 h-3.5 text-amber-400" /> Fast Stream Servers
+                          </span>
+                          <span className="text-[10px] text-emerald-400 font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">Ad-Free</span>
                         </div>
-                        <div className="space-y-1 mt-1">
+                        <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-1 mt-1.5 pr-0.5">
                           {FAST_SERVERS.map(srv => {
                             const isSelected = selectedServer === srv.id;
                             return (
@@ -951,18 +1018,27 @@ export const Details: React.FC = () => {
                                   setShowServerPicker(false);
                                   openVidyPlayer(undefined, undefined, srv.id);
                                 }}
-                                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                                   isSelected 
-                                    ? 'bg-[rgb(var(--primary-color))] text-white' 
-                                    : 'text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
+                                    ? 'bg-[rgb(var(--primary-color))] text-white shadow-md' 
+                                    : 'text-white/80 hover:text-white hover:bg-white/10'
                                 }`}
                               >
-                                <div className="flex items-center gap-2">
-                                  <Zap className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-amber-400'}`} />
-                                  <span>{srv.name}</span>
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  {isSelected ? (
+                                    <Check className="w-4 h-4 text-white shrink-0" />
+                                  ) : (
+                                    <Server className="w-4 h-4 text-white/40 shrink-0" />
+                                  )}
+                                  <div className="text-left min-w-0">
+                                    <p className="truncate font-bold leading-tight">{srv.name}</p>
+                                    {srv.badge && (
+                                      <p className={`text-[10px] ${isSelected ? 'text-white/80' : 'text-amber-400/90'}`}>{srv.badge}</p>
+                                    )}
+                                  </div>
                                 </div>
-                                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                                  isSelected ? 'bg-white/20 text-white' : 'bg-[var(--bg-input)] text-[var(--text-muted)]'
+                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-lg shrink-0 ${
+                                  isSelected ? 'bg-white/20 text-white' : 'bg-white/5 text-white/60 border border-white/10'
                                 }`}>
                                   {srv.speed}
                                 </span>
@@ -1035,14 +1111,14 @@ export const Details: React.FC = () => {
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-grow">
         
         {/* Navigation Tabs Bar */}
-        <div className="border-b border-[var(--border-color)] mb-8 flex items-center justify-between gap-4 overflow-x-auto custom-scrollbar">
-          <div className="flex items-center gap-1 sm:gap-2 pb-px shrink-0">
+        <div className="mb-8 border-b border-[var(--border-color)] pb-3">
+          <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
             <button
               onClick={() => setActiveTab('overview')}
-              className={`py-3 px-4 font-semibold text-sm transition-all border-b-2 flex items-center gap-2 ${
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
                 activeTab === 'overview'
-                  ? 'border-[rgb(var(--primary-color))] text-[rgb(var(--primary-color))]'
-                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                  ? 'bg-[rgb(var(--primary-color))] text-white shadow-lg shadow-[rgb(var(--primary-color))]/25'
+                  : 'bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-white/20'
               }`}
             >
               <Info className="w-4 h-4" />
@@ -1052,16 +1128,18 @@ export const Details: React.FC = () => {
             {type === MediaType.TV && (
               <button
                 onClick={() => setActiveTab('episodes')}
-                className={`py-3 px-4 font-semibold text-sm transition-all border-b-2 flex items-center gap-2 ${
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
                   activeTab === 'episodes'
-                    ? 'border-[rgb(var(--primary-color))] text-[rgb(var(--primary-color))]'
-                    : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                    ? 'bg-[rgb(var(--primary-color))] text-white shadow-lg shadow-[rgb(var(--primary-color))]/25'
+                    : 'bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-white/20'
                 }`}
               >
                 <Tv className="w-4 h-4" />
                 <span>Episodes</span>
                 {seasonData?.episodes && (
-                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-[var(--bg-hover)] text-[var(--text-muted)]">
+                  <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-mono ${
+                    activeTab === 'episodes' ? 'bg-white/20 text-white' : 'bg-[var(--bg-hover)] text-[var(--text-muted)]'
+                  }`}>
                     {seasonData.episodes.length}
                   </span>
                 )}
@@ -1070,46 +1148,53 @@ export const Details: React.FC = () => {
 
             <button
               onClick={() => setActiveTab('streams')}
-              className={`py-3 px-4 font-semibold text-sm transition-all border-b-2 flex items-center gap-2 ${
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
                 activeTab === 'streams'
-                  ? 'border-[rgb(var(--primary-color))] text-[rgb(var(--primary-color))]'
-                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                  ? 'bg-[rgb(var(--primary-color))] text-white shadow-lg shadow-[rgb(var(--primary-color))]/25'
+                  : 'bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-white/20'
               }`}
             >
               <Download className="w-4 h-4" />
               <span>Torrents & Streams</span>
               {streams.length > 0 && (
-                <span className="text-xs px-1.5 py-0.5 rounded-full bg-[var(--bg-hover)] text-[var(--text-muted)]">
+                <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-mono ${
+                  activeTab === 'streams' ? 'bg-white/20 text-white' : 'bg-[var(--bg-hover)] text-[var(--text-muted)]'
+                }`}>
                   {streams.length}
                 </span>
               )}
             </button>
 
-            {trailerVideos.length > 0 && (
+            {sortedVideos.length > 0 && (
               <button
                 onClick={() => setActiveTab('videos')}
-                className={`py-3 px-4 font-semibold text-sm transition-all border-b-2 flex items-center gap-2 ${
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
                   activeTab === 'videos'
-                    ? 'border-[rgb(var(--primary-color))] text-[rgb(var(--primary-color))]'
-                    : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                    ? 'bg-[rgb(var(--primary-color))] text-white shadow-lg shadow-[rgb(var(--primary-color))]/25'
+                    : 'bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-white/20'
                 }`}
               >
-                <Youtube className="w-4 h-4" />
-                <span>Trailers ({trailerVideos.length})</span>
+                <Youtube className="w-4 h-4 text-red-500" />
+                <span>Trailers ({trailerCount})</span>
               </button>
             )}
 
             {backdropsGallery.length > 0 && (
               <button
                 onClick={() => setActiveTab('photos')}
-                className={`py-3 px-4 font-semibold text-sm transition-all border-b-2 flex items-center gap-2 ${
+                className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
                   activeTab === 'photos'
-                    ? 'border-[rgb(var(--primary-color))] text-[rgb(var(--primary-color))]'
-                    : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                    ? 'bg-[rgb(var(--primary-color))] text-white shadow-lg shadow-[rgb(var(--primary-color))]/25'
+                    : 'bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-white/20'
                 }`}
               >
                 <Image className="w-4 h-4" />
                 <span>Gallery</span>
+                <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-mono ${
+                  activeTab === 'photos' ? 'bg-white/20 text-white' : 'bg-[var(--bg-hover)] text-[var(--text-muted)]'
+                }`}>
+                  {backdropsGallery.length}
+                </span>
               </button>
             )}
           </div>
@@ -1870,8 +1955,46 @@ export const Details: React.FC = () => {
           {/* TAB 4: TRAILERS & VIDEOS GALLERY */}
           {activeTab === 'videos' && (
             <div className="space-y-6 animate-fade-in">
+              {/* Category Filter Chips */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <button
+                  onClick={() => setVideoFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                    videoFilter === 'all'
+                      ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm'
+                      : 'bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                  }`}
+                >
+                  All Videos ({sortedVideos.length})
+                </button>
+                {officialTrailers.length > 0 && (
+                  <button
+                    onClick={() => setVideoFilter('trailers')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      videoFilter === 'trailers'
+                        ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm'
+                        : 'bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                    }`}
+                  >
+                    Trailers & Teasers ({officialTrailers.length})
+                  </button>
+                )}
+                {otherClips.length > 0 && (
+                  <button
+                    onClick={() => setVideoFilter('clips')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      videoFilter === 'clips'
+                        ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm'
+                        : 'bg-[var(--bg-card)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                    }`}
+                  >
+                    Clips & Featurettes ({otherClips.length})
+                  </button>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {trailerVideos.map(video => (
+                {(videoFilter === 'trailers' ? officialTrailers : videoFilter === 'clips' ? otherClips : sortedVideos).map(video => (
                   <div
                     key={video.id}
                     onClick={() => {
@@ -2005,18 +2128,48 @@ export const Details: React.FC = () => {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in fade-in"
           onClick={() => setSelectedPhotoIndex(null)}
         >
-          <button 
-            onClick={() => setSelectedPhotoIndex(null)} 
-            className="absolute top-5 right-5 text-white/80 hover:text-white bg-black/50 p-2.5 rounded-full border border-white/20 transition-colors z-10"
-            title="Close"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <div className="absolute top-5 inset-x-5 flex items-center justify-between text-white/80 z-20 pointer-events-none">
+            <span className="text-xs font-mono font-semibold bg-black/60 px-3 py-1.5 rounded-xl border border-white/10 pointer-events-auto">
+              Photo {selectedPhotoIndex + 1} of {backdropsGallery.length}
+            </span>
+            <button 
+              onClick={() => setSelectedPhotoIndex(null)} 
+              className="text-white/80 hover:text-white bg-black/60 hover:bg-black/90 p-2.5 rounded-full border border-white/20 transition-colors pointer-events-auto cursor-pointer"
+              title="Close (Esc)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {backdropsGallery.length > 1 && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedPhotoIndex(prev => prev !== null && prev > 0 ? prev - 1 : backdropsGallery.length - 1);
+                }}
+                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/20 transition-colors z-20 cursor-pointer shadow-xl"
+                title="Previous photo (Left Arrow)"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedPhotoIndex(prev => prev !== null && prev < backdropsGallery.length - 1 ? prev + 1 : 0);
+                }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/60 hover:bg-black/90 text-white border border-white/20 transition-colors z-20 cursor-pointer shadow-xl"
+                title="Next photo (Right Arrow)"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </>
+          )}
           
           <img 
             src={`${TMDB_IMAGE_BASE}${backdropsGallery[selectedPhotoIndex].file_path}`} 
             alt="" 
-            className="max-h-[90vh] max-w-[95vw] object-contain rounded-xl shadow-2xl" 
+            className="max-h-[90vh] max-w-[95vw] object-contain rounded-2xl shadow-2xl ring-1 ring-white/10" 
             onClick={(e) => e.stopPropagation()}
           />
         </div>
