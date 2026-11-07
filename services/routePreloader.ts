@@ -17,6 +17,8 @@ export const preloadRoute = (target: string): void => {
       import('../pages/LiveTV');
     } else if (normalized.includes('library')) {
       import('../pages/Library');
+    } else if (normalized.includes('music')) {
+      import('../pages/Music');
     } else if (normalized.includes('sports/watch') || normalized.includes('sportsplayer')) {
       import('../pages/SportsPlayer');
     } else if (normalized.includes('sports')) {

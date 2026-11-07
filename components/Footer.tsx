@@ -1,5 +1,5 @@
 import React from 'react';
-import { Film, Github, Instagram, Heart, Compass, Ghost, Tv2, Trophy, Bookmark, Home, ExternalLink } from 'lucide-react';
+import { Film, Github, Instagram, Heart, Compass, Ghost, Tv2, Trophy, Bookmark, Home, ExternalLink, Headphones } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const Footer: React.FC = () => {
@@ -47,6 +47,11 @@ export const Footer: React.FC = () => {
               <li>
                 <Link to="/livetv" className="hover:text-emerald-400 transition-colors flex items-center gap-1.5">
                   <Tv2 className="w-3.5 h-3.5 text-emerald-400" /> Live TV Guide
+                </Link>
+              </li>
+              <li>
+                <Link to="/music" className="hover:text-rose-400 transition-colors flex items-center gap-1.5">
+                  <Headphones className="w-3.5 h-3.5 text-rose-400" /> Music & Lo-Fi
                 </Link>
               </li>
               <li>

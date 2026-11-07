@@ -4,7 +4,7 @@ import {
   Search, Film, Menu, X, Settings, Bookmark, Trophy, 
   Compass, Sun, Moon, Ghost, Tv2, Command, Home,
   Github, Instagram, Sparkles, ExternalLink, Flame, Shield,
-  Layers, ChevronRight, Play, Radio
+  Layers, ChevronRight, Play, Radio, Music2
 } from 'lucide-react';
 import { CommandSearchModal } from './CommandSearchModal';
 import { TMDBResult, MediaType } from '../types';
@@ -148,6 +148,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
       badge: '24/7',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
       description: 'Global live broadcast channels and streams'
+    },
+    { 
+      path: '/music', 
+      label: 'Music', 
+      icon: Music2, 
+      color: 'text-rose-400',
+      badge: 'NEW',
+      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+      description: 'BitChord player, anime & movie OSTs, and live lo-fi radio'
     },
     { 
       path: '/library', 

@@ -9,6 +9,9 @@ import { getTheme, getMode, setMode as setStorageMode } from './services/storage
 import { Film, Loader2 } from 'lucide-react';
 import { TMDBResult } from './types';
 import { warmIdleRoutes } from './services/routePreloader';
+import { MusicProvider } from './services/MusicContext';
+import { MusicPlayerBar } from './components/MusicPlayerBar';
+import { MusicNowPlayingModal } from './components/MusicNowPlayingModal';
 
 // Performance: Code-split routes so initial bundle is ultralight
 const Details = lazy(() => import('./pages/Details').then(m => ({ default: m.Details })));
@@ -20,6 +23,7 @@ const Discover = lazy(() => import('./pages/Discover').then(m => ({ default: m.D
 const Person = lazy(() => import('./pages/Person').then(m => ({ default: m.Person })));
 const Anime = lazy(() => import('./pages/Anime').then(m => ({ default: m.Anime })));
 const LiveTV = lazy(() => import('./pages/LiveTV').then(m => ({ default: m.LiveTV })));
+const Music = lazy(() => import('./pages/Music').then(m => ({ default: m.MusicPage })));
 const Search = lazy(() => import('./pages/Search').then(m => ({ default: m.Search })));
 const DMCA = lazy(() => import('./pages/Legal').then(m => ({ default: m.DMCA })));
 const Privacy = lazy(() => import('./pages/Legal').then(m => ({ default: m.Privacy })));
@@ -117,43 +121,48 @@ const App: React.FC = () => {
   if (!isAppReady) return <SplashScreen />;
 
   return (
-    <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] font-sans flex flex-col transition-colors duration-300" style={({ '--primary-color': themeColor } as React.CSSProperties)}>
-      <ScrollToTop />
-      {!isPlayer && (
-        <Navbar 
-            onOpenSettings={() => setIsSettingsOpen(true)} 
-            currentMode={mode}
-            onToggleMode={toggleMode}
-        />
-      )}
-      
-      <main className="flex-grow">
-        <ErrorBoundary>
-          <Suspense fallback={<PageLoadingFallback />}>
-            <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/movie/:id" element={<Details />} />
-                <Route path="/tv/:id" element={<Details />} />
-                <Route path="/watch/:mediaType/:id/:season?/:episode?" element={<VidyPlayer />} />
-                <Route path="/search" element={<Search onSelect={handleMediaSelect} />} />
-                <Route path="/discover" element={<Discover onSelect={handleMediaSelect} />} />
-                <Route path="/library" element={<Library onSelect={handleMediaSelect} />} />
-                <Route path="/sports" element={<Sports />} />
-                <Route path="/sports/watch" element={<SportsPlayer />} />
-                <Route path="/anime" element={<Anime onSelect={handleMediaSelect} />} />
-                <Route path="/livetv" element={<LiveTV />} />
-                <Route path="/person/:id" element={<Person onSelect={handleMediaSelect} />} />
-                <Route path="/dmca" element={<DMCA />} />
-                <Route path="/privacy" element={<Privacy />} />
-                <Route path="/terms" element={<Terms />} />
-            </Routes>
-          </Suspense>
-        </ErrorBoundary>
-      </main>
+    <MusicProvider>
+      <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] font-sans flex flex-col transition-colors duration-300" style={({ '--primary-color': themeColor } as React.CSSProperties)}>
+        <ScrollToTop />
+        {!isPlayer && (
+          <Navbar 
+              onOpenSettings={() => setIsSettingsOpen(true)} 
+              currentMode={mode}
+              onToggleMode={toggleMode}
+          />
+        )}
+        
+        <main className="flex-grow">
+          <ErrorBoundary>
+            <Suspense fallback={<PageLoadingFallback />}>
+              <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/movie/:id" element={<Details />} />
+                  <Route path="/tv/:id" element={<Details />} />
+                  <Route path="/watch/:mediaType/:id/:season?/:episode?" element={<VidyPlayer />} />
+                  <Route path="/search" element={<Search onSelect={handleMediaSelect} />} />
+                  <Route path="/discover" element={<Discover onSelect={handleMediaSelect} />} />
+                  <Route path="/library" element={<Library onSelect={handleMediaSelect} />} />
+                  <Route path="/sports" element={<Sports />} />
+                  <Route path="/sports/watch" element={<SportsPlayer />} />
+                  <Route path="/anime" element={<Anime onSelect={handleMediaSelect} />} />
+                  <Route path="/livetv" element={<LiveTV />} />
+                  <Route path="/music" element={<Music />} />
+                  <Route path="/person/:id" element={<Person onSelect={handleMediaSelect} />} />
+                  <Route path="/dmca" element={<DMCA />} />
+                  <Route path="/privacy" element={<Privacy />} />
+                  <Route path="/terms" element={<Terms />} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
+        </main>
 
-      {!isPlayer && <Footer />}
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-    </div>
+        {!isPlayer && <Footer />}
+        {!isPlayer && <MusicPlayerBar />}
+        <MusicNowPlayingModal />
+        <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      </div>
+    </MusicProvider>
   );
 };
 
