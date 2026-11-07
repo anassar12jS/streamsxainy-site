@@ -71,10 +71,15 @@ export class MusicAudioEngine {
   }
 
   public async loadStream(streamUrl: string, isDash: boolean = false): Promise<void> {
+    if (!streamUrl || typeof streamUrl !== 'string' || (!streamUrl.startsWith('http') && !streamUrl.startsWith('blob:'))) {
+      throw new Error(`Invalid audio stream source: ${String(streamUrl)}`);
+    }
+
     await this.resumeAudioContext();
 
     if (isDash && this.isShakaSupported && this.player) {
       try {
+        await this.player.attach(this.audioElement);
         await this.player.load(streamUrl);
         await this.audioElement.play();
         return;

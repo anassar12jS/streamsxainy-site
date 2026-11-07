@@ -118,21 +118,25 @@ export const MusicModule: React.FC = () => {
     const loadAndPlay = async () => {
       try {
         setPlaybackStatus('loading');
-        let streamUrl = currentTrack.audioUrl;
-        let isDash = currentTrack.isDash || false;
+        let streamUrl = '';
+        let isDash = false;
 
-        // Reject any public Apple Music / iTunes preview audio
-        const isItunesPreview = Boolean(
-          streamUrl && 
-          (streamUrl.includes('itunes.apple.com') || streamUrl.includes('apple.com/itunes-assets'))
-        );
-
-        // Fetch full-length song audio directly from YouTube Music using youtubei.js
-        if (!streamUrl || isItunesPreview) {
+        // 1. Attempt full-length song audio directly from YouTube Music using youtubei.js
+        try {
           const resolved = await resolveStreamUrl(currentTrack);
           if (isCancelled) return;
-          streamUrl = resolved.url;
-          isDash = resolved.isDash;
+          if (resolved?.url && typeof resolved.url === 'string' && (resolved.url.startsWith('http') || resolved.url.startsWith('blob:'))) {
+            streamUrl = resolved.url;
+            isDash = resolved.isDash || false;
+          }
+        } catch (resolveErr) {
+          console.warn('YouTube stream resolution failed, attempting fallback audio:', resolveErr);
+        }
+
+        // 2. Fall back to currentTrack.audioUrl if YouTube resolution was unavailable
+        if (!streamUrl && currentTrack.audioUrl && typeof currentTrack.audioUrl === 'string' && (currentTrack.audioUrl.startsWith('http') || currentTrack.audioUrl.startsWith('blob:'))) {
+          streamUrl = currentTrack.audioUrl;
+          isDash = currentTrack.isDash || false;
         }
 
         if (streamUrl && engineRef.current) {
@@ -157,6 +161,8 @@ export const MusicModule: React.FC = () => {
               artwork: currentTrack.artwork,
             });
           }
+        } else {
+          throw new Error(`No playable audio stream available for "${currentTrack.title}"`);
         }
       } catch (err) {
         if (!isCancelled) {

@@ -164,36 +164,71 @@ export async function resolveStreamUrl(
     try {
       let info: any = null;
       try {
-        info = await yt.getBasicInfo(videoId);
-      } catch {
         info = await yt.getInfo(videoId);
+      } catch {
+        info = await yt.getBasicInfo(videoId);
       }
+
+      let streamUrl: string | null = null;
 
       // Get the best audio-only format (Opus 251 or AAC 140)
-      const bestAudio = info.chooseFormat({ type: 'audio', quality: 'best' });
+      if (info?.streaming_data) {
+        const bestAudio = info.chooseFormat({ type: 'audio', quality: 'best' });
 
-      if (bestAudio) {
-        const streamUrl = bestAudio.decipher(yt.session.player) || bestAudio.url;
-        if (streamUrl) {
-          return { url: streamUrl, isDash: false };
+        if (bestAudio) {
+          if (typeof bestAudio.url === 'string' && bestAudio.url.startsWith('http')) {
+            streamUrl = bestAudio.url;
+          } else if ((bestAudio.signature_cipher || bestAudio.cipher || bestAudio.url) && yt.session?.player) {
+            try {
+              const deciphered = await bestAudio.decipher(yt.session.player);
+              if (typeof deciphered === 'string' && deciphered.startsWith('http')) {
+                streamUrl = deciphered;
+              }
+            } catch (decErr) {
+              console.debug('bestAudio.decipher failed:', decErr);
+            }
+          }
+        }
+
+        // Check adaptive formats if chooseFormat did not return a valid streamUrl
+        if (!streamUrl && info.streaming_data?.adaptive_formats) {
+          const formats = info.streaming_data.adaptive_formats || [];
+          const audioFormats = formats.filter((f: any) => f.mime_type?.includes('audio'));
+          for (const af of audioFormats) {
+            if (typeof af.url === 'string' && af.url.startsWith('http')) {
+              streamUrl = af.url;
+              break;
+            }
+            if ((af.signature_cipher || af.cipher) && yt.session?.player) {
+              try {
+                const cipherStr = af.signature_cipher || af.cipher;
+                const deciphered = await yt.session.player.decipher(cipherStr);
+                if (typeof deciphered === 'string' && deciphered.startsWith('http')) {
+                  streamUrl = deciphered;
+                  break;
+                }
+              } catch {}
+            }
+          }
+        }
+
+        // Try DASH manifest if available
+        if (!streamUrl && typeof info.toDash === 'function') {
+          try {
+            const dashXml = await info.toDash();
+            if (dashXml && typeof dashXml === 'string') {
+              const blob = new Blob([dashXml], { type: 'application/dash+xml' });
+              return { url: URL.createObjectURL(blob), isDash: true };
+            }
+          } catch {}
         }
       }
 
-      // Check adaptive formats if chooseFormat did not return
-      const formats = info.streaming_data?.adaptive_formats || [];
-      const audioFormats = formats.filter((f: any) => f.mime_type?.includes('audio'));
-      const opus = audioFormats.find((f: any) => f.itag === 251);
-      const aac = audioFormats.find((f: any) => f.itag === 140);
-      const chosen = opus || aac || audioFormats[0];
-
-      if (chosen) {
-        const streamUrl = chosen.url || (chosen.signature_cipher ? yt.session.player?.decipher(chosen.signature_cipher) : null);
-        if (streamUrl) {
-          return { url: streamUrl, isDash: false };
-        }
+      if (streamUrl && typeof streamUrl === 'string' && streamUrl.startsWith('http')) {
+        return { url: streamUrl, isDash: false };
       }
     } catch (err) {
-      console.debug('InnerTube getBasicInfo/decipher failed:', err);
+      console.debug('InnerTube getInfo/decipher failed:', err);
     }
   }
 
@@ -213,20 +248,13 @@ export async function resolveStreamUrl(
           const audioStreams = data.audioStreams || data.adaptiveFormats?.filter((f: any) => f.type?.includes('audio')) || [];
           if (audioStreams.length > 0) {
             const best = audioStreams.find((s: any) => s.itag === 251) || audioStreams[0];
-            if (best?.url) {
+            if (best?.url && typeof best.url === 'string' && best.url.startsWith('http')) {
               return { url: best.url, isDash: Boolean(best.url.includes('.mpd')) };
             }
           }
         }
       } catch {}
     }
-  }
-
-  if (videoId) {
-    return {
-      url: `https://yt-stream.bitchord.workers.dev/stream?id=${videoId}`,
-      isDash: false,
-    };
   }
 
   throw new Error(`Unable to resolve YouTube audio stream for "${track.title || 'Unknown'}"`);
@@ -287,7 +315,7 @@ export async function searchInnerTube(query: string): Promise<MusicTrack[]> {
           album: r.collectionName || 'Single',
           artwork,
           duration: Math.round((r.trackTimeMillis || 200000) / 1000),
-          audioUrl: '', // SCRUBBED: Zero iTunes audio previews, resolved on-demand via YouTube
+          audioUrl: r.previewUrl || '', // Fallback preview audio if YouTube direct resolution fails
           genre: r.primaryGenreName,
           year: r.releaseDate ? r.releaseDate.split('-')[0] : '',
           isExplicit: r.trackExplicitness === 'explicit',
