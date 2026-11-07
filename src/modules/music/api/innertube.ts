@@ -29,8 +29,13 @@ export async function getInnertube(): Promise<Innertube> {
         // Clone the options so we can safely mutate them
         const options: RequestInit = { ...init };
         
-        // Standardize method casing
-        const method = (options.method || 'GET').toUpperCase();
+        // Standardize method casing - check options.method first, then input.method if input is a Request
+        const method = (
+          options.method ||
+          (typeof input === 'object' && input && 'method' in input ? (input as Request).method : undefined) ||
+          'GET'
+        ).toUpperCase();
+        options.method = method;
         
         // Chrome strictly forbids the 'body' property on GET/HEAD requests, even if undefined
         if (method === 'GET' || method === 'HEAD') {
@@ -51,8 +56,13 @@ export async function getInnertube(): Promise<Innertube> {
           // Clone the options so we can safely mutate them
           const options: RequestInit = { ...init };
           
-          // Standardize method casing
-          const method = (options.method || 'GET').toUpperCase();
+          // Standardize method casing - check options.method first, then input.method if input is a Request
+          const method = (
+            options.method ||
+            (typeof input === 'object' && input && 'method' in input ? (input as Request).method : undefined) ||
+            'GET'
+          ).toUpperCase();
+          options.method = method;
           
           // Chrome strictly forbids the 'body' property on GET/HEAD requests, even if undefined
           if (method === 'GET' || method === 'HEAD') {
@@ -111,6 +121,40 @@ export async function resolveStreamUrl(
         videoId = (generalSearch as any).videos?.[0]?.id || (generalSearch as any).results?.[0]?.id;
       } catch (err) {
         console.warn('yt.search fallback failed:', err);
+      }
+    }
+
+    if (!videoId) {
+      try {
+        const query = `${track.title} ${track.artist}`.trim();
+        const fallbackSearchUrls = [
+          `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=music_songs`,
+          `https://api.piped.privacy.com.de/search?q=${encodeURIComponent(query)}&filter=music_songs`,
+          `https://invidious.nerdvpn.de/api/v1/search?q=${encodeURIComponent(query)}&type=video`,
+        ];
+        for (const sUrl of fallbackSearchUrls) {
+          try {
+            const res = await extensionBridge.proxyFetch(sUrl);
+            if (res.ok) {
+              const data = await res.json();
+              const items = Array.isArray(data) ? data : data.items || [];
+              const first = items?.[0];
+              if (first?.url) {
+                const match = first.url.match(/v=([a-zA-Z0-9_-]{11})/);
+                if (match?.[1]) {
+                  videoId = match[1];
+                  break;
+                }
+              }
+              if (first?.videoId) {
+                videoId = first.videoId;
+                break;
+              }
+            }
+          } catch {}
+        }
+      } catch (fallbackErr) {
+        console.warn('Fallback search query failed:', fallbackErr);
       }
     }
   }

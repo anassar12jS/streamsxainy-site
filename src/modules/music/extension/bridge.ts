@@ -188,7 +188,12 @@ export class BitChordExtensionBridge {
     }
 
     const cleanInit: RequestInit = { ...init };
-    const method = (cleanInit.method || 'GET').toUpperCase();
+    const method = (
+      cleanInit.method ||
+      (typeof input === 'object' && input && 'method' in input ? (input as Request).method : undefined) ||
+      'GET'
+    ).toUpperCase();
+    cleanInit.method = method;
     if (method === 'GET' || method === 'HEAD') {
       delete cleanInit.body;
     }

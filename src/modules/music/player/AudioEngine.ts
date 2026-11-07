@@ -40,7 +40,7 @@ export class MusicAudioEngine {
         shaka.polyfill.installAll();
         if (shaka.Player && shaka.Player.isBrowserSupported()) {
           this.isShakaSupported = true;
-          this.player = new shaka.Player(this.audioElement);
+          this.player = new shaka.Player();
           this.player.configure({
             streaming: {
               bufferingGoal: 30,
@@ -51,6 +51,9 @@ export class MusicAudioEngine {
                 ignoreMinBufferTime: true,
               },
             },
+          });
+          this.player.attach(this.audioElement).catch((err: any) => {
+            console.warn('Failed to attach Shaka Player to audio element:', err);
           });
         }
       }
