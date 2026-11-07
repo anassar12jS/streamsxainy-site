@@ -87,8 +87,17 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
         {items.map((item) => (
           <div
             key={item.id}
-            onClick={item.onClick}
-            className="w-40 sm:w-48 shrink-0 group relative cursor-pointer"
+            onClick={(event) => handlePlayItem(event, item)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                handlePlayItem(event as unknown as React.MouseEvent, item);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            aria-label={`Play ${item.title}`}
+            className="w-40 sm:w-48 shrink-0 group relative cursor-pointer rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fa243b]/60"
           >
             {/* Artwork Container */}
             <div className={`relative w-full ${

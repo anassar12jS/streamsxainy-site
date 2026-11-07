@@ -149,7 +149,7 @@ export const MusicModule: React.FC = () => {
 
   // 2. Respond to track changes & stream resolution
   useEffect(() => {
-    if (!currentTrack || !engineRef.current || playbackStatus === 'idle') return;
+    if (!currentTrack || !engineRef.current) return;
 
     let isCancelled = false;
 
@@ -264,7 +264,7 @@ export const MusicModule: React.FC = () => {
     return () => {
       isCancelled = true;
     };
-  }, [currentTrack?.id, playbackStatus === 'idle' ? null : currentTrack?.id]);
+  }, [currentTrack?.id]);
 
   // 3. Play / Pause state sync
   useEffect(() => {

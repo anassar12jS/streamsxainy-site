@@ -12,6 +12,11 @@ export interface AudioEngineCallbacks {
 let isYtScriptLoaded = false;
 let ytApiReadyPromise: Promise<void> | null = null;
 
+const audioGraphByElement = new WeakMap<HTMLAudioElement, {
+  context: AudioContext;
+  source: MediaElementAudioSourceNode;
+}>();
+
 function ensureYouTubeIframeApi(): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve();
   if ((window as any).YT && (window as any).YT.Player) {
@@ -85,14 +90,24 @@ export class MusicAudioEngine {
 
   private initAudioContext() {
     try {
+      const existingGraph = audioGraphByElement.get(this.audioElement);
+      if (existingGraph && existingGraph.context.state !== 'closed') {
+        this.audioContext = existingGraph.context;
+        this.sourceNode = existingGraph.source;
+        return;
+      }
+
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
-        this.audioContext = new AudioCtx();
-        this.sourceNode = this.audioContext.createMediaElementSource(this.audioElement);
-        this.sourceNode.connect(this.audioContext.destination);
+        const context = new AudioCtx();
+        const source = context.createMediaElementSource(this.audioElement);
+        source.connect(context.destination);
+        audioGraphByElement.set(this.audioElement, { context, source });
+        this.audioContext = context;
+        this.sourceNode = source;
       }
     } catch (err) {
-      console.warn('Web Audio Context initialization deferred or already attached:', err);
+      console.warn('Web Audio Context initialization deferred:', err);
     }
   }
 
@@ -446,11 +461,9 @@ export class MusicAudioEngine {
       } catch {}
     }
 
-    if (this.audioContext && this.audioContext.state !== 'closed') {
-      try {
-        this.audioContext.close();
-      } catch {}
-      this.audioContext = null;
-    }
+    // Keep the MediaElementSource graph alive for this persistent audio element.
+    // A MediaElementSource cannot be recreated for the same element after teardown.
+    this.audioContext = null;
+    this.sourceNode = null;
   }
 }

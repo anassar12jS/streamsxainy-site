@@ -162,8 +162,17 @@ export const BrowseRoute: React.FC = () => {
     return (
       <div
         key={track.id}
+        role="button"
+        tabIndex={0}
         onClick={() => handleTrackClick(track)}
-        className="group relative flex items-center justify-between p-2 rounded-xl hover:bg-[#202022]/80 transition-colors cursor-pointer select-none"
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            handleTrackClick(track);
+          }
+        }}
+        aria-label={`${isPlaying ? 'Pause' : 'Play'} ${track.title} by ${track.artist}`}
+        className="group relative flex items-center justify-between rounded-xl border border-transparent p-2 transition-colors hover:border-white/10 hover:bg-[#202022]/80 focus-visible:border-[#fa243b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fa243b]/40 cursor-pointer select-none"
       >
         <div className="flex items-center gap-3 min-w-0">
           {/* Artwork Thumbnail with Hover Play Button */}

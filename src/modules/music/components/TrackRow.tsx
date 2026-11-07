@@ -50,7 +50,16 @@ export const TrackRow: React.FC<TrackRowProps> = ({
   return (
     <div
       onClick={handlePlayClick}
-      className={`group flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all cursor-pointer select-none relative ${
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          handlePlayClick(event as unknown as React.MouseEvent);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`${isPlaying ? 'Pause' : 'Play'} ${track.title} by ${track.artist}`}
+      className={`group flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all cursor-pointer select-none relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fa243c]/60 ${
         isCurrent
           ? 'bg-[#fa243c]/12 text-white'
           : 'hover:bg-white/5 text-white/80 hover:text-white'
