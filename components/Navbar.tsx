@@ -185,14 +185,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
       {/* ========================================================================= */}
       <nav 
         aria-label="Main navigation" 
-        className={`sticky top-0 z-40 transition-all duration-300 ${
+        className={`sticky top-0 z-40 transition-all duration-300 overflow-x-clip ${
           isScrolled 
-            ? 'bg-[var(--bg-main)]/95 backdrop-blur-2xl border-b border-white/10 shadow-xl shadow-black/20 py-2' 
-            : 'bg-[var(--bg-main)]/80 backdrop-blur-md border-b border-transparent py-2.5'
+            ? 'bg-[var(--bg-main)]/95 backdrop-blur-2xl border-b border-white/5 shadow-xl shadow-black/30 py-2' 
+            : 'bg-transparent border-b-0 py-2.5'
         }`}
       >
-        <div className="w-full max-w-7xl mx-auto px-3 sm:px-5 lg:px-6 xl:px-8">
-          <div className="flex items-center justify-between gap-2 sm:gap-3 lg:gap-4">
+        <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-5 xl:px-6">
+          <div className="flex items-center justify-between gap-1.5 sm:gap-2 lg:gap-2.5 xl:gap-3 min-w-0">
             
             {/* Logo */}
             <Link 
@@ -200,7 +200,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
               className="flex items-center cursor-pointer group shrink-0 select-none"
               title="StreamHub Home"
             >
-              <div className="h-9 w-9 bg-gradient-to-tr from-[rgb(var(--primary-color))] via-indigo-600 to-pink-500 rounded-xl flex items-center justify-center mr-2.5 shadow-lg shadow-[rgb(var(--primary-color))]/30 group-hover:scale-105 group-hover:shadow-[rgb(var(--primary-color))]/50 transition-all">
+              <div className="h-9 w-9 bg-gradient-to-tr from-[rgb(var(--primary-color))] via-indigo-600 to-pink-500 rounded-xl flex items-center justify-center mr-2 shadow-lg shadow-[rgb(var(--primary-color))]/30 group-hover:scale-105 group-hover:shadow-[rgb(var(--primary-color))]/50 transition-all">
                 <Film className="h-5 w-5 text-white transform group-hover:rotate-6 transition-transform" />
               </div>
               <div className="flex flex-col">
@@ -214,7 +214,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
             </Link>
 
             {/* Desktop Navigation Links */}
-            <div className="hidden lg:flex items-center gap-0.5 xl:gap-1">
+            <div className="hidden lg:flex items-center gap-0.5 xl:gap-1 shrink-0">
               {navLinks.map(link => {
                 const isCurrent = location.pathname === link.path;
                 const Icon = link.icon;
@@ -225,18 +225,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
                     onPointerEnter={() => preloadRoute(link.path)}
                     onFocus={() => preloadRoute(link.path)}
                     aria-current={isCurrent ? 'page' : undefined}
-                    className={`px-2 xl:px-3 py-1.5 xl:py-2 rounded-xl text-xs xl:text-[13px] font-bold transition-all relative flex items-center gap-1 xl:gap-1.5 cursor-pointer whitespace-nowrap ${
+                    className={`px-1.5 xl:px-2.5 2xl:px-3 py-1.5 rounded-xl text-xs xl:text-xs 2xl:text-[13px] font-bold transition-all relative flex items-center gap-1 xl:gap-1.5 cursor-pointer whitespace-nowrap ${
                       isCurrent
                         ? 'text-white bg-[rgb(var(--primary-color))] shadow-md shadow-[rgb(var(--primary-color))]/25'
                         : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
                     }`}
                   >
-                    {Icon && <Icon className={`w-3.5 h-3.5 xl:w-4 xl:h-4 shrink-0 ${isCurrent ? 'text-white' : link.color || ''}`} />}
+                    {Icon && <Icon className={`w-3.5 h-3.5 shrink-0 ${isCurrent ? 'text-white' : link.color || ''}`} />}
                     <span>{link.label}</span>
 
                     {/* Live / Hot Badges */}
                     {link.badge && (
-                      <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-full border font-bold flex items-center gap-1 ${
+                      <span className={`text-[9px] font-mono px-1 xl:px-1.5 py-0.2 rounded-full border font-bold flex items-center gap-1 ${
                         isCurrent 
                           ? 'bg-white/20 text-white border-white/30' 
                           : link.badgeColor
@@ -251,17 +251,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
             </div>
 
             {/* Quick Search Bar with Spotlight Command Trigger */}
-            <div className="hidden md:flex items-center flex-1 max-w-[180px] lg:max-w-[220px] xl:max-w-[280px] min-w-0">
+            <div className="hidden md:flex items-center flex-1 max-w-[130px] lg:max-w-[170px] xl:max-w-[220px] 2xl:max-w-[260px] min-w-0">
               <form onSubmit={handleSubmit} className="w-full">
                 <div 
                   onClick={() => setIsCommandOpen(true)}
-                  className="relative w-full flex items-center bg-[var(--bg-card)] hover:bg-[var(--bg-hover)] border border-white/10 hover:border-[rgb(var(--primary-color))]/50 rounded-xl px-2.5 xl:px-3 py-1.5 transition-all shadow-xs cursor-pointer group"
+                  className="relative w-full flex items-center bg-[var(--bg-card)] hover:bg-[var(--bg-hover)] border border-white/10 hover:border-[rgb(var(--primary-color))]/50 rounded-xl px-2 xl:px-2.5 py-1.5 transition-all shadow-xs cursor-pointer group"
                 >
-                  <Search className="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[rgb(var(--primary-color))] shrink-0 mr-1.5 xl:mr-2 transition-colors pointer-events-none" />
-                  <span className="w-full text-[var(--text-muted)] text-xs font-medium select-none truncate">
+                  <Search className="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[rgb(var(--primary-color))] shrink-0 mr-1 xl:mr-1.5 transition-colors pointer-events-none" />
+                  <span className="w-full text-[var(--text-muted)] text-[11px] xl:text-xs font-medium select-none truncate">
                     Search movies, shows...
                   </span>
-                  <div className="ml-1 shrink-0 flex items-center justify-center gap-0.5 text-[10px] font-mono text-[var(--text-muted)] bg-[var(--bg-main)] h-5 px-1.5 rounded-md border border-white/10 group-hover:border-[rgb(var(--primary-color))]/40 transition-colors">
+                  <div className="ml-1 shrink-0 hidden sm:flex items-center justify-center gap-0.5 text-[10px] font-mono text-[var(--text-muted)] bg-[var(--bg-main)] h-5 px-1.5 rounded-md border border-white/10 group-hover:border-[rgb(var(--primary-color))]/40 transition-colors">
                     {typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent || '') ? (
                       <Command className="w-2.5 h-2.5" />
                     ) : (
@@ -273,8 +273,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
               </form>
             </div>
 
-            {/* Right Quick Controls */}
-            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            {/* Right Quick Controls - ALWAYS FULLY VISIBLE & NEVER OVERFLOWING */}
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
               
               {/* Mobile Search Icon Trigger */}
               <button
@@ -287,19 +287,19 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
                 <Search className="w-5 h-5" />
               </button>
 
-              {/* GitHub Profile (visible on wider screens; always accessible in menu drawer) */}
+              {/* GitHub Profile (visible on ultra-wide screens; always in drawer) */}
               <a
                 href="https://github.com/anassar12jS"
                 target="_blank"
                 rel="noopener noreferrer"
                 title="GitHub Profile (@anassar12jS)"
                 aria-label="GitHub Profile"
-                className="hidden xl:flex p-2 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"
+                className="hidden 2xl:flex p-2 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"
               >
                 <Github className="w-4 h-4 sm:w-5 sm:h-5" />
               </a>
 
-              {/* Instagram Profile (visible on wider screens; always accessible in menu drawer) */}
+              {/* Instagram Profile (visible on ultra-wide screens; always in drawer) */}
               <a
                 href="https://instagram.com/xainyx_"
                 target="_blank"
@@ -316,7 +316,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
                 onClick={onToggleMode}
                 aria-label={currentMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
                 title={currentMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                className="p-2 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors relative cursor-pointer shrink-0"
+                className="p-1.5 sm:p-2 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors relative cursor-pointer shrink-0"
               >
                 <div className={`transform transition-transform duration-500 ${currentMode === 'dark' ? 'rotate-0' : 'rotate-180'}`}>
                   {currentMode === 'dark' ? (
@@ -332,7 +332,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
                 onClick={onOpenSettings}
                 aria-label="Open settings"
                 title="Theme Colors & Server Settings"
-                className="p-2 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors cursor-pointer group shrink-0"
+                className="p-1.5 sm:p-2 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors cursor-pointer group shrink-0"
               >
                 <Settings className="w-4 h-4 sm:w-5 sm:h-5 group-hover:rotate-45 transition-transform duration-300" />
               </button>
@@ -343,11 +343,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
                 onClick={() => setIsSidebarOpen(true)}
                 aria-label="Open navigation sidebar"
                 aria-expanded={isSidebarOpen}
-                className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer border border-white/10 sm:border-transparent flex items-center gap-1.5 shrink-0"
+                className="p-1.5 sm:p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer border border-white/10 sm:border-transparent flex items-center gap-1.5 shrink-0"
                 title="Open Sidebar"
               >
                 <Menu className="h-5 w-5 sm:h-5 sm:w-5" />
-                <span className="hidden xl:inline text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-main)]">Menu</span>
+                <span className="hidden 2xl:inline text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-main)]">Menu</span>
               </button>
 
             </div>

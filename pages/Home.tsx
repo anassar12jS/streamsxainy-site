@@ -669,7 +669,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
       {/* Cinematic Hero Spotlight Carousel */}
       {currentHero && (
         <div 
-          className="relative h-[calc(100vh-4.5rem)] min-h-[460px] max-h-[720px] w-full mb-8 sm:mb-10 group/hero"
+          className="relative h-[clamp(440px,76vh,640px)] lg:h-[clamp(480px,80vh,680px)] w-full mb-8 sm:mb-10 group/hero overflow-hidden"
           onMouseEnter={() => setIsHeroHovered(true)}
           onMouseLeave={() => setIsHeroHovered(false)}
         >
@@ -712,7 +712,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
           <button
             type="button"
             onClick={goToPrevHero}
-            className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 text-white items-center justify-center opacity-0 group-hover/hero:opacity-100 transition-all hover:scale-110 shadow-2xl cursor-pointer"
+            className="flex absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 text-white items-center justify-center opacity-70 sm:opacity-0 sm:group-hover/hero:opacity-100 transition-all hover:scale-110 shadow-2xl cursor-pointer"
             aria-label="Previous Spotlight"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -720,15 +720,15 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
           <button
             type="button"
             onClick={goToNextHero}
-            className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 z-30 w-11 h-11 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 text-white items-center justify-center opacity-0 group-hover/hero:opacity-100 transition-all hover:scale-110 shadow-2xl cursor-pointer"
+            className="flex absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 text-white items-center justify-center opacity-70 sm:opacity-0 sm:group-hover/hero:opacity-100 transition-all hover:scale-110 shadow-2xl cursor-pointer"
             aria-label="Next Spotlight"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
 
           {/* Hero Content Body */}
-          <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-end pb-8 sm:pb-10 lg:pb-12">
-            <div className="max-w-2xl flex flex-col gap-2.5 sm:gap-3">
+          <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-end pb-5 sm:pb-7 lg:pb-9">
+            <div className="max-w-2xl flex flex-col gap-2 sm:gap-2.5">
               
               {/* Eyebrow Kicker with Auto-Play Status Toggle */}
               <div className="flex items-center gap-2 text-xs font-bold tracking-wider uppercase animate-fade-in flex-wrap">
@@ -757,7 +757,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
               </div>
 
               {/* Title with Balanced Linebreaks */}
-              <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white leading-[1.1] tracking-tight drop-shadow-2xl animate-fade-in line-clamp-2 max-w-xl" style={{ textWrap: 'balance' }}>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-black text-white leading-[1.15] tracking-tight drop-shadow-2xl animate-fade-in line-clamp-2 max-w-xl" style={{ textWrap: 'balance' }}>
                 {currentHero.title || currentHero.name}
               </h1>
 
@@ -786,17 +786,17 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
               </div>
 
               {/* Synopsis */}
-              <p className="text-zinc-200/90 text-xs sm:text-sm lg:text-base line-clamp-2 sm:line-clamp-3 max-w-xl drop-shadow-sm font-normal leading-relaxed animate-fade-in">
+              <p className="text-zinc-200/90 text-xs sm:text-sm line-clamp-2 max-w-xl drop-shadow-sm font-normal leading-relaxed animate-fade-in">
                 {currentHero.overview}
               </p>
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 pt-1.5 sm:pt-2 animate-fade-in">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 pt-1.5 sm:pt-2 animate-fade-in shrink-0 relative z-30">
                 
                 {/* Watch Now Button */}
                 <button
                   onClick={() => handleQuickPlay(currentHero)}
-                  className="flex items-center gap-2 bg-[rgb(var(--primary-color))] hover:brightness-110 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm shadow-xl shadow-[rgb(var(--primary-color))]/30 hover:-translate-y-0.5 transition-all group cursor-pointer"
+                  className="flex items-center gap-2 bg-[rgb(var(--primary-color))] hover:brightness-110 text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-xl shadow-[rgb(var(--primary-color))]/30 hover:-translate-y-0.5 transition-all group cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-current transition-transform group-hover:scale-110" />
                   <span>Watch Now</span>
@@ -805,7 +805,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 {/* Trailer Button */}
                 <button
                   onClick={() => handleOpenTrailer(currentHero)}
-                  className="flex items-center gap-2 bg-black/40 hover:bg-black/60 border border-white/20 text-white px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm backdrop-blur-md transition-all hover:border-red-500/50 hover:text-red-400 group cursor-pointer"
+                  className="flex items-center gap-2 bg-black/40 hover:bg-black/60 border border-white/20 text-white px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-semibold text-xs sm:text-sm backdrop-blur-md transition-all hover:border-red-500/50 hover:text-red-400 group cursor-pointer"
                 >
                   <Youtube className="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform" />
                   <span>Trailer</span>
@@ -814,7 +814,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 {/* Details Button */}
                 <button
                   onClick={() => handleSelect(currentHero)}
-                  className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/15 text-white px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm backdrop-blur-md transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/15 text-white px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-semibold text-xs sm:text-sm backdrop-blur-md transition-all cursor-pointer"
                 >
                   <Info className="w-4 h-4" />
                   <span>Details</span>
@@ -823,7 +823,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 {/* Watchlist Toggle Button */}
                 <button
                   onClick={toggleWatchlistForHero}
-                  className={`p-2.5 sm:p-3 rounded-xl border backdrop-blur-md transition-all flex items-center justify-center cursor-pointer ${
+                  className={`p-2 sm:p-2.5 rounded-xl border backdrop-blur-md transition-all flex items-center justify-center cursor-pointer ${
                     inWatchlistState
                       ? 'bg-[rgb(var(--primary-color))]/25 border-[rgb(var(--primary-color))] text-[rgb(var(--primary-color))]'
                       : 'bg-black/40 hover:bg-black/60 border-white/15 text-white/80 hover:text-white'
@@ -837,7 +837,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
             </div>
 
             {/* Carousel Navigation Filmstrip with Active Duration Progress (Bottom Right) */}
-            <div className="hidden lg:flex items-center gap-2 absolute bottom-8 sm:bottom-10 lg:bottom-12 right-6 lg:right-8 z-20 bg-black/60 p-1.5 sm:p-2 rounded-2xl border border-white/15 backdrop-blur-md shadow-2xl">
+            <div className="hidden xl:flex items-center gap-2 absolute bottom-5 sm:bottom-7 lg:bottom-9 right-6 lg:right-8 z-20 bg-black/60 p-1.5 sm:p-2 rounded-2xl border border-white/15 backdrop-blur-md shadow-2xl">
               {featuredList.map((item, idx) => {
                 const isActive = idx === heroIndex;
                 return (

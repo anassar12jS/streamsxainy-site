@@ -29,12 +29,12 @@ export const ExtensionBanner: React.FC = () => {
 
       <div className="flex items-center gap-2 shrink-0">
         <a
-          href="https://github.com/anassar12jS"
+          href="https://github.com/anassar12jS/bitchord-extension"
           target="_blank"
           rel="noopener noreferrer"
           className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors"
         >
-          <span>Extension Info</span>
+          <span>Install Extension</span>
           <ExternalLink className="w-3 h-3" />
         </a>
         <button

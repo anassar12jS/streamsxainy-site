@@ -27,6 +27,8 @@ export class BitChordExtensionBridge {
     return BitChordExtensionBridge.instance;
   }
 
+  public static readonly EXTENSION_ID = 'pkddffeebcmhhanjcigilehaeonkkfih';
+
   private init() {
     if (typeof window === 'undefined') return;
 
@@ -41,14 +43,35 @@ export class BitChordExtensionBridge {
       return;
     }
 
-    // 2. Window postMessage handshake protocol
+    // 2. Direct chrome.runtime.sendMessage handshake to BitChord Extension
+    try {
+      const chromeRuntime = (window as any).chrome?.runtime;
+      if (chromeRuntime && typeof chromeRuntime.sendMessage === 'function') {
+        chromeRuntime.sendMessage(
+          BitChordExtensionBridge.EXTENSION_ID,
+          { protocol: 1, id: `ping-${Date.now()}`, method: 'ping', params: {} },
+          (response: any) => {
+            if (response && (response.version || response.protocol === 1)) {
+              this.setStatus({
+                available: true,
+                version: response.version || '0.4.4',
+                hasYouTubeAuth: true,
+                hasDiscordRpc: true,
+              });
+            }
+          }
+        );
+      }
+    } catch {}
+
+    // 3. Window postMessage handshake protocol
     const onMessage = (event: MessageEvent) => {
-      if (event.data && event.data.type === 'BITCHORD_EXTENSION_PONG') {
+      if (event.data && (event.data.type === 'BITCHORD_EXTENSION_PONG' || event.data.method === 'ping')) {
         this.setStatus({
           available: true,
-          version: event.data.version || '1.0.0',
-          hasYouTubeAuth: event.data.hasYouTubeAuth ?? false,
-          hasDiscordRpc: event.data.hasDiscordRpc ?? false,
+          version: event.data.version || '0.4.4',
+          hasYouTubeAuth: event.data.hasYouTubeAuth ?? true,
+          hasDiscordRpc: event.data.hasDiscordRpc ?? true,
         });
       }
     };
@@ -56,14 +79,14 @@ export class BitChordExtensionBridge {
 
     // Ping extension
     try {
-      window.postMessage({ type: 'BITCHORD_EXTENSION_PING' }, '*');
+      window.postMessage({ type: 'BITCHORD_EXTENSION_PING', protocol: 1 }, '*');
     } catch {}
 
-    // 3. Fallback: Check if chrome.runtime is exposed by extension content script
+    // 4. Fallback polling for asynchronous content script injection
     setTimeout(() => {
       if (!this.status.available) {
         if ((window as any).__BITCHORD_EXTENSION__) {
-          this.setStatus({ available: true, version: '1.0.0' });
+          this.setStatus({ available: true, version: '0.4.4' });
         }
       }
     }, 1200);
