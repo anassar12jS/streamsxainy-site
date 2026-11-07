@@ -3,22 +3,22 @@
 
 :root {
   --am-font: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --am-bg-main: #000000;
-  --am-bg-surface: #121214;
-  --am-bg-sidebar: #161618;
-  --am-bg-chrome: rgba(22, 22, 24, 0.82);
-  --am-bg-card: rgba(255, 255, 255, 0.04);
-  --am-bg-card-hover: rgba(255, 255, 255, 0.08);
-  --am-accent-red: #fa243c;
-  --am-accent-red-hover: #ff3b50;
-  --am-accent-red-glow: rgba(250, 36, 60, 0.28);
-  --am-accent-pink: #d60067;
-  --am-border: rgba(255, 255, 255, 0.08);
-  --am-border-strong: rgba(255, 255, 255, 0.16);
-  --am-text-primary: #ffffff;
-  --am-text-secondary: rgba(255, 255, 255, 0.72);
-  --am-text-muted: rgba(255, 255, 255, 0.45);
-  --am-now-playing-bg: rgba(255, 255, 255, 0.06);
+  --am-bg-main: #090a0f;
+  --am-bg-surface: #11131b;
+  --am-bg-sidebar: #0d0f16;
+  --am-bg-chrome: rgba(13, 15, 22, 0.86);
+  --am-bg-card: rgba(255, 255, 255, 0.055);
+  --am-bg-card-hover: rgba(255, 255, 255, 0.1);
+  --am-accent-red: #ff5c7a;
+  --am-accent-red-hover: #ff7891;
+  --am-accent-red-glow: rgba(255, 92, 122, 0.24);
+  --am-accent-pink: #b77aff;
+  --am-border: rgba(255, 255, 255, 0.1);
+  --am-border-strong: rgba(255, 255, 255, 0.18);
+  --am-text-primary: #f7f7fb;
+  --am-text-secondary: rgba(247, 247, 251, 0.7);
+  --am-text-muted: rgba(247, 247, 251, 0.44);
+  --am-now-playing-bg: rgba(255, 255, 255, 0.08);
   --am-scrubber-track: rgba(255, 255, 255, 0.18);
   --am-sidebar-width: 240px;
   --am-header-height: 56px;
