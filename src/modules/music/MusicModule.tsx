@@ -117,12 +117,19 @@ export const MusicModule: React.FC = () => {
 
     const loadAndPlay = async () => {
       try {
+        setPlaybackStatus('loading');
         let streamUrl = currentTrack.audioUrl;
         let isDash = currentTrack.isDash || false;
 
-        // If audioUrl is empty or requires resolution via YouTube InnerTube
-        if (!streamUrl && currentTrack.youtubeId) {
-          const resolved = await resolveStreamUrl(currentTrack.youtubeId);
+        // Reject any public Apple Music / iTunes preview audio
+        const isItunesPreview = Boolean(
+          streamUrl && 
+          (streamUrl.includes('itunes.apple.com') || streamUrl.includes('apple.com/itunes-assets'))
+        );
+
+        // Fetch full-length song audio directly from YouTube Music using youtubei.js
+        if (!streamUrl || isItunesPreview) {
+          const resolved = await resolveStreamUrl(currentTrack);
           if (isCancelled) return;
           streamUrl = resolved.url;
           isDash = resolved.isDash;
@@ -250,4 +257,5 @@ export const MusicModule: React.FC = () => {
   );
 };
 
+export const MusicTab = MusicModule;
 export default MusicModule;

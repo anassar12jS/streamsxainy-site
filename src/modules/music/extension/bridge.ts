@@ -124,15 +124,70 @@ export class BitChordExtensionBridge {
     return () => this.listeners.delete(callback);
   }
 
-  public async proxyFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  public async proxyFetch(input: RequestInfo | URL, options?: RequestInit): Promise<Response> {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    const init = options || (typeof input === 'object' && !(input instanceof URL) ? (input as RequestInit) : {});
+
+    // 1. Injected extension proxy if available
     if (this.status.available && (window as any).__BITCHORD_EXTENSION__?.proxyFetch) {
       try {
-        return await (window as any).__BITCHORD_EXTENSION__.proxyFetch(url, options);
+        return await (window as any).__BITCHORD_EXTENSION__.proxyFetch(url, init);
       } catch (e) {
         console.debug('Extension proxyFetch failed, falling back to direct fetch:', e);
       }
     }
-    return fetch(url, options);
+
+    // 2. Direct chrome.runtime.sendMessage via yt.fetch
+    const chromeRuntime = (window as any).chrome?.runtime;
+    if (this.status.available && chromeRuntime && typeof chromeRuntime.sendMessage === 'function') {
+      try {
+        const isYt = /youtube\.com|googlevideo\.com/.test(url);
+        if (isYt) {
+          const resp = await new Promise<any>((resolve) => {
+            let bodyStr: string | undefined;
+            if (init.body) {
+              bodyStr = typeof init.body === 'string' ? init.body : JSON.stringify(init.body);
+            }
+            chromeRuntime.sendMessage(
+              BitChordExtensionBridge.EXTENSION_ID,
+              {
+                channel: 'bitchord-bridge',
+                direction: 'to-extension',
+                protocol: 1,
+                id: `fetch-${Date.now()}-${Math.random()}`,
+                method: 'yt.fetch',
+                params: {
+                  url,
+                  method: init.method || 'GET',
+                  headers: (init.headers as Record<string, string>) || {},
+                  body: bodyStr,
+                  auth: true,
+                }
+              },
+              (res: any) => {
+                if (chromeRuntime.lastError) {
+                  resolve(null);
+                } else {
+                  resolve(res);
+                }
+              }
+            );
+          });
+
+          if (resp && resp.ok && resp.result) {
+            const r = resp.result;
+            return new Response(r.body, {
+              status: r.status || 200,
+              headers: r.headers || {},
+            });
+          }
+        }
+      } catch (e) {
+        console.debug('Extension yt.fetch failed, falling back to fetch:', e);
+      }
+    }
+
+    return fetch(url, init);
   }
 
   public updateDiscordRpc(track: { title: string; artist: string; duration: number; artwork?: string }) {

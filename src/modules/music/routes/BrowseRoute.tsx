@@ -164,3 +164,6 @@ export const BrowseRoute: React.FC = () => {
     </div>
   );
 };
+
+export const BrowseView = BrowseRoute;
+export default BrowseRoute;
