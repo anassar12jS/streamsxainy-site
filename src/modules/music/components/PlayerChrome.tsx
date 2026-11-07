@@ -68,8 +68,8 @@ export const PlayerChrome: React.FC<PlayerChromeProps> = ({
       </div>
 
       {/* Floating Bottom Glassmorphic Player Capsule Dock */}
-      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-[840px] w-[95vw] sm:w-auto">
-        <div className="bg-[#202022]/90 backdrop-blur-2xl border border-white/10 rounded-full px-4 sm:px-6 py-2.5 shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex items-center justify-between gap-3 sm:gap-5 select-none transition-all">
+      <div className="fixed inset-x-0 bottom-0 z-50">
+        <div className="am-chrome bg-[var(--am-bg-chrome)] px-3 py-2.5 sm:px-6 sm:py-3 shadow-[0_-18px_45px_rgba(0,0,0,0.35)] flex items-center justify-between gap-3 sm:gap-6 select-none transition-all">
           
           {/* 1. LEFT: Transport Controls */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 text-white/70">

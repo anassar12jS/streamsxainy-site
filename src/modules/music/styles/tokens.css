@@ -9,10 +9,10 @@
   --am-bg-chrome: rgba(13, 15, 22, 0.86);
   --am-bg-card: rgba(255, 255, 255, 0.055);
   --am-bg-card-hover: rgba(255, 255, 255, 0.1);
-  --am-accent-red: #ff5c7a;
-  --am-accent-red-hover: #ff7891;
-  --am-accent-red-glow: rgba(255, 92, 122, 0.24);
-  --am-accent-pink: #b77aff;
+  --am-accent-red: #fa233b;
+  --am-accent-red-hover: #ff5265;
+  --am-accent-red-glow: rgba(250, 35, 59, 0.24);
+  --am-accent-pink: #ff375f;
   --am-border: rgba(255, 255, 255, 0.1);
   --am-border-strong: rgba(255, 255, 255, 0.18);
   --am-text-primary: #f7f7fb;

@@ -217,14 +217,14 @@ export const BrowseRoute: React.FC = () => {
 
   return (
     <div className="space-y-10 animate-fade-in pb-32 pt-2 px-1 sm:px-4 max-w-7xl mx-auto">
-      <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(115deg,#171a2a_0%,#241d31_48%,#30202b_100%)] px-6 py-7 sm:px-10 sm:py-9 shadow-2xl shadow-black/20">
-        <div className="absolute -right-16 -top-24 h-64 w-64 rounded-full bg-rose-400/20 blur-3xl" />
-        <div className="absolute -bottom-24 right-24 h-48 w-48 rounded-full bg-violet-400/15 blur-3xl" />
+      <section className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#171820] px-6 py-7 sm:px-10 sm:py-10 shadow-2xl shadow-black/25">
+        <div className="absolute -right-16 -top-24 h-64 w-64 rounded-full bg-[#fa233b]/20 blur-3xl" />
+        <div className="absolute -bottom-24 right-24 h-48 w-48 rounded-full bg-[#ff375f]/10 blur-3xl" />
         <div className="relative max-w-xl">
-          <p className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-rose-200/75">Good evening, anas</p>
+          <p className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-[#ff7b8c]">Good evening, anas</p>
           <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-5xl">Find your next favorite sound.</h1>
           <p className="mt-3 max-w-md text-sm leading-6 text-white/65">A handpicked mix of loud guitars, late-night textures, and the songs already living in your head.</p>
-          <button type="button" onClick={() => handleTrackClick(BITCHORD_HOME_TRACKS[0])} className="mt-6 inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-bold text-[#17131d] shadow-lg shadow-black/20 transition-transform hover:-translate-y-0.5 active:translate-y-0">
+          <button type="button" onClick={() => handleTrackClick(BITCHORD_HOME_TRACKS[0])} className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#fa233b] px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-black/20 transition-transform hover:-translate-y-0.5 active:translate-y-0">
             <Play className="h-4 w-4 fill-current" /> Start listening
           </button>
         </div>

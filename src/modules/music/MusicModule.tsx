@@ -293,7 +293,7 @@ export const MusicModule: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex bg-[#161616] text-[#e1e1e3] relative overflow-hidden font-sans">
+    <div className="am-shell min-h-screen flex bg-[var(--am-bg-main)] text-[var(--am-text-primary)] relative overflow-hidden">
       
       {/* Hidden Web Audio Media Element */}
       <audio 
