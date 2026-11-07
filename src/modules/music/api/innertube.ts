@@ -84,6 +84,84 @@ export async function getInnertube(): Promise<Innertube> {
 }
 
 /**
+ * Resolves the YouTube video ID for a track.
+ */
+export async function resolveVideoId(
+  trackOrId: string | MusicTrack | { title: string; artist: string; youtubeId?: string }
+): Promise<string | null> {
+  const track = typeof trackOrId === 'string' 
+    ? { title: '', artist: '', youtubeId: trackOrId } 
+    : trackOrId;
+
+  if (track.youtubeId) return track.youtubeId;
+  if (!track.title && !track.artist) return null;
+
+  let videoId: string | undefined;
+
+  // 1. General search with audio keyword (fastest and most accurate)
+  try {
+    const yt = await getInnertube();
+    const query = `${track.title} ${track.artist} audio`.trim();
+    const generalSearch = await yt.search(query, { type: 'video' });
+    videoId = (generalSearch as any).videos?.[0]?.id || (generalSearch as any).results?.[0]?.id;
+  } catch (err) {
+    console.debug('yt.search failed:', err);
+  }
+
+  // 2. yt.music.search
+  if (!videoId) {
+    try {
+      const yt = await getInnertube();
+      const query = `${track.title} ${track.artist}`.trim();
+      const searchResults = await yt.music.search(query, { type: 'song' });
+      const firstResult = 
+        (searchResults as any).results?.[0] ||
+        (searchResults as any).contents?.[0]?.contents?.[0] ||
+        (searchResults as any).contents?.[0] ||
+        (searchResults as any).songs?.contents?.[0];
+      videoId = firstResult?.id;
+    } catch (err) {
+      console.debug('yt.music.search failed:', err);
+    }
+  }
+
+  // 3. Fallback search via public Piped/Invidious mirrors
+  if (!videoId) {
+    try {
+      const query = `${track.title} ${track.artist}`.trim();
+      const fallbackSearchUrls = [
+        `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=music_songs`,
+        `https://api.piped.privacy.com.de/search?q=${encodeURIComponent(query)}&filter=music_songs`,
+        `https://invidious.nerdvpn.de/api/v1/search?q=${encodeURIComponent(query)}&type=video`,
+      ];
+      for (const sUrl of fallbackSearchUrls) {
+        try {
+          const res = await extensionBridge.proxyFetch(sUrl);
+          if (res.ok) {
+            const data = await res.json();
+            const items = Array.isArray(data) ? data : data.items || [];
+            const first = items?.[0];
+            if (first?.url) {
+              const match = first.url.match(/v=([a-zA-Z0-9_-]{11})/);
+              if (match?.[1]) {
+                videoId = match[1];
+                break;
+              }
+            }
+            if (first?.videoId) {
+              videoId = first.videoId;
+              break;
+            }
+          }
+        } catch {}
+      }
+    } catch {}
+  }
+
+  return videoId || null;
+}
+
+/**
  * Resolves full-length audio stream for a track from YouTube Music.
  * Uses yt.music.search to find videoId, fetches basic info, and deciphers the best audio format.
  */
@@ -95,69 +173,7 @@ export async function resolveStreamUrl(
     : trackOrId;
 
   const yt = await getInnertube();
-  let videoId = track.youtubeId;
-
-  // 1. Resolve videoId via yt.music.search if not known
-  if (!videoId && (track.title || track.artist)) {
-    try {
-      const query = `${track.title} ${track.artist}`.trim();
-      const searchResults = await yt.music.search(query, { type: 'song' });
-      
-      const firstResult = 
-        (searchResults as any).results?.[0] ||
-        (searchResults as any).contents?.[0]?.contents?.[0] ||
-        (searchResults as any).contents?.[0] ||
-        (searchResults as any).songs?.contents?.[0];
-
-      videoId = firstResult?.id;
-    } catch (err) {
-      console.warn('yt.music.search failed, attempting fallback query:', err);
-    }
-
-    if (!videoId) {
-      try {
-        const query = `${track.title} ${track.artist} audio`.trim();
-        const generalSearch = await yt.search(query, { type: 'video' });
-        videoId = (generalSearch as any).videos?.[0]?.id || (generalSearch as any).results?.[0]?.id;
-      } catch (err) {
-        console.warn('yt.search fallback failed:', err);
-      }
-    }
-
-    if (!videoId) {
-      try {
-        const query = `${track.title} ${track.artist}`.trim();
-        const fallbackSearchUrls = [
-          `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=music_songs`,
-          `https://api.piped.privacy.com.de/search?q=${encodeURIComponent(query)}&filter=music_songs`,
-          `https://invidious.nerdvpn.de/api/v1/search?q=${encodeURIComponent(query)}&type=video`,
-        ];
-        for (const sUrl of fallbackSearchUrls) {
-          try {
-            const res = await extensionBridge.proxyFetch(sUrl);
-            if (res.ok) {
-              const data = await res.json();
-              const items = Array.isArray(data) ? data : data.items || [];
-              const first = items?.[0];
-              if (first?.url) {
-                const match = first.url.match(/v=([a-zA-Z0-9_-]{11})/);
-                if (match?.[1]) {
-                  videoId = match[1];
-                  break;
-                }
-              }
-              if (first?.videoId) {
-                videoId = first.videoId;
-                break;
-              }
-            }
-          } catch {}
-        }
-      } catch (fallbackErr) {
-        console.warn('Fallback search query failed:', fallbackErr);
-      }
-    }
-  }
+  let videoId = await resolveVideoId(track);
 
   // 2. Fetch stream format and decipher via player
   if (videoId) {

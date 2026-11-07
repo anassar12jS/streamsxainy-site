@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import './styles/tokens.css';
 import { useMusicPlayerStore } from './store/useMusicPlayerStore';
 import { MusicAudioEngine } from './player/AudioEngine';
-import { resolveStreamUrl } from './api/innertube';
+import { resolveStreamUrl, resolveVideoId } from './api/innertube';
 import { extensionBridge } from './extension/bridge';
 import { Sidebar } from './components/Sidebar';
 import { PlayerChrome } from './components/PlayerChrome';
@@ -37,50 +37,74 @@ export const MusicModule: React.FC = () => {
   const togglePlayPause = useMusicPlayerStore(state => state.togglePlayPause);
   const setExtensionConnected = useMusicPlayerStore(state => state.setExtensionConnected);
 
-  // 1. Initialize Audio Engine with HTMLAudioElement
+  // 1. Initialize Audio Engine with HTMLAudioElement and callbacks
   useEffect(() => {
     if (!audioRef.current) return;
 
-    const engine = new MusicAudioEngine(audioRef.current);
+    const engine = new MusicAudioEngine(audioRef.current, {
+      onTimeUpdate: (currentTime, duration) => {
+        setTime(currentTime, duration);
+      },
+      onStatusChange: (status) => {
+        setPlaybackStatus(status);
+      },
+      onEnded: () => {
+        if (useMusicPlayerStore.getState().repeatMode === 'one') {
+          engineRef.current?.seek(0);
+          engineRef.current?.play().catch(() => {});
+        } else {
+          useMusicPlayerStore.getState().nextTrack();
+        }
+      },
+    });
     engineRef.current = engine;
 
     // Apply stored volume & mute
     engine.setVolume(volume);
     engine.setMuted(isMuted);
 
-    // Audio event listeners
+    // Audio event listeners for HTML5 mode
     const audio = audioRef.current;
 
     const handleTimeUpdate = () => {
-      setTime(audio.currentTime, !isNaN(audio.duration) ? audio.duration : undefined);
+      if (engine.activeMode === 'html5') {
+        setTime(audio.currentTime, !isNaN(audio.duration) ? audio.duration : undefined);
+      }
     };
 
     const handleLoadedMetadata = () => {
-      if (!isNaN(audio.duration) && audio.duration > 0) {
+      if (engine.activeMode === 'html5' && !isNaN(audio.duration) && audio.duration > 0) {
         setTime(audio.currentTime, audio.duration);
       }
     };
 
     const handlePlaying = () => {
-      setPlaybackStatus('playing');
+      if (engine.activeMode === 'html5') {
+        setPlaybackStatus('playing');
+      }
     };
 
     const handlePause = () => {
-      setPlaybackStatus('paused');
+      if (engine.activeMode === 'html5') {
+        setPlaybackStatus('paused');
+      }
     };
 
     const handleEnded = () => {
-      if (useMusicPlayerStore.getState().repeatMode === 'one') {
-        audio.currentTime = 0;
-        audio.play().catch(() => {});
-      } else {
-        useMusicPlayerStore.getState().nextTrack();
+      if (engine.activeMode === 'html5') {
+        if (useMusicPlayerStore.getState().repeatMode === 'one') {
+          audio.currentTime = 0;
+          audio.play().catch(() => {});
+        } else {
+          useMusicPlayerStore.getState().nextTrack();
+        }
       }
     };
 
     const handleError = () => {
-      console.warn('Audio playback error, attempting recovery stream...');
-      setPlaybackStatus('error');
+      if (engine.activeMode === 'html5') {
+        console.warn('Audio playback error on HTML5 element');
+      }
     };
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
@@ -118,29 +142,38 @@ export const MusicModule: React.FC = () => {
     const loadAndPlay = async () => {
       try {
         setPlaybackStatus('loading');
-        let streamUrl = '';
-        let isDash = false;
 
-        // 1. Attempt full-length song audio directly from YouTube Music using youtubei.js
-        try {
-          const resolved = await resolveStreamUrl(currentTrack);
-          if (isCancelled) return;
-          if (resolved?.url && typeof resolved.url === 'string' && (resolved.url.startsWith('http') || resolved.url.startsWith('blob:'))) {
-            streamUrl = resolved.url;
-            isDash = resolved.isDash || false;
+        // 1. Live radio station with direct stream URL
+        if (currentTrack.isLive && currentTrack.audioUrl) {
+          if (engineRef.current) {
+            await engineRef.current.loadStream(currentTrack.audioUrl);
+            if (!isCancelled) {
+              setPlaybackStatus('playing');
+              engineRef.current.syncMediaSession(
+                currentTrack,
+                togglePlayPause,
+                togglePlayPause,
+                nextTrack,
+                prevTrack
+              );
+            }
           }
-        } catch (resolveErr) {
-          console.warn('YouTube stream resolution failed, attempting fallback audio:', resolveErr);
+          return;
         }
 
-        // 2. Fall back to currentTrack.audioUrl if YouTube resolution was unavailable
-        if (!streamUrl && currentTrack.audioUrl && typeof currentTrack.audioUrl === 'string' && (currentTrack.audioUrl.startsWith('http') || currentTrack.audioUrl.startsWith('blob:'))) {
-          streamUrl = currentTrack.audioUrl;
-          isDash = currentTrack.isDash || false;
+        // 2. Resolve YouTube video ID for full song playback
+        let videoId = currentTrack.youtubeId;
+        if (!videoId && (currentTrack.title || currentTrack.artist)) {
+          try {
+            videoId = (await resolveVideoId(currentTrack)) || undefined;
+          } catch (e) {
+            console.debug('Failed to resolve videoId:', e);
+          }
         }
 
-        if (streamUrl && engineRef.current) {
-          await engineRef.current.loadStream(streamUrl, isDash);
+        // 3. Play the full song via YouTube audio engine (never cuts off at 30 seconds!)
+        if (videoId && engineRef.current) {
+          await engineRef.current.playYouTube(videoId);
           if (!isCancelled) {
             setPlaybackStatus('playing');
 
@@ -161,9 +194,49 @@ export const MusicModule: React.FC = () => {
               artwork: currentTrack.artwork,
             });
           }
-        } else {
-          throw new Error(`No playable audio stream available for "${currentTrack.title}"`);
+          return;
         }
+
+        // 4. Fallback to direct stream URL if available
+        let streamUrl = '';
+        let isDash = false;
+        try {
+          const resolved = await resolveStreamUrl(currentTrack);
+          if (resolved?.url && typeof resolved.url === 'string' && (resolved.url.startsWith('http') || resolved.url.startsWith('blob:'))) {
+            streamUrl = resolved.url;
+            isDash = resolved.isDash || false;
+          }
+        } catch {}
+
+        if (streamUrl && engineRef.current) {
+          await engineRef.current.loadStream(streamUrl, isDash);
+          if (!isCancelled) {
+            setPlaybackStatus('playing');
+            engineRef.current.syncMediaSession(
+              currentTrack,
+              togglePlayPause,
+              togglePlayPause,
+              nextTrack,
+              prevTrack
+            );
+          }
+          return;
+        }
+
+        // 5. Fallback only if audioUrl is NOT an iTunes 30-sec preview
+        const isItunesPreview = Boolean(
+          currentTrack.audioUrl && 
+          (currentTrack.audioUrl.includes('itunes.apple.com') || currentTrack.audioUrl.includes('apple.com/itunes-assets'))
+        );
+        if (currentTrack.audioUrl && !isItunesPreview && engineRef.current) {
+          await engineRef.current.loadStream(currentTrack.audioUrl);
+          if (!isCancelled) {
+            setPlaybackStatus('playing');
+          }
+          return;
+        }
+
+        throw new Error(`No full-length audio stream available for "${currentTrack.title}"`);
       } catch (err) {
         if (!isCancelled) {
           console.error('Failed to stream audio:', err);

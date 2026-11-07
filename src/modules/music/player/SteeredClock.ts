@@ -82,6 +82,12 @@ export class SteeredClock {
     this.animationFrameId = requestAnimationFrame(this.tick);
   }
 
+  public setTime(time: number) {
+    this.lastAudioTime = time;
+    this.lastPerfTime = performance.now();
+    this.emit(time);
+  }
+
   public getCurrentTime(): number {
     if (this.audioElement.paused) {
       return this.audioElement.currentTime;

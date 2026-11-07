@@ -1,4 +1,8 @@
 const INSTANCES = [
+  "https://pipedapi-libre.kavin.rocks",
+  "https://pipedapi.adminforge.de",
+  "https://piped-api.privacy.com.de",
+  "https://api.piped.yt",
   "https://pipedapi.kavin.rocks",
 ];
 
