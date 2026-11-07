@@ -16,6 +16,8 @@ export class BitChordExtensionBridge {
   private status: ExtensionStatus = { available: false };
   private listeners: Set<(status: ExtensionStatus) => void> = new Set();
 
+  public static readonly EXTENSION_ID = 'pkddffeebcmhhanjcigilehaeonkkfih';
+
   private constructor() {
     this.init();
   }
@@ -27,44 +29,54 @@ export class BitChordExtensionBridge {
     return BitChordExtensionBridge.instance;
   }
 
-  public static readonly EXTENSION_ID = 'pkddffeebcmhhanjcigilehaeonkkfih';
-
   private init() {
     if (typeof window === 'undefined') return;
 
-    // 1. Direct window injection check
     if ((window as any).__BITCHORD_EXTENSION__) {
       this.setStatus({
         available: true,
-        version: (window as any).__BITCHORD_EXTENSION__.version || '1.0.0',
+        version: (window as any).__BITCHORD_EXTENSION__.version || '0.4.4',
         hasYouTubeAuth: (window as any).__BITCHORD_EXTENSION__.hasYouTubeAuth,
         hasDiscordRpc: (window as any).__BITCHORD_EXTENSION__.hasDiscordRpc,
       });
       return;
     }
 
-    // 2. Direct chrome.runtime.sendMessage handshake to BitChord Extension
-    try {
-      const chromeRuntime = (window as any).chrome?.runtime;
-      if (chromeRuntime && typeof chromeRuntime.sendMessage === 'function') {
-        chromeRuntime.sendMessage(
-          BitChordExtensionBridge.EXTENSION_ID,
-          { protocol: 1, id: `ping-${Date.now()}`, method: 'ping', params: {} },
-          (response: any) => {
-            if (response && (response.version || response.protocol === 1)) {
-              this.setStatus({
-                available: true,
-                version: response.version || '0.4.4',
-                hasYouTubeAuth: true,
-                hasDiscordRpc: true,
-              });
+    // Step 2 FIXED: Added channel, direction, and handled lastError properly
+    const pingExtension = () => {
+      try {
+        const chromeRuntime = (window as any).chrome?.runtime;
+        if (chromeRuntime && typeof chromeRuntime.sendMessage === 'function') {
+          chromeRuntime.sendMessage(
+            BitChordExtensionBridge.EXTENSION_ID,
+            { 
+              channel: 'bitchord-bridge', // REQUIRED by background.js
+              direction: 'to-extension',  // REQUIRED by background.js
+              protocol: 1, 
+              id: `ping-${Date.now()}`, 
+              method: 'ping', 
+              params: {} 
+            },
+            (response: any) => {
+              if (chromeRuntime.lastError) {
+                return; // suppress error if extension hasn't loaded yet
+              }
+              if (response && (response.version || response.protocol === 1 || response.ok)) {
+                this.setStatus({
+                  available: true,
+                  version: response.result?.version || '0.4.4',
+                  hasYouTubeAuth: true,
+                  hasDiscordRpc: true,
+                });
+              }
             }
-          }
-        );
-      }
-    } catch {}
+          );
+        }
+      } catch (e) {}
+    };
 
-    // 3. Window postMessage handshake protocol
+    pingExtension();
+
     const onMessage = (event: MessageEvent) => {
       if (event.data && (event.data.type === 'BITCHORD_EXTENSION_PONG' || event.data.method === 'ping')) {
         this.setStatus({
@@ -77,19 +89,24 @@ export class BitChordExtensionBridge {
     };
     window.addEventListener('message', onMessage);
 
-    // Ping extension
     try {
       window.postMessage({ type: 'BITCHORD_EXTENSION_PING', protocol: 1 }, '*');
     } catch {}
 
-    // 4. Fallback polling for asynchronous content script injection
-    setTimeout(() => {
-      if (!this.status.available) {
-        if ((window as any).__BITCHORD_EXTENSION__) {
-          this.setStatus({ available: true, version: '0.4.4' });
-        }
+    const timer = setInterval(() => {
+      if (this.status.available) {
+        clearInterval(timer);
+        return;
       }
-    }, 1200);
+      if ((window as any).__BITCHORD_EXTENSION__) {
+        this.setStatus({ available: true, version: '0.4.4' });
+        clearInterval(timer);
+      } else {
+        pingExtension();
+      }
+    }, 1000);
+
+    setTimeout(() => clearInterval(timer), 8000);
   }
 
   private setStatus(newStatus: ExtensionStatus) {
@@ -107,10 +124,6 @@ export class BitChordExtensionBridge {
     return () => this.listeners.delete(callback);
   }
 
-  /**
-   * Proxies an HTTP request through extension to bypass strict CORS if available.
-   * Falls back to direct window.fetch if extension is absent.
-   */
   public async proxyFetch(url: string, options: RequestInit = {}): Promise<Response> {
     if (this.status.available && (window as any).__BITCHORD_EXTENSION__?.proxyFetch) {
       try {
@@ -122,9 +135,6 @@ export class BitChordExtensionBridge {
     return fetch(url, options);
   }
 
-  /**
-   * Syncs current music playback with Discord Rich Presence via extension
-   */
   public updateDiscordRpc(track: { title: string; artist: string; duration: number; artwork?: string }) {
     if (!this.status.available) return;
     try {
