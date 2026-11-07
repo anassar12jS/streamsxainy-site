@@ -88,131 +88,176 @@ export async function getInnertube(): Promise<Innertube> {
  * Uses yt.music.search to find videoId, fetches basic info, and deciphers the best audio format.
  */
 export async function resolveStreamUrl(
-  trackOrId: string | MusicTrack | { title: string; artist: string; youtubeId?: string; audioUrl?: string }
+  trackOrId: string | MusicTrack | { title: string; artist: string; youtubeId?: string }
 ): Promise<{ url: string; isDash: boolean }> {
   const track = typeof trackOrId === 'string' 
-    ? { title: '', artist: '', youtubeId: trackOrId, audioUrl: '' } 
+    ? { title: '', artist: '', youtubeId: trackOrId } 
     : trackOrId;
 
-  // 1. If track already has a valid direct stream URL, return it immediately
-  if (track.audioUrl && typeof track.audioUrl === 'string' && (track.audioUrl.startsWith('http') || track.audioUrl.startsWith('blob:'))) {
-    return { url: track.audioUrl, isDash: false };
-  }
-
-  // 2. Attempt YouTube deciphering (works natively when companion extension is connected)
+  const yt = await getInnertube();
   let videoId = track.youtubeId;
 
-  try {
-    const yt = await getInnertube();
+  // 1. Resolve videoId via yt.music.search if not known
+  if (!videoId && (track.title || track.artist)) {
+    try {
+      const query = `${track.title} ${track.artist}`.trim();
+      const searchResults = await yt.music.search(query, { type: 'song' });
+      
+      const firstResult = 
+        (searchResults as any).results?.[0] ||
+        (searchResults as any).contents?.[0]?.contents?.[0] ||
+        (searchResults as any).contents?.[0] ||
+        (searchResults as any).songs?.contents?.[0];
 
-    // Resolve videoId via yt.music.search if not known
-    if (!videoId && (track.title || track.artist)) {
+      videoId = firstResult?.id;
+    } catch (err) {
+      console.warn('yt.music.search failed, attempting fallback query:', err);
+    }
+
+    if (!videoId) {
       try {
-        const query = `${track.title} ${track.artist}`.trim();
-        const searchResults = await yt.music.search(query, { type: 'song' });
-        
-        const firstResult = 
-          (searchResults as any).results?.[0] ||
-          (searchResults as any).contents?.[0]?.contents?.[0] ||
-          (searchResults as any).contents?.[0] ||
-          (searchResults as any).songs?.contents?.[0];
-
-        videoId = firstResult?.id;
+        const query = `${track.title} ${track.artist} audio`.trim();
+        const generalSearch = await yt.search(query, { type: 'video' });
+        videoId = (generalSearch as any).videos?.[0]?.id || (generalSearch as any).results?.[0]?.id;
       } catch (err) {
-        console.debug('yt.music.search skipped/failed:', err);
+        console.warn('yt.search fallback failed:', err);
       }
     }
 
-    if (videoId) {
+    if (!videoId) {
       try {
-        let info: any = null;
-        try {
-          info = await yt.getInfo(videoId);
-        } catch {
-          info = await yt.getBasicInfo(videoId);
+        const query = `${track.title} ${track.artist}`.trim();
+        const fallbackSearchUrls = [
+          `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=music_songs`,
+          `https://api.piped.privacy.com.de/search?q=${encodeURIComponent(query)}&filter=music_songs`,
+          `https://invidious.nerdvpn.de/api/v1/search?q=${encodeURIComponent(query)}&type=video`,
+        ];
+        for (const sUrl of fallbackSearchUrls) {
+          try {
+            const res = await extensionBridge.proxyFetch(sUrl);
+            if (res.ok) {
+              const data = await res.json();
+              const items = Array.isArray(data) ? data : data.items || [];
+              const first = items?.[0];
+              if (first?.url) {
+                const match = first.url.match(/v=([a-zA-Z0-9_-]{11})/);
+                if (match?.[1]) {
+                  videoId = match[1];
+                  break;
+                }
+              }
+              if (first?.videoId) {
+                videoId = first.videoId;
+                break;
+              }
+            }
+          } catch {}
+        }
+      } catch (fallbackErr) {
+        console.warn('Fallback search query failed:', fallbackErr);
+      }
+    }
+  }
+
+  // 2. Fetch stream format and decipher via player
+  if (videoId) {
+    try {
+      let info: any = null;
+      try {
+        info = await yt.getInfo(videoId);
+      } catch {
+        info = await yt.getBasicInfo(videoId);
+      }
+
+      let streamUrl: string | null = null;
+
+      // Get the best audio-only format (Opus 251 or AAC 140)
+      if (info?.streaming_data) {
+        const bestAudio = info.chooseFormat({ type: 'audio', quality: 'best' });
+
+        if (bestAudio) {
+          if (typeof bestAudio.url === 'string' && bestAudio.url.startsWith('http')) {
+            streamUrl = bestAudio.url;
+          } else if ((bestAudio.signature_cipher || bestAudio.cipher || bestAudio.url) && yt.session?.player) {
+            try {
+              const deciphered = await bestAudio.decipher(yt.session.player);
+              if (typeof deciphered === 'string' && deciphered.startsWith('http')) {
+                streamUrl = deciphered;
+              }
+            } catch (decErr) {
+              console.debug('bestAudio.decipher failed:', decErr);
+            }
+          }
         }
 
-        let streamUrl: string | null = null;
-
-        if (info?.streaming_data) {
-          const bestAudio = info.chooseFormat({ type: 'audio', quality: 'best' });
-
-          if (bestAudio) {
-            if (typeof bestAudio.url === 'string' && bestAudio.url.startsWith('http')) {
-              streamUrl = bestAudio.url;
-            } else if ((bestAudio.signature_cipher || bestAudio.cipher || bestAudio.url) && yt.session?.player) {
+        // Check adaptive formats if chooseFormat did not return a valid streamUrl
+        if (!streamUrl && info.streaming_data?.adaptive_formats) {
+          const formats = info.streaming_data.adaptive_formats || [];
+          const audioFormats = formats.filter((f: any) => f.mime_type?.includes('audio'));
+          for (const af of audioFormats) {
+            if (typeof af.url === 'string' && af.url.startsWith('http')) {
+              streamUrl = af.url;
+              break;
+            }
+            if ((af.signature_cipher || af.cipher) && yt.session?.player) {
               try {
-                const deciphered = await bestAudio.decipher(yt.session.player);
+                const cipherStr = af.signature_cipher || af.cipher;
+                const deciphered = await yt.session.player.decipher(cipherStr);
                 if (typeof deciphered === 'string' && deciphered.startsWith('http')) {
                   streamUrl = deciphered;
+                  break;
                 }
               } catch {}
             }
           }
+        }
 
-          if (!streamUrl && info.streaming_data?.adaptive_formats) {
-            const formats = info.streaming_data.adaptive_formats || [];
-            const audioFormats = formats.filter((f: any) => f.mime_type?.includes('audio'));
-            for (const af of audioFormats) {
-              if (typeof af.url === 'string' && af.url.startsWith('http')) {
-                streamUrl = af.url;
-                break;
-              }
-              if ((af.signature_cipher || af.cipher) && yt.session?.player) {
-                try {
-                  const cipherStr = af.signature_cipher || af.cipher;
-                  const deciphered = await yt.session.player.decipher(cipherStr);
-                  if (typeof deciphered === 'string' && deciphered.startsWith('http')) {
-                    streamUrl = deciphered;
-                    break;
-                  }
-                } catch {}
-              }
+        // Try DASH manifest if available
+        if (!streamUrl && typeof info.toDash === 'function') {
+          try {
+            const dashXml = await info.toDash();
+            if (dashXml && typeof dashXml === 'string') {
+              const blob = new Blob([dashXml], { type: 'application/dash+xml' });
+              return { url: URL.createObjectURL(blob), isDash: true };
+            }
+          } catch {}
+        }
+      }
+
+      if (streamUrl && typeof streamUrl === 'string' && streamUrl.startsWith('http')) {
+        return { url: streamUrl, isDash: false };
+      }
+    } catch (err) {
+      console.debug('InnerTube getInfo/decipher failed:', err);
+    }
+  }
+
+  // 3. Fallback streaming mirrors (reliable with CORS headers)
+  if (videoId) {
+    const proxyEndpoints = [
+      `https://pipedapi.kavin.rocks/streams/${videoId}`,
+      `https://api.piped.privacy.com.de/streams/${videoId}`,
+      `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`,
+    ];
+
+    for (const ep of proxyEndpoints) {
+      try {
+        const res = await extensionBridge.proxyFetch(ep);
+        if (res.ok) {
+          const data = await res.json();
+          const audioStreams = data.audioStreams || data.adaptiveFormats?.filter((f: any) => f.type?.includes('audio')) || [];
+          if (audioStreams.length > 0) {
+            const best = audioStreams.find((s: any) => s.itag === 251) || audioStreams[0];
+            if (best?.url && typeof best.url === 'string' && best.url.startsWith('http')) {
+              return { url: best.url, isDash: Boolean(best.url.includes('.mpd')) };
             }
           }
-
-          if (!streamUrl && typeof info.toDash === 'function') {
-            try {
-              const dashXml = await info.toDash();
-              if (dashXml && typeof dashXml === 'string') {
-                const blob = new Blob([dashXml], { type: 'application/dash+xml' });
-                return { url: URL.createObjectURL(blob), isDash: true };
-              }
-            } catch {}
-          }
         }
-
-        if (streamUrl && typeof streamUrl === 'string' && streamUrl.startsWith('http')) {
-          return { url: streamUrl, isDash: false };
-        }
-      } catch (err) {
-        console.debug('InnerTube getInfo/decipher failed:', err);
-      }
-    }
-  } catch (ytErr) {
-    console.debug('InnerTube not available:', ytErr);
-  }
-
-  // 3. Fallback: Resolve official high-fidelity Apple Music stream (100% CORS-supported in all web browsers)
-  if (track.title || track.artist) {
-    try {
-      const query = `${track.title} ${track.artist}`.trim();
-      const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=5`;
-      const res = await fetch(itunesUrl);
-      if (res.ok) {
-        const data = await res.json();
-        const results = data.results || [];
-        const matched = results.find((r: any) => r.previewUrl) || results[0];
-        if (matched?.previewUrl && typeof matched.previewUrl === 'string') {
-          return { url: matched.previewUrl, isDash: false };
-        }
-      }
-    } catch (itunesErr) {
-      console.warn('iTunes audio fallback failed:', itunesErr);
+      } catch {}
     }
   }
 
-  throw new Error(`Unable to resolve audio stream for "${track.title || 'Unknown'}"`);
+  throw new Error(`Unable to resolve YouTube audio stream for "${track.title || 'Unknown'}"`);
 }
 
 /**
@@ -329,7 +374,7 @@ export const APPLE_MUSIC_BROWSE_SECTIONS = {
       album: 'Interstellar (Original Motion Picture Soundtrack)',
       artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/7e/c5/5e/7ec55ee2-ebf8-d988-8f9a-431af1047747/artwork.jpg/600x600bb.jpg',
       duration: 236,
-      audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/3a/ee/23/3aee2300-f6f7-a006-e20f-28092e814cbe/mzaf_1624587954644600228.plus.aac.p.m4a',
+      audioUrl: '', // SCRUBBED: Full stream resolved on-demand via YouTube Music
       youtubeId: 'UDVtMYqUAyw',
       genre: 'Soundtrack',
       year: '2014',
@@ -341,7 +386,7 @@ export const APPLE_MUSIC_BROWSE_SECTIONS = {
       album: 'Oppenheimer (Original Motion Picture Soundtrack)',
       artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/4a/15/48/4a1548b2-b5ca-fae5-4f3d-ca290bf494ec/23UMGIM74921.rgb.jpg/600x600bb.jpg',
       duration: 110,
-      audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/0d/b0/b8/0db0b839-4fbc-2bb6-e280-3c9dc1302cf2/mzaf_12466660795519790459.plus.aac.p.m4a',
+      audioUrl: '', // SCRUBBED: Full stream resolved on-demand via YouTube Music
       youtubeId: '4JZ-o3iAJv4',
       genre: 'Soundtrack',
       year: '2023',
@@ -353,7 +398,7 @@ export const APPLE_MUSIC_BROWSE_SECTIONS = {
       album: 'Dune: Part Two (Original Soundtrack)',
       artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/b8/b5/45/b8b545d0-9ce1-38ae-aa21-0300a74ea85a/794043217997.jpg/600x600bb.jpg',
       duration: 261,
-      audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/90/b4/99/90b4992b-12da-fdb9-5c8a-9c22fc525046/mzaf_5854898050001671738.plus.aac.p.m4a',
+      audioUrl: '', // SCRUBBED: Full stream resolved on-demand via YouTube Music
       youtubeId: 'tZkWc2Z866o',
       genre: 'Soundtrack',
       year: '2024',
@@ -365,7 +410,7 @@ export const APPLE_MUSIC_BROWSE_SECTIONS = {
       album: 'Your Name. (Original Soundtrack)',
       artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/8e/31/31/8e31317a-85d7-b362-e935-d22798fbb0d8/16UMGIM41846.rgb.jpg/600x600bb.jpg',
       duration: 537,
-      audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/9e/5d/1b/9e5d1b78-2fd2-d5f6-3153-5be811d89585/mzaf_13933239041970487474.plus.aac.p.m4a',
+      audioUrl: '', // SCRUBBED: Full stream resolved on-demand via YouTube Music
       youtubeId: 'a2GujJZfXpg',
       genre: 'Anime / J-Rock',
       year: '2016',
@@ -377,7 +422,7 @@ export const APPLE_MUSIC_BROWSE_SECTIONS = {
       album: 'HIT ME HARD AND SOFT',
       artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/71/6a/5f/716a5fae-7833-255e-2b1b-b21a37c35e38/24UMGIM36919.rgb.jpg/600x600bb.jpg',
       duration: 196,
-      audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/34/31/d3/3431d34e-847f-5d66-df83-0bce688d997e/mzaf_18106743962423782018.plus.aac.p.m4a',
+      audioUrl: '', // SCRUBBED: Full stream resolved on-demand via YouTube Music
       youtubeId: 'V9PVRfjEBTI',
       genre: 'Pop',
       year: '2024',
@@ -389,7 +434,7 @@ export const APPLE_MUSIC_BROWSE_SECTIONS = {
       album: 'Short n\' Sweet',
       artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/bb/e4/c7/bbe4c7e0-2f9c-7037-4d76-e17f541334c9/24UMGIM53709.rgb.jpg/600x600bb.jpg',
       duration: 175,
-      audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/e9/4d/02/e94d0230-11ee-ef94-d2cf-a5d547bd73f4/mzaf_554140808559155562.plus.aac.p.m4a',
+      audioUrl: '', // SCRUBBED: Full stream resolved on-demand via YouTube Music
       youtubeId: 'eVli-tstM5E',
       genre: 'Pop',
       year: '2024',
@@ -401,7 +446,7 @@ export const APPLE_MUSIC_BROWSE_SECTIONS = {
       album: 'Attack on Titan Season 2 (Original Soundtrack)',
       artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music122/v4/eb/fa/cb/ebfacbe7-fcb6-4557-0131-f56191a0c868/PCXG_50602.jpg/600x600bb.jpg',
       duration: 358,
-      audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/bf/a5/be/bfa5be46-2213-9396-0b7a-5c3dae6673fa/mzaf_16560120418030801824.plus.aac.p.m4a',
+      audioUrl: '', // SCRUBBED: Full stream resolved on-demand via YouTube Music
       youtubeId: '1Tf6yZ8H_gY',
       genre: 'Anime / Epic',
       year: '2017',
@@ -413,7 +458,7 @@ export const APPLE_MUSIC_BROWSE_SECTIONS = {
       album: 'Starboy',
       artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/b0/be/a4/b0bea469-873b-75e1-848e-28f32230113c/16UMGIM61786.rgb.jpg/600x600bb.jpg',
       duration: 230,
-      audioUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/11/71/d6/1171d6ad-3c96-e027-2af6-58028426588c/mzaf_15137631797407745471.plus.aac.p.m4a',
+      audioUrl: '', // SCRUBBED: Full stream resolved on-demand via YouTube Music
       youtubeId: '34Na4j8AVgA',
       genre: 'R&B / Pop',
       year: '2016',
