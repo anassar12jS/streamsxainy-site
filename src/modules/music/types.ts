@@ -7,7 +7,7 @@ export interface MusicTrack {
   albumId?: string;
   artwork: string;
   duration: number; // in seconds
-  audioUrl: string;
+  audioUrl?: string;
   isDash?: boolean;
   isrc?: string;
   youtubeId?: string;

@@ -11,7 +11,7 @@ import { LyricsPanel } from './components/LyricsPanel';
 import { QueueDrawer } from './components/QueueDrawer';
 import { ExtensionBanner } from './components/ExtensionBanner';
 
-import { BrowseRoute } from './routes/BrowseRoute';
+import { BrowseRoute, BITCHORD_HOME_TRACKS } from './routes/BrowseRoute';
 import { SearchRoute } from './routes/SearchRoute';
 import { AlbumRoute } from './routes/AlbumRoute';
 import { RadioRoute } from './routes/RadioRoute';
@@ -30,12 +30,26 @@ export const MusicModule: React.FC = () => {
   const isMuted = useMusicPlayerStore(state => state.isMuted);
   const repeatMode = useMusicPlayerStore(state => state.repeatMode);
   
+  const setTrack = useMusicPlayerStore(state => state.setTrack);
   const setTime = useMusicPlayerStore(state => state.setTime);
   const setPlaybackStatus = useMusicPlayerStore(state => state.setPlaybackStatus);
   const nextTrack = useMusicPlayerStore(state => state.nextTrack);
   const prevTrack = useMusicPlayerStore(state => state.prevTrack);
   const togglePlayPause = useMusicPlayerStore(state => state.togglePlayPause);
   const setExtensionConnected = useMusicPlayerStore(state => state.setExtensionConnected);
+
+  // Initialize default track if none is selected yet (matching BitChord screenshot)
+  useEffect(() => {
+    if (!currentTrack && BITCHORD_HOME_TRACKS.length > 0) {
+      useMusicPlayerStore.setState({
+        currentTrack: BITCHORD_HOME_TRACKS[0],
+        duration: BITCHORD_HOME_TRACKS[0].duration || 184,
+        queue: BITCHORD_HOME_TRACKS,
+        queueIndex: 0,
+        playbackStatus: 'idle',
+      });
+    }
+  }, []);
 
   // 1. Initialize Audio Engine with HTMLAudioElement and callbacks
   useEffect(() => {
@@ -135,7 +149,7 @@ export const MusicModule: React.FC = () => {
 
   // 2. Respond to track changes & stream resolution
   useEffect(() => {
-    if (!currentTrack || !engineRef.current) return;
+    if (!currentTrack || !engineRef.current || playbackStatus === 'idle') return;
 
     let isCancelled = false;
 
@@ -250,7 +264,7 @@ export const MusicModule: React.FC = () => {
     return () => {
       isCancelled = true;
     };
-  }, [currentTrack?.id]);
+  }, [currentTrack?.id, playbackStatus === 'idle' ? null : currentTrack?.id]);
 
   // 3. Play / Pause state sync
   useEffect(() => {
@@ -279,7 +293,7 @@ export const MusicModule: React.FC = () => {
   };
 
   return (
-    <div className="am-shell min-h-screen flex flex-col bg-[#000000] text-white">
+    <div className="min-h-screen flex bg-[#161616] text-[#e1e1e3] relative overflow-hidden font-sans">
       
       {/* Hidden Web Audio Media Element */}
       <audio 
@@ -289,39 +303,35 @@ export const MusicModule: React.FC = () => {
         className="hidden" 
       />
 
-      {/* Top 56px Apple Music Glassmorphic Player Chrome */}
+      {/* Full-Height Left Sidebar */}
+      <Sidebar
+        isOpenOnMobile={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
+      />
+
+      {/* Main Content Scroll View */}
+      <main className="flex-1 min-w-0 h-screen overflow-y-auto px-4 sm:px-8 py-6 am-scrollbar">
+        
+        {/* Extension Detection Banner */}
+        <ExtensionBanner />
+
+        {/* Subroutes */}
+        <Routes>
+          <Route path="/" element={<BrowseRoute />} />
+          <Route path="/browse" element={<BrowseRoute />} />
+          <Route path="/search" element={<SearchRoute />} />
+          <Route path="/album/:id" element={<AlbumRoute />} />
+          <Route path="/radio" element={<RadioRoute />} />
+          <Route path="/library/*" element={<LibraryRoute />} />
+          <Route path="*" element={<Navigate to="/music" replace />} />
+        </Routes>
+      </main>
+
+      {/* Floating Glassmorphic Player Capsule Dock */}
       <PlayerChrome
         onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
         onSeek={handleSeek}
       />
-
-      {/* Main Container: 240px Fixed Sidebar + Main Scroll Outlet */}
-      <div className="flex-1 flex overflow-hidden">
-        
-        {/* Fixed Left Sidebar */}
-        <Sidebar
-          isOpenOnMobile={isMobileSidebarOpen}
-          onCloseMobile={() => setIsMobileSidebarOpen(false)}
-        />
-
-        {/* Main Scroll Container */}
-        <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 am-scrollbar">
-          
-          {/* Extension Detection Banner */}
-          <ExtensionBanner />
-
-          {/* Subroutes within /music */}
-          <Routes>
-            <Route path="/" element={<BrowseRoute />} />
-            <Route path="/browse" element={<BrowseRoute />} />
-            <Route path="/search" element={<SearchRoute />} />
-            <Route path="/album/:id" element={<AlbumRoute />} />
-            <Route path="/radio" element={<RadioRoute />} />
-            <Route path="/library/*" element={<LibraryRoute />} />
-            <Route path="*" element={<Navigate to="/music" replace />} />
-          </Routes>
-        </main>
-      </div>
 
       {/* Synced Lyrics Fullscreen / Side Panel */}
       <LyricsPanel
