@@ -25,8 +25,20 @@ export async function getInnertube(): Promise<Innertube> {
       cache: new UniversalCache(false),
       fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-        // Route through the extension bridge to bypass CORS
-        return await extensionBridge.proxyFetch(url, init);
+        
+        // Clone the options so we can safely mutate them
+        const options: RequestInit = { ...init };
+        
+        // Standardize method casing
+        const method = (options.method || 'GET').toUpperCase();
+        
+        // Chrome strictly forbids the 'body' property on GET/HEAD requests, even if undefined
+        if (method === 'GET' || method === 'HEAD') {
+          delete options.body;
+        }
+
+        // Route through the extension bridge
+        return await extensionBridge.proxyFetch(url, options);
       }
     });
   } catch (err) {
@@ -35,7 +47,20 @@ export async function getInnertube(): Promise<Innertube> {
       ytInstance = await Innertube.create({
         fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
           const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-          return await extensionBridge.proxyFetch(url, init);
+          
+          // Clone the options so we can safely mutate them
+          const options: RequestInit = { ...init };
+          
+          // Standardize method casing
+          const method = (options.method || 'GET').toUpperCase();
+          
+          // Chrome strictly forbids the 'body' property on GET/HEAD requests, even if undefined
+          if (method === 'GET' || method === 'HEAD') {
+            delete options.body;
+          }
+
+          // Route through the extension bridge
+          return await extensionBridge.proxyFetch(url, options);
         }
       });
     } catch (e2) {

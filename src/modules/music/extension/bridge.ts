@@ -187,7 +187,13 @@ export class BitChordExtensionBridge {
       }
     }
 
-    return fetch(url, init);
+    const cleanInit: RequestInit = { ...init };
+    const method = (cleanInit.method || 'GET').toUpperCase();
+    if (method === 'GET' || method === 'HEAD') {
+      delete cleanInit.body;
+    }
+
+    return fetch(url, cleanInit);
   }
 
   public updateDiscordRpc(track: { title: string; artist: string; duration: number; artwork?: string }) {
