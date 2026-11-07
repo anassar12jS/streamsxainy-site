@@ -26,7 +26,8 @@ const getThemeHex = () => {
 };
 
 export const PROVIDERS = [
-  { id: 'vidy', name: 'Vidy Prime', speed: 'Fast ⚡', quality: '1080p', badge: 'Default' },
+  { id: 'ishowstream', name: 'iShowStream', speed: 'Ultra Fast ⚡', quality: '4K · 1080p', badge: 'Fastest' },
+  { id: 'vidy', name: 'Vidy Prime', speed: 'Fast ⚡', quality: '1080p', badge: 'Popular' },
   { id: 'vidlypro', name: 'Vidly Pro', speed: 'Ultra ⚡', quality: '4K · 1080p', badge: 'Fast 4K' },
   { id: 'vidlink', name: 'VidLink Pro', speed: 'Instant 🚀', quality: 'FHD · Audio', badge: 'Top Rated' },
   { id: 'videasy', name: 'Videasy HD', speed: 'Smooth 🎬', quality: '1080p', badge: 'Clean' },
@@ -49,9 +50,9 @@ export const VidyPlayer: React.FC = () => {
 
   const initialServer = searchParams.get('server') as ProviderId;
   const [provider, setProvider] = useState<ProviderId>(
-    PROVIDERS.some(p => p.id === initialServer) ? initialServer : 'vidy'
+    PROVIDERS.some(p => p.id === initialServer) ? initialServer : 'ishowstream'
   );
-  const [animeProvider, setAnimeProvider] = useState<'aniembed' | 'megavid' | 'vidly' | 'anixo'>('aniembed');
+  const [animeProvider, setAnimeProvider] = useState<'aniembed' | 'megavid' | 'vidly' | 'anixo' | 'ishowstream'>('aniembed');
   const [animeLang, setAnimeLang] = useState<'sub' | 'dub'>('sub');
   const [retryKey, setRetryKey] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -237,24 +238,50 @@ export const VidyPlayer: React.FC = () => {
   });
 
   // Embed URL generation:
-  // For ANIME: Server 1 (AniEmbed), Server 2 (MegaVid), Server 3 (Vidly Pro), Server 4 (Anixo)
-  // For MOVIES / TV: Vidy Prime, Vidly Pro, VidLink Pro, Videasy HD, etc.
+  // For ANIME: Server 1 (AniEmbed), Server 2 (MegaVid), Server 3 (Vidly Pro), Server 4 (Anixo), Server 5 (iShowStream)
+  // For MOVIES / TV: iShowStream (Fastest), Vidy Prime, Vidly Pro, VidLink Pro, Videasy HD, etc.
   const embedUrl = useMemo(() => {
-    if (isAnime && effectiveAnilistId) {
-      if (animeProvider === 'megavid') {
+    if (isAnime) {
+      if (animeProvider === 'megavid' && effectiveAnilistId) {
         return `https://megavid.buzz/ani/${effectiveAnilistId}/${episode}/${animeLang}`;
       }
-      if (animeProvider === 'vidly') {
+      if (animeProvider === 'vidly' && effectiveAnilistId) {
         return `https://vidly.pro/anime/${effectiveAnilistId}/${episode}/${animeLang}?player=custom`;
       }
-      if (animeProvider === 'anixo') {
+      if (animeProvider === 'anixo' && effectiveAnilistId) {
         return `https://anixo.buzz/embed/ani/${effectiveAnilistId}/${episode}?track=${animeLang}&player=custom`;
       }
-      const tParam = progress && progress > 0 ? `&t=${Math.floor(progress)}` : '';
-      return `https://aniembed.se/e/${effectiveAnilistId}/${episode}?lang=${animeLang}&autoplay=1${tParam}`;
+      if (animeProvider === 'ishowstream') {
+        const ishowParams = new URLSearchParams({
+          branding: 'streamsxainy',
+          loading: '3',
+          subtitle: animeLang === 'dub' ? 'English' : 'Japanese',
+        });
+        if (themeHex) ishowParams.set('color', themeHex);
+        if (progress && progress > 0) ishowParams.set('progress', String(Math.floor(progress)));
+        return isEpisode
+          ? `https://ishowstream.cc/embed/tv/${id}/${season}/${episode}?${ishowParams.toString()}`
+          : `https://ishowstream.cc/embed/movie/${id}?${ishowParams.toString()}`;
+      }
+      if (effectiveAnilistId) {
+        const tParam = progress && progress > 0 ? `&t=${Math.floor(progress)}` : '';
+        return `https://aniembed.se/e/${effectiveAnilistId}/${episode}?lang=${animeLang}&autoplay=1${tParam}`;
+      }
     }
 
     switch (provider) {
+      case 'ishowstream': {
+        const ishowParams = new URLSearchParams({
+          branding: 'streamsxainy',
+          loading: '3',
+          subtitle: 'English',
+        });
+        if (themeHex) ishowParams.set('color', themeHex);
+        if (progress && progress > 0) ishowParams.set('progress', String(Math.floor(progress)));
+        return isEpisode
+          ? `https://ishowstream.cc/embed/tv/${id}/${season}/${episode}?${ishowParams.toString()}`
+          : `https://ishowstream.cc/embed/movie/${id}?${ishowParams.toString()}`;
+      }
       case 'vidy':
         return isEpisode
           ? `https://vidy.st/tv/${id}/${season}/${episode}?${vidyParams.toString()}`
@@ -295,10 +322,20 @@ export const VidyPlayer: React.FC = () => {
         return isEpisode
           ? `https://vidfast.pro/tv/${id}/${season}/${episode}?autoPlay=true`
           : `https://vidfast.pro/movie/${id}`;
-      default:
-        return `https://vidy.st/movie/${id}?${vidyParams.toString()}`;
+      default: {
+        const ishowParams = new URLSearchParams({
+          branding: 'streamsxainy',
+          loading: '3',
+          subtitle: 'English',
+        });
+        if (themeHex) ishowParams.set('color', themeHex);
+        if (progress && progress > 0) ishowParams.set('progress', String(Math.floor(progress)));
+        return isEpisode
+          ? `https://ishowstream.cc/embed/tv/${id}/${season}/${episode}?${ishowParams.toString()}`
+          : `https://ishowstream.cc/embed/movie/${id}?${ishowParams.toString()}`;
+      }
     }
-  }, [provider, animeProvider, animeLang, isEpisode, isAnime, id, externalId, season, episode, effectiveAnilistId, progress]);
+  }, [provider, animeProvider, animeLang, isEpisode, isAnime, id, externalId, season, episode, effectiveAnilistId, progress, themeHex]);
 
   // Loading safety timeout
   useEffect(() => {
@@ -323,6 +360,11 @@ export const VidyPlayer: React.FC = () => {
 
         let currentTime: number | undefined;
         let duration: number | undefined;
+
+        if (rawData.type === 'PLAYER_BACK') {
+          navigate(-1);
+          return;
+        }
 
         if (rawData.type === 'PLAYER_EVENT') {
           currentTime = rawData.data?.currentTime;
@@ -700,6 +742,22 @@ export const VidyPlayer: React.FC = () => {
                     <span>Server 4: Anixo</span>
                     {animeProvider === 'anixo' && <Check className="w-3 h-3 text-white" />}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAnimeProvider('ishowstream');
+                      setIsLoading(true);
+                      showToast('Switched to iShowStream (Server 5)');
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      animeProvider === 'ishowstream'
+                        ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
+                        : 'text-white/60 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span>Server 5: iShowStream</span>
+                    {animeProvider === 'ishowstream' && <Check className="w-3 h-3 text-white" />}
+                  </button>
                 </div>
               </div>
 
@@ -968,7 +1026,7 @@ export const VidyPlayer: React.FC = () => {
                   <div className="text-center">
                     <p className="text-sm font-bold text-white">
                       {isAnime 
-                        ? `Connecting to ${animeProvider === 'aniembed' ? 'AniEmbed (Server 1)' : animeProvider === 'megavid' ? 'MegaVid (Server 2)' : animeProvider === 'vidly' ? 'Vidly Pro (Server 3)' : 'Anixo (Server 4)'}...` 
+                        ? `Connecting to ${animeProvider === 'aniembed' ? 'AniEmbed (Server 1)' : animeProvider === 'megavid' ? 'MegaVid (Server 2)' : animeProvider === 'vidly' ? 'Vidly Pro (Server 3)' : animeProvider === 'anixo' ? 'Anixo (Server 4)' : 'iShowStream (Server 5)'}...` 
                         : `Connecting to ${PROVIDERS.find(p => p.id === provider)?.name || provider}...`}
                     </p>
                     <p className="text-xs text-white/50 mt-1">
@@ -1088,15 +1146,15 @@ export const VidyPlayer: React.FC = () => {
               <p className="text-xs sm:text-sm font-medium text-white/80">
                 {hasTimedOut 
                   ? isAnime
-                    ? `Stream taking longer than expected. Switch to Server 2 (MegaVid) or Server 3 (Vidly Pro).`
+                    ? `Stream taking longer than expected. Switch to another anime server above.`
                     : 'Server taking longer than expected. Try switching to the next provider below.'
                   : isAnime 
-                    ? `Streaming anime with ${animeProvider === 'aniembed' ? 'AniEmbed (Server 1)' : animeProvider === 'megavid' ? 'MegaVid (Server 2)' : animeProvider === 'vidly' ? 'Vidly Pro (Server 3)' : 'Anixo (Server 4)'} (${animeLang.toUpperCase()}).`
+                    ? `Streaming anime with ${animeProvider === 'aniembed' ? 'AniEmbed (Server 1)' : animeProvider === 'megavid' ? 'MegaVid (Server 2)' : animeProvider === 'vidly' ? 'Vidly Pro (Server 3)' : animeProvider === 'anixo' ? 'Anixo (Server 4)' : 'iShowStream (Server 5)'} (${animeLang.toUpperCase()}).`
                     : `Currently streaming via ${PROVIDERS.find(p => p.id === provider)?.name}.`}
               </p>
               <p className="text-[11px] text-white/50 mt-0.5">
                 {isAnime 
-                  ? 'If a server cannot find this episode, switch to one of the 4 alternate anime servers above.' 
+                  ? 'If a server cannot find this episode, switch to one of the 5 alternate anime servers above.' 
                   : 'If video or audio is buffering, click Next Server or pick another mirror.'}
               </p>
             </div>
@@ -1118,7 +1176,7 @@ export const VidyPlayer: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  setAnimeProvider(prev => prev === 'aniembed' ? 'megavid' : prev === 'megavid' ? 'vidly' : prev === 'vidly' ? 'anixo' : 'aniembed');
+                  setAnimeProvider(prev => prev === 'aniembed' ? 'megavid' : prev === 'megavid' ? 'vidly' : prev === 'vidly' ? 'anixo' : prev === 'anixo' ? 'ishowstream' : 'aniembed');
                   setIsLoading(true);
                   showToast('Switched to next anime player');
                 }}

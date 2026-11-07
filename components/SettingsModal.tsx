@@ -24,7 +24,9 @@ const THEME_OPTIONS = [
 ];
 
 const SERVER_OPTIONS = [
-  { id: 'vidy', name: 'Vidy (Fast Multi-Audio)' },
+  { id: 'ishowstream', name: 'iShowStream (Ultra Fast ⚡ · Default)' },
+  { id: 'vidy', name: 'Vidy Prime (Fast Multi-Audio)' },
+  { id: 'vidlypro', name: 'Vidly Pro (4K · Ultra)' },
   { id: 'vidlink', name: 'VidLink (Adaptive 4K)' },
   { id: 'vidsrc-wtf', name: 'VidSrc WTF' },
   { id: 'videasy', name: 'Videasy (Ad-Light)' },
@@ -37,7 +39,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   
   const [activeTheme, setActiveTheme] = useState('purple');
   const [currentMode, setCurrentMode] = useState<'dark' | 'light'>('dark');
-  const [defaultServer, setDefServerState] = useState('vidy');
+  const [defaultServer, setDefServerState] = useState('ishowstream');
   const [autoplayNext, setAutoplayState] = useState(true);
   
   const [providers, setProviders] = useState<StreamProvider[]>([]);

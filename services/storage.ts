@@ -263,7 +263,7 @@ export const setMode = (mode: 'dark' | 'light') => localStorage.setItem(MODE_KEY
 const DEFAULT_SERVER_KEY = 'streamhub_default_server';
 const AUTOPLAY_NEXT_KEY = 'streamhub_autoplay_next';
 
-export const getDefaultServer = (): string => localStorage.getItem(DEFAULT_SERVER_KEY) || 'vidy';
+export const getDefaultServer = (): string => localStorage.getItem(DEFAULT_SERVER_KEY) || 'ishowstream';
 export const setDefaultServer = (server: string) => localStorage.setItem(DEFAULT_SERVER_KEY, server);
 
 export const getAutoplayNext = (): boolean => localStorage.getItem(AUTOPLAY_NEXT_KEY) !== 'false';
