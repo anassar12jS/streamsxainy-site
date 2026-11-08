@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Search, Home, LayoutGrid, Clock, Mic2, Disc, Music2, 
   UserCheck, Sparkles, Settings, ExternalLink, ChevronsUpDown,
-  Film, Users, Youtube, Radio, LogOut, Check, Music, Terminal
+  Film, Users, Youtube, Radio, LogOut, Check, Music, Terminal, ListMusic, LayoutList
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
@@ -12,6 +12,7 @@ import { extensionBridge, BitChordExtensionBridge } from '../extension/bridge';
 import { useSessionStore } from '../store/useSessionStore';
 import { resetInnertube } from '../api/innertube';
 import { syncUserYouTubeMusicLibrary } from '../api/youtubeAuth';
+import { getLibraryPlaylists } from '../api/innertube';
 
 interface SidebarProps {
   isOpenOnMobile?: boolean;
@@ -37,8 +38,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const channels = useSessionStore(state => state.channels);
   const activeChannel = useSessionStore(state => state.activeChannel);
   const refreshSession = useSessionStore(state => state.refreshSession);
+  const authStatus = useSessionStore(state => state.authStatus);
   const selectChannel = useSessionStore(state => state.selectChannel);
   const disconnectSession = useSessionStore(state => state.disconnect);
+
+  // Live library playlists for the sidebar list (shared cache with the All Playlists page)
+  const { data: libraryPlaylists } = useQuery({
+    queryKey: ['ytm-library-playlists', activeChannel?.id || 'default'],
+    queryFn: getLibraryPlaylists,
+    enabled: authStatus === 'authenticated',
+    staleTime: 1000 * 60 * 3,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
 
   // Popover state
   const [showAccountPopover, setShowAccountPopover] = useState(false);
@@ -290,6 +302,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
             })}
           </div>
         </div>
+
+        {/* YouTube Music playlists (live from the signed-in library) */}
+        {authStatus === 'authenticated' && (
+          <div className="space-y-1 pt-2 border-t border-white/5">
+            <p className="px-3 text-[11px] font-medium text-[#777777] uppercase tracking-wider">
+              Playlists
+            </p>
+            <div className="space-y-0.5 pt-1">
+              <Link
+                to="/music/library/playlists"
+                onClick={onCloseMobile}
+                className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors duration-150 cursor-pointer ${
+                  location.pathname === '/music/library/playlists'
+                    ? 'bg-[#282828] text-white'
+                    : 'text-[#a3a3a3] hover:text-white hover:bg-[#1a1a1a]'
+                }`}
+              >
+                <LayoutList className="w-4 h-4 shrink-0" />
+                <span className="truncate">All Playlists</span>
+              </Link>
+              {(libraryPlaylists ?? []).slice(0, 8).map(pl => {
+                const path = `/music/playlist/${pl.id}`;
+                const isCurrent = location.pathname === path;
+                return (
+                  <Link
+                    key={pl.id}
+                    to={path}
+                    onClick={onCloseMobile}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors duration-150 cursor-pointer ${
+                      isCurrent ? 'bg-[#282828] text-white' : 'text-[#a3a3a3] hover:text-white hover:bg-[#1a1a1a]'
+                    }`}
+                  >
+                    <ListMusic className="w-4 h-4 shrink-0" />
+                    <span className="truncate">{pl.title}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Phase 3: Spotify Playlists in Sidebar */}
         {spotifyPlaylists && spotifyPlaylists.length > 0 && (

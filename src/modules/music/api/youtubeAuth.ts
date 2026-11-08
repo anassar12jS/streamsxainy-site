@@ -1,5 +1,5 @@
 import { MusicTrack, Playlist } from '../types';
-import { getInnertube, resetInnertube } from './innertube';
+import { getInnertube, resetInnertube, getPlaylistDetails, getLibraryPlaylists } from './innertube';
 import { extensionBridge } from '../extension/bridge';
 
 const STORAGE_KEY_YT_ACCOUNT = 'bitchord_yt_account_v1';
@@ -101,34 +101,17 @@ export async function importPlaylistFromYouTube(urlOrId: string): Promise<{ titl
     throw new Error('Invalid playlist URL or ID. Please paste a valid YouTube Music playlist link.');
   }
 
-  const yt = await getInnertube();
   let playlistTitle = 'Imported YouTube Music Playlist';
   let tracks: MusicTrack[] = [];
 
   try {
-    const res: any = await yt.getPlaylist(playlistId);
-    if (res?.info?.title) {
-      playlistTitle = res.info.title;
-    }
-
-    const items = res?.videos || res?.items || [];
-    if (Array.isArray(items) && items.length > 0) {
-      tracks = items.map((v: any, idx: number): MusicTrack => {
-        const thumb = v.thumbnails?.[0]?.url || v.thumbnail?.contents?.[0]?.url || '';
-        return {
-          id: `yt-pl-${v.id || idx}`,
-          title: v.title?.text || v.title || 'Unknown Title',
-          artist: v.author?.name || v.artists?.[0]?.name || 'Unknown Artist',
-          album: playlistTitle,
-          artwork: thumb ? thumb.replace(/=w\d+-h\d+/, '=w600-h600') : '',
-          duration: v.duration?.seconds || 210,
-          youtubeId: v.id,
-          source: 'innertube',
-        };
-      });
+    const pl = await getPlaylistDetails(playlistId);
+    if (pl) {
+      playlistTitle = pl.title || playlistTitle;
+      tracks = pl.tracks;
     }
   } catch (err) {
-    console.debug('yt.getPlaylist direct query failed, falling back to public mirror:', err);
+    console.debug('getPlaylistDetails failed, falling back to public mirror:', err);
   }
 
   // Fallback if direct InnerTube playlist fetch was blocked
@@ -152,7 +135,7 @@ export async function importPlaylistFromYouTube(urlOrId: string): Promise<{ titl
               artist: s.uploaderName || 'Unknown Artist',
               album: playlistTitle,
               artwork: s.thumbnailUrl || '',
-              duration: s.duration || 200,
+              duration: s.duration || 0,
               youtubeId: s.url ? s.url.replace('/watch?v=', '') : undefined,
               source: 'innertube',
             }));
@@ -196,128 +179,8 @@ export async function importPlaylistFromYouTube(urlOrId: string): Promise<{ titl
 // Real library sync
 // ---------------------------------------------------------------------------
 
-const MAX_PLAYLISTS = 30;
-const MAX_PAGES_PER_PLAYLIST = 6;
 const PLAYLIST_CONCURRENCY = 3;
-
-function upscale(url: string): string {
-  return url ? url.replace(/=w\d+-h\d+[^&]*$/, '=w600-h600') : '';
-}
-
-function listItemToTrack(item: any, fallbackAlbum: string, idPrefix: string): MusicTrack | null {
-  const videoId: string | undefined = item?.id;
-  const title: string | undefined = typeof item?.title === 'string' ? item.title : item?.title?.text;
-  if (!videoId || !title) return null;
-  const type = item?.item_type;
-  if (type && !['song', 'video', 'non_music_track', 'unknown'].includes(type)) return null;
-  const artists: string = (item.artists ?? item.authors ?? (item.author ? [item.author] : []))
-    .map((a: any) => a?.name)
-    .filter(Boolean)
-    .join(', ');
-  const thumbs = item.thumbnails ?? item.thumbnail?.contents ?? [];
-  const thumb = thumbs.length ? thumbs[thumbs.length - 1]?.url : '';
-  return {
-    id: `${idPrefix}-${videoId}`,
-    title,
-    artist: artists || 'Unknown Artist',
-    album: item.album?.name || fallbackAlbum,
-    albumId: item.album?.id,
-    artwork: upscale(thumb || ''),
-    duration: item.duration?.seconds || 0,
-    youtubeId: videoId,
-    source: 'innertube',
-  };
-}
-
-/** Loads a playlist's tracks, following continuations (bounded). */
-async function loadPlaylistTracks(yt: any, playlistId: string, idPrefix: string) {
-  let page: any = await yt.music.getPlaylist(playlistId);
-  const title: string = page?.header?.title?.text || page?.header?.title || '';
-  const tracks: MusicTrack[] = [];
-  for (let i = 0; i < MAX_PAGES_PER_PLAYLIST; i++) {
-    for (const item of page?.items ?? []) {
-      const t = listItemToTrack(item, title || 'YouTube Music', idPrefix);
-      if (t) tracks.push(t);
-    }
-    if (!page?.has_continuation) break;
-    page = await page.getContinuation();
-  }
-  return { title, tracks };
-}
-
-/** Collects playlist entries (id/title/artwork) from the library landing page. */
-async function listLibraryPlaylists(yt: any): Promise<Array<{ id: string; title: string; artwork: string }>> {
-  let library: any = await yt.music.getLibrary();
-  try {
-    // The landing page has filter chips; the Playlists chip lists them all.
-    if (Array.isArray(library?.filters) && library.filters.some((f: string) => /playlist/i.test(f))) {
-      library = await library.applyFilter(library.filters.find((f: string) => /playlist/i.test(f)));
-    }
-  } catch (e) {
-    console.debug('[yt sync] playlist filter not applied, using landing page:', e);
-  }
-
-  const found = new Map<string, { id: string; title: string; artwork: string }>();
-  const collect = (item: any) => {
-    if (item?.item_type !== 'playlist') return;
-    const raw: string | undefined = item.id || item.endpoint?.payload?.browseId;
-    if (!raw) return;
-    const id = raw.replace(/^VL/, '');
-    if (id === 'LM' || id === 'SE' || id.startsWith('RDPN')) return; // liked songs handled separately
-    const title = typeof item.title === 'string' ? item.title : item.title?.text;
-    if (!title) return;
-    const thumbs = item.thumbnail?.contents ?? item.thumbnail ?? [];
-    const thumb = Array.isArray(thumbs) && thumbs.length ? thumbs[thumbs.length - 1]?.url : '';
-    if (!found.has(id)) found.set(id, { id, title, artwork: upscale(thumb || '') });
-  };
-
-  let guard = 0;
-  let current: any = library;
-  while (current && guard++ < 8) {
-    for (const block of current.contents ?? []) {
-      for (const item of block?.items ?? block?.contents ?? []) collect(item);
-    }
-    if (!current.has_continuation) break;
-    const next = await current.getContinuation();
-    // Continuation pages expose items directly on `contents`
-    for (const item of next?.contents?.items ?? next?.contents?.contents ?? []) collect(item);
-    if (!next?.has_continuation) break;
-    current = next;
-    if (!current.contents?.[Symbol.iterator]) break;
-  }
-  return Array.from(found.values()).slice(0, MAX_PLAYLISTS);
-}
-
-/** Personalised shelves from the signed-in home feed ("Quick picks", "Mixed for you" ...). */
-async function loadHomeShelves(yt: any): Promise<Playlist[]> {
-  const feed: any = await yt.music.getHomeFeed();
-  const out: Playlist[] = [];
-  for (const sec of feed?.sections ?? []) {
-    const title: string | undefined = sec?.header?.title?.text;
-    const tracks = (sec?.contents ?? [])
-      .map((i: any) => listItemToTrack(i, title || 'YouTube Music', 'yt-home'))
-      .filter(Boolean) as MusicTrack[];
-    if (title && tracks.length >= 3) {
-      out.push({
-        id: `yt-home-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-        title,
-        subtitle: `${tracks.length} Songs · From your YouTube Music home`,
-        artwork: tracks[0].artwork,
-        trackCount: tracks.length,
-        tracks,
-      });
-    }
-  }
-  return out;
-}
-
-export function getYouTubeHomeShelves(): Playlist[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_YT_HOME);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return [];
-}
+const MAX_PLAYLISTS = 40;
 
 export class YouTubeSyncError extends Error {
   code: string;
@@ -328,15 +191,17 @@ export class YouTubeSyncError extends Error {
 }
 
 /**
- * Syncs the signed-in YouTube Music account: Liked Music (LM), all library playlists and
- * the personalised home shelves. Throws a YouTubeSyncError when the session isn't usable
- * and NEVER substitutes demo/curated data: if nothing real comes back, it says so.
+ * Syncs the signed-in YouTube Music account into local storage (used for the Library tabs
+ * and offline-ish lists): Liked Music (LM) and all library playlists, with real artist/album
+ * ids on every track. Throws a YouTubeSyncError when the session isn't usable and NEVER
+ * substitutes demo data.
+ *
+ * (Home, New, Album, Artist and Playlists pages fetch live and don't depend on this.)
  */
 export async function syncUserYouTubeMusicLibrary(_account?: LinkedYouTubeAccount): Promise<{
   likedTracks: MusicTrack[];
   playlists: Playlist[];
 }> {
-  // 1. Is there a real, accepted session?
   const auth = await extensionBridge.getAuthState(true);
   if (auth.error) {
     const hint = auth.error.code === 'forbidden'
@@ -354,91 +219,73 @@ export async function syncUserYouTubeMusicLibrary(_account?: LinkedYouTubeAccoun
     throw new YouTubeSyncError('session-rejected', auth.problem || 'YouTube did not accept the signed-in session.');
   }
 
-  // Fresh client so nothing cached from a previous channel leaks in.
-  resetInnertube();
-  const yt: any = await getInnertube();
+  resetInnertube(); // fresh client so nothing from a previous channel leaks in
 
-  // 2. Liked Music
-  let likedTracks: MusicTrack[] = [];
-  let likedError: unknown = null;
+  // Liked Music
+  let liked: Playlist | null = null;
+  let likedError: any = null;
   try {
-    likedTracks = (await loadPlaylistTracks(yt, 'LM', 'yt-liked')).tracks;
+    liked = await getPlaylistDetails('LM');
   } catch (e) {
     likedError = e;
     console.warn('[yt sync] Liked Music failed:', e);
   }
 
-  // 3. Library playlists
+  // Library playlists (cards), then each one's tracks
   const playlists: Playlist[] = [];
-  const byIndex: Array<Playlist | undefined> = [];
-  let playlistsError: unknown = null;
+  let listError: any = null;
   try {
-    const entries = await listLibraryPlaylists(yt);
+    const cards = (await getLibraryPlaylists()).filter(p => p.id !== 'LM').slice(0, MAX_PLAYLISTS);
+    const byIndex: Array<Playlist | undefined> = [];
     let cursor = 0;
     const worker = async () => {
-      while (cursor < entries.length) {
+      while (cursor < cards.length) {
         const idx = cursor++;
-        const entry = entries[idx];
+        const card = cards[idx];
         try {
-          const { title, tracks } = await loadPlaylistTracks(yt, entry.id, `yt-pl-${entry.id}`);
-          if (!tracks.length) continue;
-          byIndex[idx] = {
-            id: `yt-pl-${entry.id}`,
-            title: entry.title || title,
-            subtitle: `${tracks.length} Songs · YouTube Music`,
-            artwork: entry.artwork || tracks[0].artwork,
-            trackCount: tracks.length,
-            tracks,
-          };
+          const full = await getPlaylistDetails(card.id);
+          if (full && full.tracks.length) {
+            byIndex[idx] = { ...full, id: `yt-pl-${card.id}`, title: card.title || full.title, artwork: card.artwork || full.artwork };
+          }
         } catch (e) {
-          console.warn(`[yt sync] playlist ${entry.id} failed:`, e);
+          console.warn(`[yt sync] playlist ${card.id} failed:`, e);
         }
       }
     };
     await Promise.all(Array.from({ length: PLAYLIST_CONCURRENCY }, worker));
+    byIndex.forEach(p => p && playlists.push(p));
   } catch (e) {
-    playlistsError = e;
+    listError = e;
     console.warn('[yt sync] library playlists failed:', e);
   }
-  byIndex.forEach(p => p && playlists.push(p)); // keep the library's own order
 
+  const likedTracks = liked?.tracks ?? [];
   if (likedTracks.length) {
     playlists.unshift({
       id: 'yt-pl-liked-music',
       title: 'Liked Music',
-      subtitle: `${likedTracks.length} Songs · YouTube Music`,
+      subtitle: `${likedTracks.length} songs`,
       artwork: likedTracks[0].artwork,
       trackCount: likedTracks.length,
       tracks: likedTracks,
     });
   }
 
-  // 4. Personalised home shelves (listening preferences)
-  let homeShelves: Playlist[] = [];
-  try {
-    homeShelves = await loadHomeShelves(yt);
-  } catch (e) {
-    console.debug('[yt sync] home feed failed:', e);
-  }
-
-  // 5. Nothing real came back -> report, do not fake.
   if (!likedTracks.length && !playlists.length) {
-    const cause = (likedError || playlistsError) as any;
+    const cause = (likedError || listError) as any;
     throw new YouTubeSyncError(
       'empty',
       `Signed in as ${auth.active.name}, but no library data came back` +
         (cause?.message ? ` (${cause.message})` : '') +
-        `. If this account really has playlists, check the browser console for "[yt sync]" messages.`
+        `. Check the browser console for "[yt sync]" messages.`
     );
   }
 
-  // 6. Persist
   const merged = new Map<string, MusicTrack>();
   playlists.forEach(p => p.tracks.forEach(t => merged.set(t.youtubeId || t.id, t)));
   const allTracks = Array.from(merged.values());
   saveImportedYouTubeTracks(allTracks);
   saveImportedYouTubePlaylists(playlists);
-  try { localStorage.setItem(STORAGE_KEY_YT_HOME, JSON.stringify(homeShelves)); } catch {}
 
   saveLinkedYouTubeAccount({
     id: auth.active.id,

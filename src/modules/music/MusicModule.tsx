@@ -16,7 +16,8 @@ import { YouTubeAccountModal } from './components/YouTubeAccountModal';
 import { ImmersivePlayerOverlay } from './components/ImmersivePlayerOverlay';
 import { replayRecorder } from './api/replay';
 
-import { BrowseRoute, BITCHORD_HOME_TRACKS } from './routes/BrowseRoute';
+import { BrowseRoute } from './routes/BrowseRoute';
+import { PlaylistsRoute } from './routes/PlaylistsRoute';
 import { NewRoute } from './routes/NewRoute';
 import { SearchRoute } from './routes/SearchRoute';
 import { AlbumRoute } from './routes/AlbumRoute';
@@ -53,19 +54,6 @@ export const MusicModule: React.FC = () => {
   const prevTrack = useMusicPlayerStore(state => state.prevTrack);
   const togglePlayPause = useMusicPlayerStore(state => state.togglePlayPause);
   const setExtensionConnected = useMusicPlayerStore(state => state.setExtensionConnected);
-
-  // Initialize default track if none is selected yet (matching BitChord screenshot)
-  useEffect(() => {
-    if (!currentTrack && BITCHORD_HOME_TRACKS.length > 0) {
-      useMusicPlayerStore.setState({
-        currentTrack: BITCHORD_HOME_TRACKS[0],
-        duration: BITCHORD_HOME_TRACKS[0].duration || 184,
-        queue: BITCHORD_HOME_TRACKS,
-        queueIndex: 0,
-        playbackStatus: 'idle',
-      });
-    }
-  }, []);
 
   // 1. Initialize Audio Engine with HTMLAudioElement and callbacks
   useEffect(() => {
@@ -398,6 +386,7 @@ export const MusicModule: React.FC = () => {
           <Route path="/settings" element={<SettingsRoute />} />
           <Route path="/debug" element={<DebugInspectorRoute />} />
           <Route path="/inspector" element={<DebugInspectorRoute />} />
+          <Route path="/library/playlists" element={<PlaylistsRoute />} />
           <Route path="/library/recent" element={<LibraryRoute defaultTab="recent" />} />
           <Route path="/library/songs" element={<LibraryRoute defaultTab="songs" />} />
           <Route path="/library/artists" element={<LibraryRoute defaultTab="artists" />} />

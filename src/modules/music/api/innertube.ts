@@ -1,6 +1,7 @@
 import { Innertube, UniversalCache } from 'youtubei.js';
 import { MusicTrack, Album, Artist, Playlist } from '../types';
 import { extensionBridge } from '../extension/bridge';
+import { txt, thumbOf, parseSong, parseAlbumCard, parsePlaylistCard, parseCard, parseShelf, parseAlbumHeader, type HomeShelf, type HomeItem } from './ytmParse';
 
 let ytInstance: Innertube | null = null;
 let isInitializing = false;
@@ -491,520 +492,300 @@ export async function searchFullCatalog(query: string): Promise<FullCatalogSearc
   };
 }
 
+// ---------------------------------------------------------------------------
+// Live YouTube Music data (parsed with ytmParse; no invented fallbacks)
+// ---------------------------------------------------------------------------
+
+const MAX_PLAYLIST_PAGES = 12;
+
+/** Unwraps MusicEditablePlaylistDetailHeader -> inner header. */
+function unwrapHeader(h: any): any {
+  return h?.header && !h?.title ? h.header : h;
+}
+
 /**
- * Fetches album details strictly via InnerTube yt.music.getAlbum(albumId)
- * With intelligent search fallback so albums are always resolved.
+ * Album page via yt.music.getAlbum. Throws on failure so the UI can show a real error
+ * (instead of an invented album).
  */
 export async function getAlbumDetails(albumId: string): Promise<Album | null> {
-  const cleanId = albumId?.trim();
-  if (!cleanId) return null;
+  const id = albumId?.trim();
+  if (!id) return null;
 
-  // 1. Direct getAlbum attempt via InnerTube
-  try {
-    const yt = await getInnertube();
-    if (yt?.music) {
-      try {
-        const res: any = await yt.music.getAlbum(cleanId);
-        if (res && (res.header || res.contents || res.title)) {
-          const title = res.header?.title?.text || res.title?.text || res.title || 'Unknown Album';
-          const artist = res.header?.author?.name || res.header?.artists?.[0]?.name || res.artists?.[0]?.name || 'Unknown Artist';
-          const artistId = res.header?.author?.id || res.header?.author?.browseId || res.header?.artists?.[0]?.id || res.artists?.[0]?.id;
-          const year = res.header?.year?.text || res.year?.text || res.year || '';
-          
-          const thumbs = res.header?.thumbnails || res.thumbnails || [];
-          const rawArt = thumbs.length > 0 ? (thumbs[thumbs.length - 1]?.url || thumbs[0]?.url) : '';
-          const highResArt = rawArt ? rawArt.replace(/=w\d+-h\d+/, '=w1200-h1200') : '';
+  const yt: any = await getInnertube();
+  const res: any = await yt.music.getAlbum(id);
+  const head = parseAlbumHeader(unwrapHeader(res?.header), res?.background);
+  if (!head.title) return null;
 
-          const contents = res.contents || [];
-          const tracks: MusicTrack[] = contents.map((item: any, idx: number) => {
-            const videoId = item.id || item.videoId || '';
-            const tThumb = item.thumbnail?.contents?.[0]?.url || item.thumbnails?.[0]?.url || highResArt;
-            return {
-              id: videoId || `${cleanId}-t${idx}`,
-              title: item.title?.text || item.title || `Track ${idx + 1}`,
-              artist: item.artists?.[0]?.name || item.author?.name || artist,
-              artistId: item.artists?.[0]?.id || artistId,
-              album: title,
-              albumId: cleanId,
-              artwork: tThumb ? tThumb.replace(/=w\d+-h\d+/, '=w600-h600') : highResArt,
-              duration: item.duration?.seconds || 210,
-              youtubeId: videoId,
-              source: 'innertube',
-            };
-          });
+  const tracks = (res.contents ?? [])
+    .map((row: any) =>
+      parseSong(row, {
+        album: head.title,
+        albumId: id,
+        artist: head.artist,
+        artistId: head.artistId,
+        artwork: head.artwork,
+      })
+    )
+    .filter(Boolean) as MusicTrack[];
 
-          return {
-            id: cleanId,
-            title,
-            artist,
-            artistId,
-            artwork: highResArt || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80',
-            year: String(year || '2024'),
-            genre: 'Album',
-            trackCount: tracks.length,
-            tracks,
-          };
-        }
-      } catch (directErr) {
-        // Direct browse ID lookup failed, proceed to search fallback
-      }
-
-      // 2. Search fallback: Search for the album name/id to find real YouTube browseId
-      const searchQuery = cleanId.replace(/^MPREb_|^album_/, '').replace(/[-_]/g, ' ');
-      try {
-        const searchRes: any = await yt.music.search(searchQuery, { type: 'album' });
-        const firstAlbum = searchRes.results?.[0] || searchRes.contents?.[0]?.contents?.[0];
-        if (firstAlbum && firstAlbum.id && firstAlbum.id !== cleanId) {
-          return await getAlbumDetails(firstAlbum.id);
-        }
-      } catch {}
-
-      // 3. Track search fallback: Gather tracks for the query
-      try {
-        const songSearch: any = await yt.music.search(searchQuery, { type: 'song' });
-        const items = songSearch.results || songSearch.contents?.[0]?.contents || [];
-        if (items.length > 0) {
-          const topTracks: MusicTrack[] = items.slice(0, 10).map((item: any, idx: number) => {
-            const videoId = item.id || item.videoId || '';
-            const tThumb = item.thumbnail?.contents?.[0]?.url || item.thumbnails?.[0]?.url || '';
-            return {
-              id: videoId || `t-${idx}`,
-              title: item.title?.text || item.title || 'Track',
-              artist: item.artists?.[0]?.name || searchQuery,
-              album: item.album?.name || searchQuery,
-              artwork: tThumb ? tThumb.replace(/=w\d+-h\d+/, '=w600-h600') : 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80',
-              duration: item.duration?.seconds || 210,
-              youtubeId: videoId,
-            };
-          });
-
-          return {
-            id: cleanId,
-            title: topTracks[0]?.album || searchQuery,
-            artist: topTracks[0]?.artist || 'Various Artists',
-            artwork: topTracks[0]?.artwork || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80',
-            year: '2024',
-            genre: 'Album',
-            trackCount: topTracks.length,
-            tracks: topTracks,
-          };
-        }
-      } catch {}
-    }
-  } catch (err) {
-    console.warn('getAlbumDetails failed:', cleanId, err);
-  }
-
-  return null;
+  return {
+    id,
+    title: head.title,
+    artist: head.artist || 'Unknown Artist',
+    artistId: head.artistId,
+    artwork: head.artwork,
+    year: head.year,
+    genre: head.kind,
+    trackCount: tracks.length,
+    duration: tracks.reduce((n, t) => n + (t.duration || 0), 0),
+    tracks,
+  };
 }
 
 /**
- * Fetches artist details, top tracks, and albums strictly via InnerTube yt.music.getArtist(artistId)
- * With intelligent search fallback so artists are always found and displayed.
+ * Artist page via yt.music.getArtist. Artist ids are channel ids (UC...).
  */
 export async function getArtistDetails(artistId: string): Promise<Artist | null> {
-  const cleanId = artistId?.trim();
-  if (!cleanId) return null;
+  const id = artistId?.trim();
+  if (!id) return null;
 
-  try {
-    const yt = await getInnertube();
-    if (yt?.music) {
-      try {
-        const res: any = await yt.music.getArtist(cleanId);
-        if (res && (res.header || res.sections || res.name)) {
-          const name = res.header?.title?.text || res.name?.text || res.name || 'Unknown Artist';
-          const thumbs = res.header?.thumbnails || res.thumbnails || [];
-          const rawAvatar = thumbs.length > 0 ? (thumbs[thumbs.length - 1]?.url || thumbs[0]?.url) : '';
-          const highResAvatar = rawAvatar ? rawAvatar.replace(/=w\d+-h\d+/, '=w800-h800') : '';
-          const monthlyListeners = res.header?.monthly_listeners?.text || res.header?.subscribers?.text || 'Verified Artist';
+  const yt: any = await getInnertube();
+  const res: any = await yt.music.getArtist(id);
+  const h: any = res?.header;
+  const name = txt(h?.title);
+  if (!name) return null;
 
-          const sections = res.sections || [];
-          let topTracks: MusicTrack[] = [];
-          let albums: Album[] = [];
+  const avatar = thumbOf(h?.thumbnail ?? h?.foreground_thumbnail ?? h?.thumbnails, 800);
+  const ctx = { artist: name, artistId: id, artwork: avatar };
 
-          for (const section of sections) {
-            const secTitle = (section.title?.text || section.title || '').toLowerCase();
-            const isSongShelf = secTitle.includes('song') || section.type === 'MusicShelf';
-            const isAlbumShelf = secTitle.includes('album') || secTitle.includes('discograph') || secTitle.includes('release');
+  let topTracks: MusicTrack[] = [];
+  const albums: Album[] = [];
+  const singles: Album[] = [];
 
-            if (isSongShelf && topTracks.length === 0 && Array.isArray(section.contents)) {
-              topTracks = section.contents.slice(0, 15).map((item: any, idx: number) => {
-                const videoId = item.id || item.videoId || '';
-                const tThumb = item.thumbnail?.contents?.[0]?.url || item.thumbnails?.[0]?.url || highResAvatar;
-                return {
-                  id: videoId || `artist-song-${idx}`,
-                  title: item.title?.text || item.title || 'Untitled',
-                  artist: item.artists?.[0]?.name || name,
-                  artistId: item.artists?.[0]?.id || cleanId,
-                  album: item.album?.name || 'Single',
-                  albumId: item.album?.id,
-                  artwork: tThumb ? tThumb.replace(/=w\d+-h\d+/, '=w600-h600') : highResAvatar,
-                  duration: item.duration?.seconds || 210,
-                  youtubeId: videoId,
-                  source: 'innertube',
-                };
-              });
-            }
+  for (const section of res.sections ?? []) {
+    const isCarousel = section?.header !== undefined; // MusicCarouselShelf has .header, MusicShelf has .title
+    const title = (isCarousel ? txt(section.header?.title) : txt(section.title)).toLowerCase();
+    const contents: any[] = section.contents ?? [];
 
-            if (isAlbumShelf && albums.length === 0 && Array.isArray(section.contents)) {
-              albums = section.contents.slice(0, 12).map((a: any, idx: number) => {
-                const aId = a.id || a.browseId || `alb-${idx}`;
-                const aThumb = a.thumbnail?.contents?.[0]?.url || a.thumbnails?.[0]?.url || highResAvatar;
-                return {
-                  id: aId,
-                  title: a.title?.text || a.title || 'Album',
-                  artist: a.artists?.[0]?.name || name,
-                  artistId: cleanId,
-                  artwork: aThumb ? aThumb.replace(/=w\d+-h\d+/, '=w600-h600') : highResAvatar,
-                  year: a.year?.text || a.year || '',
-                  genre: 'Album',
-                  trackCount: 10,
-                  tracks: [],
-                };
-              });
-            }
-          }
-
-          return {
-            id: cleanId,
-            name,
-            avatar: highResAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-            monthlyListeners,
-            topTracks,
-            albums,
-            singles: [],
-          };
-        }
-      } catch (directErr) {
-        // Direct getArtist failed, fallback to searching the artist name
+    if (!isCarousel) {
+      // MusicShelf of songs ("Songs" / "Top songs")
+      if (topTracks.length === 0) {
+        topTracks = contents.map(r => parseSong(r, ctx)).filter(Boolean) as MusicTrack[];
       }
-
-      // Fallback search
-      const artistQuery = cleanId.replace(/^UC/, '').replace(/[-_]/g, ' ');
-      try {
-        const searchSongs: any = await yt.music.search(`${artistQuery} top tracks`, { type: 'song' });
-        const rawSongs = searchSongs.results || searchSongs.contents?.[0]?.contents || [];
-        if (rawSongs.length > 0) {
-          const topTracks: MusicTrack[] = rawSongs.slice(0, 15).map((item: any, idx: number) => {
-            const videoId = item.id || item.videoId || '';
-            const tThumb = item.thumbnail?.contents?.[0]?.url || item.thumbnails?.[0]?.url || '';
-            return {
-              id: videoId || `at-${idx}`,
-              title: item.title?.text || item.title || 'Song',
-              artist: item.artists?.[0]?.name || artistQuery,
-              album: item.album?.name || 'Single',
-              artwork: tThumb ? tThumb.replace(/=w\d+-h\d+/, '=w600-h600') : 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80',
-              duration: item.duration?.seconds || 210,
-              youtubeId: videoId,
-            };
-          });
-
-          return {
-            id: cleanId,
-            name: topTracks[0]?.artist || artistQuery,
-            avatar: topTracks[0]?.artwork || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-            monthlyListeners: 'Verified Artist',
-            topTracks,
-            albums: [],
-            singles: [],
-          };
-        }
-      } catch {}
+      continue;
     }
-  } catch (err) {
-    console.warn('yt.music.getArtist failed for ID:', cleanId, err);
+
+    if (/single|\bep\b/.test(title)) {
+      contents.forEach(c => { const a = parseAlbumCard(c); if (a) singles.push({ ...a, artist: a.artist || name, artistId: a.artistId || id }); });
+    } else if (/album|discograph/.test(title)) {
+      contents.forEach(c => { const a = parseAlbumCard(c); if (a) albums.push({ ...a, artist: a.artist || name, artistId: a.artistId || id }); });
+    }
   }
 
-  return null;
+  const subs: string = h?.subscription_button?.subscriber_count || '';
+  return {
+    id,
+    name,
+    avatar,
+    bio: txt(h?.description) || undefined,
+    monthlyListeners: subs || undefined,
+    topTracks,
+    albums,
+    singles,
+  };
 }
 
-/**
- * Fetches full playlist details and its tracklist from YouTube Music
- */
+/** Loads every page of a playlist's tracks (bounded). */
+async function loadPlaylistPages(yt: any, playlistId: string) {
+  let page: any = await yt.music.getPlaylist(playlistId);
+  const header = unwrapHeader(page?.header);
+  const tracks: MusicTrack[] = [];
+  for (let i = 0; i < MAX_PLAYLIST_PAGES; i++) {
+    for (const row of page?.items ?? []) {
+      const t = parseSong(row);
+      if (t) tracks.push(t);
+    }
+    if (!page?.has_continuation) break;
+    page = await page.getContinuation();
+  }
+  return { header, tracks, background: page?.background };
+}
+
+/** Playlist page (incl. Liked Music 'LM') with every track, via yt.music.getPlaylist. */
 export async function getPlaylistDetails(playlistId: string): Promise<Playlist | null> {
-  const cleanId = (playlistId || '').trim();
-  if (!cleanId) return null;
+  const id = (playlistId || '').trim().replace(/^VL/, '');
+  if (!id) return null;
 
-  // 1. Check cached / imported playlists in localStorage for instant retrieval
-  try {
-    const raw = localStorage.getItem('bitchord_yt_imported_playlists_v1');
-    if (raw) {
-      const imported: Playlist[] = JSON.parse(raw);
-      const found = imported.find(p => p.id === cleanId || p.id === `yt-pl-${cleanId}` || cleanId === `yt-pl-${p.id}`);
-      if (found && found.tracks && found.tracks.length > 0) {
-        return found;
-      }
-    }
-  } catch {}
+  const yt: any = await getInnertube();
+  const { header, tracks, background } = await loadPlaylistPages(yt, id);
 
-  const targetId = cleanId.replace(/^yt-pl-/, '');
-  const realPlaylistId = targetId === 'liked-music' ? 'LM' : targetId;
+  const title = txt(header?.title) || (id === 'LM' ? 'Liked Music' : '');
+  if (!title && tracks.length === 0) return null;
 
-  try {
-    const yt = await getInnertube();
-    if (yt?.music) {
-      let playlistData: any = null;
-      try {
-        playlistData = await yt.music.getPlaylist(realPlaylistId);
-      } catch (e1) {
-        // Fallback to general yt.getPlaylist
-        try {
-          playlistData = await (yt as any).getPlaylist(realPlaylistId);
-        } catch (e2) {
-          // Fallback to browse action
-          playlistData = await (yt as any).actions.execute('/browse', { browseId: `VL${realPlaylistId}` });
-        }
-      }
+  const owner = header?.author?.name || txt(header?.strapline_text_one) || '';
+  const artwork = thumbOf(header?.thumbnail ?? header?.thumbnails ?? background, 800) || tracks[0]?.artwork || '';
 
-      if (playlistData) {
-        const header = playlistData.header || {};
-        const title = header.title?.text || header.title || playlistData.title || (targetId === 'liked-music' ? 'Liked Music' : 'Playlist');
-        const description = header.description?.text || header.description || '';
-        const author = header.author?.name || header.author?.text || header.owner_name?.text || 'YouTube Music';
-        
-        const thumbs = header.thumbnails || header.thumbnail?.contents || [];
-        const rawArt = thumbs.length > 0 ? (thumbs[thumbs.length - 1]?.url || thumbs[0]?.url) : '';
-        const highResArt = rawArt ? rawArt.replace(/=w\d+-h\d+/, '=w800-h800') : '';
-
-        const rawTracks = playlistData.contents || playlistData.items || [];
-        const tracks: MusicTrack[] = [];
-
-        for (let idx = 0; idx < rawTracks.length; idx++) {
-          const item = rawTracks[idx];
-          const videoId = item.id || item.videoId || item.endpoint?.payload?.videoId;
-          const tTitle = typeof item.title === 'string' ? item.title : item.title?.text || item.title?.runs?.[0]?.text;
-          
-          if (videoId && tTitle) {
-            const artists = (item.artists ?? item.authors ?? (item.author ? [item.author] : []))
-              .map((a: any) => a?.name || a?.text)
-              .filter(Boolean)
-              .join(', ') || author;
-
-            const tThumbs = item.thumbnail?.contents || item.thumbnails || [];
-            const tArt = tThumbs.length > 0 ? (tThumbs[tThumbs.length - 1]?.url || tThumbs[0]?.url) : highResArt;
-
-            tracks.push({
-              id: `${cleanId}-${videoId}`,
-              title: tTitle,
-              artist: artists,
-              album: item.album?.name || title,
-              albumId: item.album?.id,
-              artwork: tArt ? tArt.replace(/=w\d+-h\d+/, '=w600-h600') : highResArt,
-              duration: item.duration?.seconds || 210,
-              youtubeId: videoId,
-              source: 'innertube',
-            });
-          }
-        }
-
-        return {
-          id: cleanId,
-          title,
-          subtitle: `${tracks.length} Songs · ${author}`,
-          curator: author,
-          artwork: highResArt || tracks[0]?.artwork || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80',
-          trackCount: tracks.length,
-          tracks,
-        };
-      }
-    }
-  } catch (err) {
-    console.warn(`Failed to fetch playlist ${cleanId}:`, err);
-  }
-
-  // Fallback: search for tracks matching the playlist name or provide verified tracks
-  try {
-    const yt = await getInnertube();
-    const query = cleanId.replace(/^yt-pl-|^pl-/, '').replace(/[-_]/g, ' ');
-    const searchRes: any = await yt.music.search(query, { type: 'song' });
-    const items = searchRes.results || searchRes.contents?.[0]?.contents || [];
-    if (items.length > 0) {
-      const tracks: MusicTrack[] = items.slice(0, 15).map((item: any, idx: number) => {
-        const videoId = item.id || item.videoId || '';
-        const thumb = item.thumbnail?.contents?.[0]?.url || item.thumbnails?.[0]?.url || '';
-        return {
-          id: videoId || `pl-fallback-${idx}`,
-          title: item.title?.text || item.title || 'Track',
-          artist: item.artists?.[0]?.name || 'Artist',
-          album: query,
-          artwork: thumb ? thumb.replace(/=w\d+-h\d+/, '=w600-h600') : 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80',
-          duration: item.duration?.seconds || 210,
-          youtubeId: videoId,
-        };
-      });
-
-      return {
-        id: cleanId,
-        title: query.toUpperCase(),
-        subtitle: `${tracks.length} Songs · YouTube Music`,
-        curator: 'YouTube Music',
-        artwork: tracks[0]?.artwork || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80',
-        trackCount: tracks.length,
-        tracks,
-      };
-    }
-  } catch {}
-
-  return null;
+  return {
+    id,
+    title: title || 'Playlist',
+    subtitle: [owner, `${tracks.length} songs`].filter(Boolean).join(' • '),
+    curator: owner || undefined,
+    artwork,
+    trackCount: tracks.length,
+    tracks,
+  };
 }
 
 /**
- * Fetches New Releases & Trending Music Videos from YouTube Music Explore
+ * Reads one filter of the library landing page ("Playlists" | "Albums" | "Artists" | "Songs")
+ * and returns the raw items, following continuations.
  */
+async function readLibraryItems(chip: RegExp, maxPages = 10): Promise<any[]> {
+  const yt: any = await getInnertube();
+  let library: any = await yt.music.getLibrary();
+
+  const label = (library.filters as string[] | undefined)?.find(f => chip.test(f));
+  if (!label) {
+    throw new Error('Your YouTube Music library has no matching section. Is the account signed in?');
+  }
+  library = await library.applyFilter(label);
+
+  const items: any[] = [];
+  const take = (c: any) => items.push(...(c?.items ?? c?.contents ?? []));
+  (library?.contents ?? []).forEach(take);
+
+  let guard = 0;
+  let cur: any = library;
+  while (cur?.has_continuation && guard++ < maxPages) {
+    cur = await cur.getContinuation();
+    take(cur?.contents);
+  }
+  return items;
+}
+
+/**
+ * The signed-in account's library playlists (cards only, no tracks), preceded by Liked Music.
+ */
+export async function getLibraryPlaylists(): Promise<Playlist[]> {
+  const raw = await readLibraryItems(/playlist/i);
+  const found = new Map<string, Playlist>();
+  for (const it of raw) {
+    if (it?.item_type !== 'playlist') continue;
+    const card = parsePlaylistCard(it);
+    if (!card || card.id === 'LM' || card.id === 'SE') continue;
+    if (!found.has(card.id)) found.set(card.id, card);
+  }
+  const liked: Playlist = {
+    id: 'LM',
+    title: 'Liked Music',
+    subtitle: 'Auto playlist',
+    artwork: '',
+    trackCount: 0,
+    tracks: [],
+  };
+  return [liked, ...Array.from(found.values())];
+}
+
+/** Albums or artists saved in the account's library. */
+export async function getLibrarySection(kind: 'Albums' | 'Artists'): Promise<HomeItem[]> {
+  const raw = await readLibraryItems(new RegExp(kind, 'i'));
+  const seen = new Set<string>();
+  const out: HomeItem[] = [];
+  for (const it of raw) {
+    const card = parseCard(it);
+    if (!card) continue;
+    const key = card.kind === 'album' ? card.album.id : card.kind === 'artist' ? card.artist.id : '';
+    if (!key || seen.has(`${card.kind}:${key}`)) continue;
+    seen.add(`${card.kind}:${key}`);
+    out.push(card);
+  }
+  return out;
+}
+
+/** Personalised home feed shelves (live, follows a couple of continuations). */
+export async function getHomeShelves(): Promise<HomeShelf[]> {
+  const yt: any = await getInnertube();
+  let feed: any = await yt.music.getHomeFeed();
+  const shelves: HomeShelf[] = [];
+  const seen = new Set<string>();
+  for (let page = 0; page < 3 && feed; page++) {
+    for (const [i, sec] of (feed.sections ?? []).entries()) {
+      const shelf = parseShelf(sec, `home-${page}-${i}`);
+      if (shelf && !seen.has(shelf.title)) {
+        seen.add(shelf.title);
+        shelves.push(shelf);
+      }
+    }
+    if (!feed.has_continuation) break;
+    feed = await feed.getContinuation();
+  }
+  return shelves;
+}
+
+/** New releases / trending from the Explore page, classified by item type (not by shelf title). */
 export async function getExploreNewReleases(): Promise<{
   newAlbums: Album[];
   trendingVideos: MusicTrack[];
 }> {
-  try {
-    const yt = await getInnertube();
-    if (yt?.music) {
-      let exploreData: any = null;
-      try {
-        exploreData = await yt.music.getExplore();
-      } catch {
-        exploreData = await (yt as any).actions.execute('/browse', { browseId: 'FEmusic_new_releases' });
-      }
+  const yt: any = await getInnertube();
+  const explore: any = await yt.music.getExplore();
 
-      if (exploreData) {
-        const sections = exploreData.sections || exploreData.contents || [];
-        const newAlbums: Album[] = [];
-        const trendingVideos: MusicTrack[] = [];
+  const newAlbums: Album[] = [];
+  const trendingVideos: MusicTrack[] = [];
+  const seenA = new Set<string>();
+  const seenV = new Set<string>();
 
-        for (const section of sections) {
-          const title = (section.title?.text || section.title || '').toLowerCase();
-          const items = section.contents || section.items || [];
-
-          if (title.includes('album') || title.includes('release') || title.includes('new')) {
-            for (const it of items) {
-              const aId = it.id || it.browseId;
-              const aTitle = it.title?.text || it.title;
-              if (aId && aTitle) {
-                const thumbs = it.thumbnail?.contents || it.thumbnails || [];
-                const art = thumbs.length > 0 ? (thumbs[thumbs.length - 1]?.url || thumbs[0]?.url) : '';
-                newAlbums.push({
-                  id: aId,
-                  title: aTitle,
-                  artist: it.artists?.[0]?.name || it.author?.name || 'Artist',
-                  artistId: it.artists?.[0]?.id,
-                  artwork: art ? art.replace(/=w\d+-h\d+/, '=w600-h600') : '',
-                  year: it.year?.text || '2024',
-                  genre: 'New Release',
-                  trackCount: 10,
-                  tracks: [],
-                });
-              }
-            }
-          }
-
-          if (title.includes('video') || title.includes('trending') || title.includes('music video')) {
-            for (const it of items) {
-              const videoId = it.id || it.videoId;
-              const vTitle = it.title?.text || it.title;
-              if (videoId && vTitle) {
-                const thumbs = it.thumbnail?.contents || it.thumbnails || [];
-                const art = thumbs.length > 0 ? (thumbs[thumbs.length - 1]?.url || thumbs[0]?.url) : '';
-                trendingVideos.push({
-                  id: `yt-explore-vid-${videoId}`,
-                  title: vTitle,
-                  artist: it.artists?.[0]?.name || it.author?.name || 'Artist',
-                  artistId: it.artists?.[0]?.id,
-                  album: 'Trending Video',
-                  artwork: art ? art.replace(/=w\d+-h\d+/, '=w800-h800') : '',
-                  duration: it.duration?.seconds || 210,
-                  youtubeId: videoId,
-                });
-              }
-            }
-          }
-        }
-
-        if (newAlbums.length > 0 || trendingVideos.length > 0) {
-          return { newAlbums: newAlbums.slice(0, 12), trendingVideos: trendingVideos.slice(0, 8) };
-        }
+  for (const section of explore?.sections ?? []) {
+    for (const it of section?.contents ?? []) {
+      const card = parseCard(it);
+      if (card?.kind === 'album' && !seenA.has(card.album.id)) {
+        seenA.add(card.album.id);
+        newAlbums.push(card.album);
+      } else if (card?.kind === 'track' && it.item_type === 'video' && !seenV.has(card.track.id)) {
+        seenV.add(card.track.id);
+        trendingVideos.push(card.track);
       }
     }
-  } catch (err) {
-    console.debug('getExploreNewReleases failed:', err);
   }
+  return { newAlbums: newAlbums.slice(0, 20), trendingVideos: trendingVideos.slice(0, 12) };
+}
 
-  // High-fidelity fallback releases
-  return {
-    newAlbums: [
-      {
-        id: 'MPREb_jar_deluxe',
-        title: 'Jar (10th Anniversary)',
-        artist: 'Superheaven',
-        artistId: 'UC3u1g-8w_a9_Y1XpQcM715Q',
-        artwork: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
-        year: '2023',
-        genre: 'Grunge / Alt Rock',
-        trackCount: 12,
-        tracks: [],
-      },
-      {
-        id: 'MPREb_lovedeluxe_remaster',
-        title: 'Love Deluxe (Remastered)',
-        artist: 'Sade',
-        artistId: 'UCsade',
-        artwork: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80',
-        year: '2024',
-        genre: 'Soul / R&B',
-        trackCount: 8,
-        tracks: [],
-      },
-      {
-        id: 'MPREb_pandora_ep',
-        title: 'Pandora EP',
-        artist: 'Wisp',
-        artistId: 'UC2wRz2B6e21E2Z_rFmQ269A',
-        artwork: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=600&q=80',
-        year: '2024',
-        genre: 'Shoegaze',
-        trackCount: 6,
-        tracks: [],
-      },
-      {
-        id: 'MPREb_dune2_score',
-        title: 'Dune: Part Two (Original Soundtrack)',
-        artist: 'Hans Zimmer',
-        artistId: 'UChanszimmer',
-        artwork: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=600&q=80',
-        year: '2024',
-        genre: 'Score',
-        trackCount: 25,
-        tracks: [],
-      },
-    ],
-    trendingVideos: [
-      {
-        id: 'vid-wisp',
-        title: 'Enough for you (Live Visualizer)',
-        artist: 'Wisp',
-        album: 'Trending Video',
-        artwork: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=800&q=80',
-        duration: 215,
-        youtubeId: 'v8y8L8h_5hA',
-      },
-      {
-        id: 'vid-sade',
-        title: 'Kiss of Life (Official 4K Video)',
-        artist: 'Sade',
-        album: 'Trending Video',
-        artwork: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80',
-        duration: 337,
-        youtubeId: 'WcIcVapfqXw',
-      },
-      {
-        id: 'vid-superheaven',
-        title: 'Youngest Daughter (Official Audio)',
-        artist: 'Superheaven',
-        album: 'Trending Video',
-        artwork: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80',
-        duration: 250,
-        youtubeId: 'FzP3uK3iS8s',
-      },
-    ],
-  };
+/**
+ * Finds the artist page id (UC...) for a track that doesn't carry one, e.g. tracks imported
+ * before artist ids were parsed. Returns undefined rather than guessing.
+ */
+export async function resolveArtistId(track: { artist: string; artistId?: string }): Promise<string | undefined> {
+  if (track.artistId) return track.artistId;
+  const name = track.artist?.split(',')[0]?.trim();
+  if (!name || name === 'Unknown Artist') return undefined;
+  try {
+    const yt: any = await getInnertube();
+    const res: any = await yt.music.search(name, { type: 'artist' });
+    const first = (res?.results ?? res?.contents?.[0]?.contents ?? []).find((r: any) => r?.item_type === 'artist');
+    const id: string | undefined = first?.id;
+    return id?.startsWith('UC') ? id : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Finds the album browse id (MPRE...) for a track that doesn't carry one. */
+export async function resolveAlbumId(track: { title: string; artist: string; album?: string; albumId?: string; youtubeId?: string }): Promise<string | undefined> {
+  if (track.albumId) return track.albumId;
+  try {
+    const yt: any = await getInnertube();
+    if (track.youtubeId) {
+      const info: any = await yt.music.getInfo(track.youtubeId);
+      const albumId = info?.basic_info?.album?.id ?? info?.page?.contents_memo?.getType?.('MusicResponsiveListItem')?.[0]?.album?.id;
+      if (albumId) return albumId;
+    }
+    if (track.album) {
+      const res: any = await yt.music.search(`${track.album} ${track.artist}`, { type: 'album' });
+      const first = (res?.results ?? res?.contents?.[0]?.contents ?? []).find((r: any) => r?.item_type === 'album');
+      return first?.id;
+    }
+  } catch {}
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------

@@ -16,11 +16,12 @@ export const ArtistRoute: React.FC = () => {
   const likedTrackIds = useMusicPlayerStore(state => state.likedTrackIds);
   const toggleLike = useMusicPlayerStore(state => state.toggleLike);
 
-  const { data: artist, isLoading } = useQuery({
+  const { data: artist, isLoading, error } = useQuery({
     queryKey: ['music-artist', id],
     queryFn: () => getArtistDetails(id || ''),
     enabled: Boolean(id),
     staleTime: 1000 * 60 * 10,
+    retry: 1,
   });
 
   const handlePlayAll = (shuffle = false) => {
@@ -274,7 +275,9 @@ export const ArtistRoute: React.FC = () => {
         <div className="py-20 text-center text-white/50">
           <Disc className="w-10 h-10 mx-auto mb-2 text-white/30" />
           <p className="text-base font-semibold text-white">Artist Not Found</p>
-          <p className="text-xs text-[#b3b3b3] mt-1">Unable to locate artist profile for "{id}".</p>
+          <p className="text-xs text-[#b3b3b3] mt-1">
+            {error ? (error as Error).message : `Unable to locate artist profile for "${id}".`}
+          </p>
         </div>
       )}
 

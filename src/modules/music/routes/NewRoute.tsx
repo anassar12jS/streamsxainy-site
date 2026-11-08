@@ -15,10 +15,12 @@ export const NewRoute: React.FC = () => {
   const albumsScrollRef = useRef<HTMLDivElement | null>(null);
   const videosScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const { data: explore, isLoading } = useQuery({
+  const { data: explore, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['music-explore-new'],
     queryFn: () => getExploreNewReleases(),
-    staleTime: 1000 * 60 * 15,
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: true,
+    retry: 1,
   });
 
   const albums: Album[] = explore?.newAlbums || [];
@@ -37,17 +39,31 @@ export const NewRoute: React.FC = () => {
     playTrack(video);
   };
 
-  const featured = albums[0] || {
-    id: 'MPREb_featured',
-    title: 'HIT ME HARD AND SOFT',
-    artist: 'Billie Eilish',
-    artistId: 'UCiGm_E4DwYcU-dRkg2bd0MQ',
-    artwork: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80',
-    year: '2024',
-    genre: 'Alternative Pop',
-    trackCount: 10,
-    tracks: [],
-  };
+  const featured: Album | undefined = albums[0];
+
+  // No invented "featured" release: show loading / the real error / an honest empty state.
+  if (!featured) {
+    return (
+      <div className="space-y-6 pb-32 pt-2 px-1 sm:px-4 max-w-7xl mx-auto text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">New</h1>
+        {isLoading ? (
+          <p className="text-sm text-[#b3b3b3] flex items-center gap-2 py-10 justify-center">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading new releases…
+          </p>
+        ) : (
+          <div className="rounded-2xl bg-[#141414] border border-white/10 p-6 space-y-2">
+            <p className="text-sm font-semibold">Couldn't load new releases</p>
+            <p className="text-xs text-[#b3b3b3]">
+              {error ? (error as Error).message : 'YouTube Music returned no new releases.'}
+            </p>
+            <button type="button" onClick={() => refetch()} disabled={isFetching} className="text-xs font-semibold underline underline-offset-4 cursor-pointer">
+              Try again
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div 
@@ -94,10 +110,10 @@ export const NewRoute: React.FC = () => {
               {featured.title}
             </h2>
             <p className="text-sm text-white/90 font-medium">
-              {featured.artist} • {featured.genre || 'New Release'} ({featured.year || '2024'})
+              {featured.artist} • {featured.genre || 'New Release'} {featured.year ? ` (${featured.year})` : ''}
             </p>
             <p className="text-xs text-[#a3a3a3] leading-relaxed pt-1">
-              Stream the newest studio project with lossless audio dynamic resolution.
+              Fresh from YouTube Music's new releases.
             </p>
 
             <div className="pt-2">

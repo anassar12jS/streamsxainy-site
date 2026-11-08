@@ -5,8 +5,10 @@ import {
   Sparkles, Youtube, RefreshCw, Plus, ExternalLink, Mic2, Compass
 } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
-import { APPLE_MUSIC_BROWSE_SECTIONS } from '../api/innertube';
-import { BITCHORD_HOME_TRACKS, BITCHORD_LIBRARY_ALBUMS } from './BrowseRoute';
+import { useQuery } from '@tanstack/react-query';
+import { getLibrarySection, getHomeShelves } from '../api/innertube';
+import { useSessionStore } from '../store/useSessionStore';
+import { MediaShelf } from '../components/MediaShelf';
 import { TrackRow } from '../components/TrackRow';
 import { 
   getLinkedYouTubeAccount, getImportedYouTubeTracks, YT_LIBRARY_UPDATED_EVENT, 
@@ -45,30 +47,14 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
   }, []);
 
   // Compile all known songs across library
-  const allKnownTracks = [
-    ...importedTracks,
-    ...BITCHORD_HOME_TRACKS,
-    ...APPLE_MUSIC_BROWSE_SECTIONS.topTracks,
-    ...recentlyPlayed,
-  ];
+  const allKnownTracks = [...importedTracks, ...recentlyPlayed];
 
   // Deduplicate liked tracks
   const likedTracks = allKnownTracks.filter((track, index, self) => 
     likedTrackIds.includes(track.id) && self.findIndex(t => t.id === track.id) === index
   );
 
-  // Group artists with large avatars
-  interface ArtistGroup { id?: string; name: string; avatar: string; count: number; tracks: MusicTrack[] }
-  const artistMap = new Map<string, ArtistGroup>();
-  allKnownTracks.forEach((t: any) => {
-    const existing: ArtistGroup = artistMap.get(t.artist) || { id: t.artistId, name: t.artist, avatar: t.artwork, count: 0, tracks: [] };
-    if (!existing.id && t.artistId) existing.id = t.artistId;
-    existing.count += 1;
-    existing.tracks.push(t as MusicTrack);
-    artistMap.set(t.artist, existing);
-  });
-  const libraryArtists = Array.from(artistMap.values());
-
+  const activeChannelId = useSessionStore(state => state.activeChannelId);
   const path = location.pathname;
   const activeTab = defaultTab || (path.includes('/liked')
     ? 'liked'
@@ -81,6 +67,42 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
           : path.includes('/for-you')
             ? 'for-you'
             : 'recent');
+
+  // Live library sections (only fetched when their tab is open)
+  const albumsQ = useQuery({
+    queryKey: ['ytm-library-albums', activeChannelId || 'default'],
+    queryFn: () => getLibrarySection('Albums'),
+    enabled: activeTab === 'albums',
+    staleTime: 1000 * 60 * 3,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+  const artistsQ = useQuery({
+    queryKey: ['ytm-library-artists', activeChannelId || 'default'],
+    queryFn: () => getLibrarySection('Artists'),
+    enabled: activeTab === 'artists',
+    staleTime: 1000 * 60 * 3,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+  const homeQ = useQuery({
+    queryKey: ['ytm-home', activeChannelId || 'default'],
+    queryFn: getHomeShelves,
+    enabled: activeTab === 'for-you',
+    staleTime: 1000 * 60 * 2,
+    retry: 1,
+  });
+
+  const statusBox = (q: { isLoading: boolean; error: unknown }, empty: boolean, what: string) =>
+    q.isLoading ? (
+      <p className="text-sm text-[#b3b3b3] py-10 text-center">Loading your {what}…</p>
+    ) : q.error ? (
+      <p className="text-sm text-rose-300 py-10 text-center">
+        Couldn't load your {what}: {(q.error as Error).message}
+      </p>
+    ) : empty ? (
+      <p className="text-sm text-[#b3b3b3] py-10 text-center">No {what} in your YouTube Music library yet.</p>
+    ) : null;
 
   const handlePlayCollection = (tracks: MusicTrack[], shuffle = false) => {
     if (tracks.length === 0) return;
@@ -290,152 +312,114 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
       {/* ========================================================================= */}
       {/* TAB: ARTISTS (Flex-grid of large circular avatars with name centered)     */}
       {/* ========================================================================= */}
-      {activeTab === 'artists' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-            {libraryArtists.map(a => (
-              <div
-                key={a.name}
-                onClick={() => {
-                  if (a.id) {
-                    navigate(`/music/artist/${a.id}`);
-                  }
-                }}
-                className="group p-4 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer transition-colors duration-150 flex flex-col items-center text-center shadow-lg"
-              >
-                {/* Large circular avatar: aspect-square, rounded-full, object-cover */}
-                <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full overflow-hidden mb-3.5 bg-[#1e1e1e] shadow-xl ring-2 ring-white/10 group-hover:scale-105 transition-transform duration-300">
-                  <img src={a.avatar} alt={a.name} className="w-full h-full object-cover" />
+      {activeTab === 'artists' && (() => {
+        const artists = (artistsQ.data ?? []).flatMap(i => (i.kind === 'artist' ? [i.artist] : []));
+        return (
+          <div className="space-y-4">
+            {statusBox(artistsQ, artists.length === 0, 'artists')}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+              {artists.map(a => (
+                <div
+                  key={a.id}
+                  onClick={() => navigate(`/music/artist/${a.id}`)}
+                  className="group p-4 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer transition-colors duration-150 flex flex-col items-center text-center shadow-lg"
+                >
+                  <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full overflow-hidden mb-3.5 bg-[#1e1e1e] shadow-xl ring-2 ring-white/10 group-hover:scale-105 transition-transform duration-300">
+                    {a.artwork && <img src={a.artwork} alt={a.name} className="w-full h-full object-cover" />}
+                  </div>
+                  <h4 className="text-sm font-semibold text-white group-hover:underline transition-colors truncate max-w-full">
+                    {a.name}
+                  </h4>
+                  {a.subtitle && <p className="text-xs text-[#b3b3b3] mt-1 font-normal truncate max-w-full">{a.subtitle}</p>}
                 </div>
-                
-                {/* Artist name centered underneath in #b3b3b3 / white on hover */}
-                <h4 className="text-sm font-semibold text-white group-hover:underline transition-colors truncate max-w-full">
-                  {a.name}
-                </h4>
-                <p className="text-xs text-[#b3b3b3] mt-1 font-normal">
-                  {a.count} {a.count === 1 ? 'Track' : 'Tracks'}
-                </p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* TAB: ALBUMS (Flex-grid of square artwork with Title and Album • Artist • Year) */}
       {/* ========================================================================= */}
-      {activeTab === 'albums' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
-            {BITCHORD_LIBRARY_ALBUMS.map(alb => (
-              <div
-                key={alb.id}
-                onClick={() => navigate(`/music/album/${alb.id}`)}
-                className="group p-3 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer transition-colors duration-150 shadow-lg"
-              >
-                {/* Square Artwork rounded-md */}
-                <div className="relative aspect-square rounded-md overflow-hidden mb-3 bg-[#1e1e1e]">
-                  <img 
-                    src={alb.artwork} 
-                    alt={alb.title} 
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-                  />
-                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-xl">
-                      <Play className="w-5 h-5 fill-current ml-0.5" />
-                    </div>
+      {activeTab === 'albums' && (() => {
+        const albums = (albumsQ.data ?? []).flatMap(i => (i.kind === 'album' ? [i.album] : []));
+        return (
+          <div className="space-y-4">
+            {statusBox(albumsQ, albums.length === 0, 'albums')}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+              {albums.map(alb => (
+                <div
+                  key={alb.id}
+                  onClick={() => navigate(`/music/album/${alb.id}`)}
+                  className="group p-3 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer transition-colors duration-150 shadow-lg"
+                >
+                  <div className="relative aspect-square rounded-md overflow-hidden mb-3 bg-[#1e1e1e]">
+                    {alb.artwork && (
+                      <img src={alb.artwork} alt={alb.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    )}
                   </div>
+                  <h4 className="font-semibold text-xs sm:text-sm text-white truncate group-hover:underline">{alb.title}</h4>
+                  <p className="text-xs text-[#b3b3b3] truncate mt-1 font-normal">
+                    {alb.genre} •{' '}
+                    {alb.artistId ? (
+                      <Link
+                        to={`/music/artist/${alb.artistId}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-white hover:underline"
+                      >
+                        {alb.artist}
+                      </Link>
+                    ) : (
+                      <span>{alb.artist}</span>
+                    )}
+                    {alb.year ? ` • ${alb.year}` : ''}
+                  </p>
                 </div>
-
-                {/* Title (white, 600) */}
-                <h4 className="font-semibold text-xs sm:text-sm text-white truncate group-hover:underline">
-                  {alb.title}
-                </h4>
-                
-                {/* Album • Artist • Year (gray underneath) */}
-                <p className="text-xs text-[#b3b3b3] truncate mt-1 font-normal">
-                  Album • {(alb as any).artistId ? (
-                    <Link 
-                      to={`/music/artist/${(alb as any).artistId}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="hover:text-white hover:underline"
-                    >
-                      {alb.artist}
-                    </Link>
-                  ) : (
-                    <span>{alb.artist}</span>
-                  )} • {(alb as any).year || '2024'}
-                </p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* TAB: MADE FOR YOU                                                         */}
       {/* ========================================================================= */}
-      {activeTab === 'for-you' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            <div 
-              onClick={() => handlePlayCollection(BITCHORD_HOME_TRACKS, true)}
-              className="p-5 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer group shadow-xl transition-colors duration-150"
-            >
-              <div className="w-11 h-11 rounded-xl bg-indigo-500/15 text-indigo-400 flex items-center justify-center mb-4">
-                <Compass className="w-5 h-5" />
-              </div>
-              <h3 className="text-base font-semibold text-white group-hover:underline">
-                Daily Chill Station
-              </h3>
-              <p className="text-xs text-[#b3b3b3] mt-1 font-normal">
-                Personalized ambient beats, Midwest emo, and lo-fi melodies updated daily.
-              </p>
-              <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-white/90">
-                <Play className="w-3.5 h-3.5 fill-current" />
-                <span>Listen Now</span>
-              </div>
-            </div>
-
-            <div 
-              onClick={() => handlePlayCollection(likedTracks.length > 0 ? likedTracks : BITCHORD_HOME_TRACKS, false)}
-              className="p-5 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer group shadow-xl transition-colors duration-150"
-            >
-              <div className="w-11 h-11 rounded-xl bg-purple-500/15 text-purple-400 flex items-center justify-center mb-4">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <h3 className="text-base font-semibold text-white group-hover:underline">
-                Heavy Rotation Mix
-              </h3>
-              <p className="text-xs text-[#b3b3b3] mt-1 font-normal">
-                The songs and soundtracks you keep coming back to the most this week.
-              </p>
-              <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-white/90">
-                <Play className="w-3.5 h-3.5 fill-current" />
-                <span>Listen Now</span>
-              </div>
-            </div>
-
-            <div 
+      {activeTab === 'for-you' && (() => {
+        const shelves = (homeQ.data ?? []).filter(sh => sh.items.some(i => i.kind === 'playlist'));
+        return (
+          <div className="space-y-8">
+            {statusBox(homeQ, shelves.length === 0, 'personalised mixes')}
+            {shelves.map(sh => (
+              <MediaShelf
+                key={sh.id}
+                title={sh.title}
+                subtitle={sh.subtitle}
+                items={sh.items.flatMap(i =>
+                  i.kind === 'playlist'
+                    ? [{
+                        id: i.playlist.id,
+                        title: i.playlist.title,
+                        subtitle: i.playlist.subtitle || 'Playlist',
+                        artwork: i.playlist.artwork,
+                        onClick: () => navigate(`/music/playlist/${i.playlist.id}`),
+                      }]
+                    : []
+                )}
+              />
+            ))}
+            <div
               onClick={() => navigate('/music/replay')}
-              className="p-5 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer group shadow-xl transition-colors duration-150"
+              className="p-5 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer group shadow-xl transition-colors duration-150 max-w-sm"
             >
               <div className="w-11 h-11 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center mb-4">
                 <Disc className="w-5 h-5" />
               </div>
-              <h3 className="text-base font-semibold text-white group-hover:underline">
-                Replay '25 Showcase
-              </h3>
-              <p className="text-xs text-[#b3b3b3] mt-1 font-normal">
-                Your annual streaming milestones, top songs, and shareable poster.
-              </p>
-              <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-white/90">
-                <span>View Replay</span>
-              </div>
+              <h3 className="text-base font-semibold text-white group-hover:underline">Replay '25</h3>
+              <p className="text-xs text-[#b3b3b3] mt-1 font-normal">Your listening milestones and top songs.</p>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* YouTube Music Link Modal */}
       <YouTubeAccountModal

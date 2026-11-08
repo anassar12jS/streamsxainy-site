@@ -11,11 +11,13 @@ export const PlaylistRoute: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const playTrack = useMusicPlayerStore(state => state.playTrack);
 
-  const { data: playlist, isLoading } = useQuery<Playlist | null>({
+  const { data: playlist, isLoading, error } = useQuery<Playlist | null>({
     queryKey: ['music-playlist', id],
     queryFn: () => getPlaylistDetails(id || ''),
     enabled: Boolean(id),
     staleTime: 1000 * 60 * 5,
+    retry: 1,
+    refetchOnWindowFocus: true,
   });
 
   const tracks: MusicTrack[] = playlist?.tracks || [];
@@ -152,7 +154,9 @@ export const PlaylistRoute: React.FC = () => {
         <div className="py-20 text-center text-white/50">
           <Disc className="w-10 h-10 mx-auto mb-2 text-white/30" />
           <p className="text-base font-semibold text-white">Playlist Not Found</p>
-          <p className="text-xs text-[#b3b3b3] mt-1">Unable to locate playlist "{id}".</p>
+          <p className="text-xs text-[#b3b3b3] mt-1">
+            {error ? (error as Error).message : `Unable to locate playlist "${id}".`}
+          </p>
         </div>
       )}
     </div>

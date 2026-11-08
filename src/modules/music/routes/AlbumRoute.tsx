@@ -15,11 +15,12 @@ export const AlbumRoute: React.FC = () => {
   const likedTrackIds = useMusicPlayerStore(state => state.likedTrackIds);
   const toggleLike = useMusicPlayerStore(state => state.toggleLike);
 
-  const { data: album, isLoading } = useQuery({
+  const { data: album, isLoading, error } = useQuery({
     queryKey: ['music-album', id],
     queryFn: () => getAlbumDetails(id || ''),
     enabled: Boolean(id),
     staleTime: 1000 * 60 * 10,
+    retry: 1,
   });
 
   const handlePlayAll = (shuffle = false) => {
@@ -259,14 +260,16 @@ export const AlbumRoute: React.FC = () => {
 
           {/* Release info footer */}
           <div className="pt-6 text-xs text-[#b3b3b3] space-y-1">
-            <p>© {album.year || '2024'} • StreamHub BitChord Engine</p>
+            {album.year && <p>© {album.year}</p>}
           </div>
         </>
       ) : (
         <div className="py-20 text-center text-white/50">
           <Disc className="w-10 h-10 mx-auto mb-2 text-white/30" />
           <p className="text-base font-semibold text-white">Album Not Found</p>
-          <p className="text-xs text-[#b3b3b3] mt-1">Unable to locate album data for ID "{id}".</p>
+          <p className="text-xs text-[#b3b3b3] mt-1">
+            {error ? (error as Error).message : `Unable to locate album data for ID "${id}".`}
+          </p>
         </div>
       )}
 

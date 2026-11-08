@@ -4,7 +4,9 @@ import {
   Star, MoreHorizontal, MessageSquareQuote, List, Volume2, VolumeX,
   Loader2, Menu
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
+import { resolveArtistId, resolveAlbumId } from '../api/innertube';
 
 interface FloatingPlayerProps {
   onToggleMobileSidebar?: () => void;
@@ -15,6 +17,8 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
   onToggleMobileSidebar,
   onSeek,
 }) => {
+  const navigate = useNavigate();
+  const [resolving, setResolving] = useState<'artist' | 'album' | null>(null);
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
   const currentTime = useMusicPlayerStore(state => state.currentTime);
@@ -52,6 +56,30 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
     const clickX = e.clientX - rect.left;
     const ratio = Math.max(0, Math.min(1, clickX / rect.width));
     onSeek(ratio * duration);
+  };
+
+  // Open the current song's artist / album page. Uses the ids on the track; if a track
+  // predates id parsing, looks them up first (never guesses).
+  const openArtist = async () => {
+    if (!currentTrack || resolving) return;
+    setResolving('artist');
+    try {
+      const id = await resolveArtistId(currentTrack);
+      if (id) navigate(`/music/artist/${id}`);
+    } finally {
+      setResolving(null);
+    }
+  };
+
+  const openAlbum = async () => {
+    if (!currentTrack || resolving) return;
+    setResolving('album');
+    try {
+      const id = await resolveAlbumId(currentTrack);
+      if (id) navigate(`/music/album/${id}`);
+    } finally {
+      setResolving(null);
+    }
   };
 
   return (
@@ -164,16 +192,27 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                 <img 
                   src={currentTrack.artwork} 
                   alt="" 
-                  className="w-10 h-10 rounded-md object-cover shrink-0 shadow-md border border-white/10" 
+                  onClick={openAlbum}
+                  className="w-10 h-10 rounded-md object-cover shrink-0 shadow-md border border-white/10 cursor-pointer hover:opacity-80 transition-opacity" 
                 />
                 
-                <div className="min-w-0 flex flex-col justify-center">
-                  <span className="text-xs font-semibold text-white truncate max-w-[130px] sm:max-w-[180px]">
+                <div className="min-w-0 flex flex-col justify-center items-start">
+                  <button
+                    type="button"
+                    onClick={openAlbum}
+                    title="Go to album"
+                    className="text-xs font-semibold text-white truncate max-w-[130px] sm:max-w-[180px] hover:underline text-left cursor-pointer"
+                  >
                     {currentTrack.title}
-                  </span>
-                  <span className="text-[11px] text-[#a3a3a3] truncate max-w-[130px] sm:max-w-[180px]">
-                    {currentTrack.artist}
-                  </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openArtist}
+                    title="Go to artist"
+                    className="text-[11px] text-[#a3a3a3] hover:text-white hover:underline truncate max-w-[130px] sm:max-w-[180px] text-left cursor-pointer"
+                  >
+                    {resolving ? 'Opening…' : currentTrack.artist}
+                  </button>
                 </div>
 
                 {/* Subtle thin progress line pinned to absolute bottom edge of track container */}
