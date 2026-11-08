@@ -52,9 +52,10 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
   );
 
   // Group artists with large avatars
-  const artistMap = new Map<string, { name: string; avatar: string; count: number; tracks: MusicTrack[] }>();
+  const artistMap = new Map<string, { id?: string; name: string; avatar: string; count: number; tracks: MusicTrack[] }>();
   allKnownTracks.forEach(t => {
-    const existing = artistMap.get(t.artist) || { name: t.artist, avatar: t.artwork, count: 0, tracks: [] };
+    const existing = artistMap.get(t.artist) || { id: t.artistId, name: t.artist, avatar: t.artwork, count: 0, tracks: [] };
+    if (!existing.id && t.artistId) existing.id = t.artistId;
     existing.count += 1;
     existing.tracks.push(t);
     artistMap.set(t.artist, existing);
@@ -288,7 +289,11 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
             {libraryArtists.map(a => (
               <div
                 key={a.name}
-                onClick={() => navigate(`/music/artist/${encodeURIComponent(a.name)}`)}
+                onClick={() => {
+                  if (a.id) {
+                    navigate(`/music/artist/${a.id}`);
+                  }
+                }}
                 className="group p-4 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer transition-colors duration-150 flex flex-col items-center text-center shadow-lg"
               >
                 {/* Large circular avatar: aspect-square, rounded-full, object-cover */}
@@ -342,13 +347,17 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
                 
                 {/* Album • Artist • Year (gray underneath) */}
                 <p className="text-xs text-[#b3b3b3] truncate mt-1 font-normal">
-                  Album • <Link 
-                    to={`/music/artist/${encodeURIComponent(alb.artist)}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="hover:text-white hover:underline"
-                  >
-                    {alb.artist}
-                  </Link> • {(alb as any).year || '2024'}
+                  Album • {(alb as any).artistId ? (
+                    <Link 
+                      to={`/music/artist/${(alb as any).artistId}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="hover:text-white hover:underline"
+                    >
+                      {alb.artist}
+                    </Link>
+                  ) : (
+                    <span>{alb.artist}</span>
+                  )} • {(alb as any).year || '2024'}
                 </p>
               </div>
             ))}

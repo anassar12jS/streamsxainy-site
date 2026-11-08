@@ -133,9 +133,19 @@ export const SearchRoute: React.FC = () => {
     if (entity.type === 'song' && entity.track) {
       playTrack(entity.track);
     } else if (entity.type === 'artist') {
-      navigate(`/music/artist/${encodeURIComponent(entity.title)}`);
+      const artId = entity.artistId || entity.id;
+      if (artId) {
+        navigate(`/music/artist/${artId}`);
+      } else {
+        executeSearch(entity.title);
+      }
     } else if (entity.type === 'album') {
-      navigate(`/music/album/${entity.id.replace('album-', '')}`);
+      const albId = entity.albumId || entity.id;
+      if (albId) {
+        navigate(`/music/album/${albId}`);
+      } else {
+        executeSearch(entity.title);
+      }
     } else {
       executeSearch(entity.title);
     }
@@ -335,13 +345,17 @@ export const SearchRoute: React.FC = () => {
                       {track.title}
                     </h3>
                     <p className="text-xs text-[#b3b3b3] truncate mt-0.5">
-                      <Link
-                        to={`/music/artist/${encodeURIComponent(track.artistId || track.artist)}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="hover:text-white hover:underline transition-colors"
-                      >
-                        {track.artist}
-                      </Link>
+                      {track.artistId ? (
+                        <Link
+                          to={`/music/artist/${track.artistId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="hover:text-white hover:underline transition-colors"
+                        >
+                          {track.artist}
+                        </Link>
+                      ) : (
+                        <span>{track.artist}</span>
+                      )}
                     </p>
                     <p className="text-[11px] text-[#777777] truncate mt-0.5">
                       {track.album || 'Single'}
@@ -363,7 +377,11 @@ export const SearchRoute: React.FC = () => {
                 {catalogResults.artists.map((artist) => (
                   <div
                     key={artist.id}
-                    onClick={() => navigate(`/music/artist/${encodeURIComponent(artist.name)}`)}
+                    onClick={() => {
+                      if (artist.id) {
+                        navigate(`/music/artist/${artist.id}`);
+                      }
+                    }}
                     className="group flex-shrink-0 w-36 sm:w-44 flex flex-col items-center text-center p-3 rounded-2xl hover:bg-[#1a1a1a] transition-colors cursor-pointer"
                   >
                     <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden mb-3 bg-[#1e1e1e] ring-2 ring-white/10 group-hover:scale-105 transition-transform duration-300 shadow-xl">
@@ -416,13 +434,17 @@ export const SearchRoute: React.FC = () => {
                       {alb.title}
                     </h4>
                     <p className="text-xs text-[#b3b3b3] truncate mt-0.5">
-                      <Link
-                        to={`/music/artist/${encodeURIComponent(alb.artist)}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="hover:text-white hover:underline transition-colors"
-                      >
-                        {alb.artist}
-                      </Link>
+                      {(alb as any).artistId ? (
+                        <Link
+                          to={`/music/artist/${(alb as any).artistId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="hover:text-white hover:underline transition-colors"
+                        >
+                          {alb.artist}
+                        </Link>
+                      ) : (
+                        <span>{alb.artist}</span>
+                      )}
                     </p>
                     <p className="text-[11px] text-[#777777] mt-0.5">
                       {alb.year || 'Album'}

@@ -185,13 +185,17 @@ export const ArtistRoute: React.FC = () => {
                         </span>
                         {track.album && (
                           <span className="text-xs text-[#b3b3b3] truncate block mt-0.5">
-                            <Link
-                              to={`/music/album/${encodeURIComponent(track.albumId || track.album)}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="hover:text-white hover:underline"
-                            >
-                              {track.album}
-                            </Link>
+                            {track.albumId ? (
+                              <Link
+                                to={`/music/album/${track.albumId}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="hover:text-white hover:underline"
+                              >
+                                {track.album}
+                              </Link>
+                            ) : (
+                              <span>{track.album}</span>
+                            )}
                           </span>
                         )}
                       </div>
@@ -233,10 +237,10 @@ export const ArtistRoute: React.FC = () => {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                 {artist.albums.map((alb) => (
-                  <div
+                  <Link
                     key={alb.id}
-                    onClick={() => navigate(`/music/album/${alb.id}`)}
-                    className="group p-3 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer transition-colors duration-150 shadow-md"
+                    to={`/music/album/${alb.id}`}
+                    className="group block p-3 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer transition-colors duration-150 shadow-md"
                   >
                     <div className="relative aspect-square rounded-xl overflow-hidden mb-3 bg-[#1e1e1e]">
                       <img 
@@ -251,13 +255,13 @@ export const ArtistRoute: React.FC = () => {
                       </div>
                     </div>
 
-                    <h4 className="font-semibold text-xs sm:text-sm text-white truncate">
+                    <h4 className="font-semibold text-xs sm:text-sm text-white truncate group-hover:underline">
                       {alb.title}
                     </h4>
                     <p className="text-[11px] text-[#b3b3b3] truncate mt-0.5">
                       {alb.year || 'Album'}
                     </p>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>

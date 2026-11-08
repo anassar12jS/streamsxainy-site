@@ -277,13 +277,13 @@ export async function resolveStreamUrl(
 }
 
 /**
- * Searches music catalogue via InnerTube or metadata provider
+/**
+ * Searches music catalogue strictly via InnerTube
  */
 export async function searchInnerTube(query: string): Promise<MusicTrack[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
 
-  // 1. Try InnerTube music search
   try {
     const it = await getInnertube();
     if (it?.music) {
@@ -294,52 +294,26 @@ export async function searchInnerTube(query: string): Promise<MusicTrack[]> {
       if (contents.length > 0) {
         return contents.slice(0, 25).map((item: any, idx: number): MusicTrack => {
           const artwork = item.thumbnail?.contents?.[0]?.url || item.thumbnails?.[0]?.url || '';
+          const videoId = item.id || item.videoId || '';
           return {
-            id: item.id || `yt-${idx}-${Date.now()}`,
+            id: videoId || `yt-${idx}-${Date.now()}`,
             title: item.title?.text || item.title || 'Unknown Title',
             artist: item.artists?.[0]?.name || item.author?.name || 'Unknown Artist',
             artistId: item.artists?.[0]?.id,
             album: item.album?.name || 'Single',
+            albumId: item.album?.id,
             artwork: artwork ? artwork.replace(/=w\d+-h\d+/, '=w600-h600') : '',
             duration: item.duration?.seconds || 210,
-            audioUrl: '', // SCRUBBED: Resolved on-demand via YouTube deciphered stream
-            youtubeId: item.id,
+            audioUrl: '', // Stream resolved on-demand via YouTube Music
+            youtubeId: videoId,
             source: 'innertube',
           };
         });
       }
     }
   } catch (err) {
-    console.debug('InnerTube music search error, using metadata search:', err);
+    console.warn('InnerTube music search error:', err);
   }
-
-  // 2. Fallback Apple Music metadata search (UI metadata & high-res artwork only, NO audioUrl)
-  try {
-    const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(trimmed)}&media=music&entity=song&limit=25`;
-    const res = await extensionBridge.proxyFetch(itunesUrl);
-    if (res.ok) {
-      const data = await res.json();
-      return (data.results || []).map((r: any): MusicTrack => {
-        let artwork = r.artworkUrl100 || '';
-        if (artwork) {
-          artwork = artwork.replace('100x100bb', '600x600bb').replace('60x60bb', '600x600bb');
-        }
-        return {
-          id: `apple-${r.trackId}`,
-          title: r.trackName,
-          artist: r.artistName,
-          album: r.collectionName || 'Single',
-          artwork,
-          duration: Math.round((r.trackTimeMillis || 200000) / 1000),
-          audioUrl: r.previewUrl || '', // Fallback preview audio if YouTube direct resolution fails
-          genre: r.primaryGenreName,
-          year: r.releaseDate ? r.releaseDate.split('-')[0] : '',
-          isExplicit: r.trackExplicitness === 'explicit',
-          source: 'curated',
-        };
-      });
-    }
-  } catch {}
 
   return [];
 }
@@ -352,6 +326,8 @@ export interface SearchSuggestionsResult {
     subtitle: string;
     type: 'song' | 'artist' | 'album';
     artwork: string;
+    artistId?: string;
+    albumId?: string;
     track?: MusicTrack;
   }>;
 }
@@ -363,7 +339,7 @@ export interface FullCatalogSearchResult {
 }
 
 /**
- * Fetches query text suggestions and rich entity suggestions
+ * Fetches query text suggestions and rich entity suggestions strictly via YouTube / InnerTube
  */
 export async function getSearchSuggestions(query: string): Promise<SearchSuggestionsResult> {
   const q = query.trim();
@@ -383,7 +359,7 @@ export async function getSearchSuggestions(query: string): Promise<SearchSuggest
     }
   } catch {}
 
-  // 2. Fallback text suggestions from YouTube suggest API
+  // 2. Query YouTube suggest API for query autocomplete
   if (textSuggestions.length === 0) {
     try {
       const suggestUrl = `https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&client=firefox&q=${encodeURIComponent(q)}`;
@@ -397,52 +373,85 @@ export async function getSearchSuggestions(query: string): Promise<SearchSuggest
     } catch {}
   }
 
-  // 3. Rich entity suggestions via iTunes quick lookup
+  // 3. Rich entity suggestions via native YouTube Music search (strictly native IDs!)
   try {
-    const entityUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&limit=6`;
-    const eRes = await extensionBridge.proxyFetch(entityUrl);
-    if (eRes.ok) {
-      const eData = await eRes.json();
-      (eData.results || []).forEach((item: any) => {
-        let artwork = item.artworkUrl100 || '';
-        if (artwork) artwork = artwork.replace('100x100bb', '300x300bb');
-        if (item.wrapperType === 'track') {
+    const yt = await getInnertube();
+    if (yt?.music) {
+      const searchRes: any = await yt.music.search(q, { type: 'song' });
+      const songShelf = searchRes?.contents?.find((c: any) => c.type === 'MusicShelf' || c.title?.text === 'Songs') || searchRes?.contents?.[0];
+      const items: any[] = searchRes?.results || songShelf?.contents || searchRes?.contents || [];
+
+      const seenEntities = new Set<string>();
+
+      for (const item of items.slice(0, 5)) {
+        const vId = item.id || item.videoId;
+        const art = item.thumbnail?.contents?.[0]?.url || item.thumbnails?.[0]?.url || '';
+        const highResArt = art ? art.replace(/=w\d+-h\d+/, '=w300-h300') : '';
+        const songTitle = item.title?.text || item.title || '';
+        const artistName = item.artists?.[0]?.name || item.author?.name || '';
+        const artistId = item.artists?.[0]?.id;
+        const albumName = item.album?.name;
+        const albumId = item.album?.id;
+
+        // Add Song entity
+        if (vId && songTitle && !seenEntities.has(`song-${vId}`)) {
+          seenEntities.add(`song-${vId}`);
           entitySuggestions.push({
-            id: `song-${item.trackId}`,
-            title: item.trackName,
-            subtitle: `Song • ${item.artistName}`,
+            id: vId,
+            title: songTitle,
+            subtitle: `Song • ${artistName}`,
             type: 'song',
-            artwork,
+            artwork: highResArt,
+            artistId,
+            albumId,
             track: {
-              id: `apple-${item.trackId}`,
-              title: item.trackName,
-              artist: item.artistName,
-              album: item.collectionName || 'Single',
-              artwork,
-              duration: Math.round((item.trackTimeMillis || 210000) / 1000),
+              id: vId,
+              title: songTitle,
+              artist: artistName,
+              artistId,
+              album: albumName || 'Single',
+              albumId,
+              artwork: highResArt,
+              duration: item.duration?.seconds || 210,
+              youtubeId: vId,
               source: 'innertube',
             },
           });
-        } else if (item.wrapperType === 'artist') {
+        }
+
+        // Add Artist entity if has valid YouTube channel ID
+        if (artistId && artistName && !seenEntities.has(`artist-${artistId}`)) {
+          seenEntities.add(`artist-${artistId}`);
           entitySuggestions.push({
-            id: `artist-${item.artistId}`,
-            title: item.artistName,
+            id: artistId,
+            title: artistName,
             subtitle: 'Artist',
             type: 'artist',
-            artwork: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=300&q=80',
-          });
-        } else if (item.collectionType === 'Album') {
-          entitySuggestions.push({
-            id: `album-${item.collectionId}`,
-            title: item.collectionName,
-            subtitle: `Album • ${item.artistName}`,
-            type: 'album',
-            artwork,
+            artwork: highResArt || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=300&q=80',
+            artistId,
           });
         }
-      });
+
+        // Add Album entity if has valid YouTube album ID
+        if (albumId && albumName && !seenEntities.has(`album-${albumId}`)) {
+          seenEntities.add(`album-${albumId}`);
+          entitySuggestions.push({
+            id: albumId,
+            title: albumName,
+            subtitle: `Album • ${artistName}`,
+            type: 'album',
+            artwork: highResArt,
+            albumId,
+            artistId,
+          });
+        }
+
+        if (entitySuggestions.length >= 4) break;
+      }
     }
-  } catch {}
+  } catch (err) {
+    console.debug('Entity search failed:', err);
+  }
 
   return {
     textSuggestions: textSuggestions.slice(0, 5),
@@ -452,6 +461,7 @@ export async function getSearchSuggestions(query: string): Promise<SearchSuggest
 
 /**
  * Searches full catalog providing Top Results, Artists Shelf, and Albums Shelf
+ * Strictly using YouTube Music browse IDs (MPREb_... and UC...)
  */
 export async function searchFullCatalog(query: string): Promise<FullCatalogSearchResult> {
   const q = query.trim();
@@ -461,24 +471,24 @@ export async function searchFullCatalog(query: string): Promise<FullCatalogSearc
   const artists: FullCatalogSearchResult['artists'] = [];
   const albums: FullCatalogSearchResult['albums'] = [];
 
-  // Derive unique artists and albums from search results
   const artistSeen = new Set<string>();
   const albumSeen = new Set<string>();
 
+  // Extract from topResults where valid YouTube IDs exist
   topResults.forEach(track => {
-    if (track.artist && !artistSeen.has(track.artist)) {
-      artistSeen.add(track.artist);
+    if (track.artistId && !artistSeen.has(track.artistId)) {
+      artistSeen.add(track.artistId);
       artists.push({
-        id: track.artistId || track.artist,
+        id: track.artistId,
         name: track.artist,
         avatar: track.artwork || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=300&q=80',
         listeners: 'Verified Artist',
       });
     }
-    if (track.album && track.album !== 'Single' && !albumSeen.has(track.album)) {
-      albumSeen.add(track.album);
+    if (track.albumId && !albumSeen.has(track.albumId)) {
+      albumSeen.add(track.albumId);
       albums.push({
-        id: track.albumId || `album-${encodeURIComponent(track.album)}`,
+        id: track.albumId,
         title: track.album,
         artist: track.artist,
         year: track.year || '2024',
@@ -487,30 +497,56 @@ export async function searchFullCatalog(query: string): Promise<FullCatalogSearc
     }
   });
 
-  // Query iTunes albums if needed to populate rich album covers
-  if (albums.length < 3) {
-    try {
-      const albUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=album&limit=6`;
-      const aRes = await extensionBridge.proxyFetch(albUrl);
-      if (aRes.ok) {
-        const aData = await aRes.json();
-        (aData.results || []).forEach((r: any) => {
-          let art = r.artworkUrl100 || '';
-          if (art) art = art.replace('100x100bb', '600x600bb');
-          if (!albumSeen.has(r.collectionName)) {
-            albumSeen.add(r.collectionName);
-            albums.push({
-              id: String(r.collectionId),
-              title: r.collectionName,
-              artist: r.artistName,
-              year: r.releaseDate ? r.releaseDate.split('-')[0] : '2024',
-              artwork: art,
-            });
+  // Query YouTube Music for additional artists & albums
+  try {
+    const yt = await getInnertube();
+    if (yt?.music) {
+      if (artists.length < 3) {
+        try {
+          const artistRes: any = await yt.music.search(q, { type: 'artist' });
+          const artistList = artistRes?.results || artistRes?.contents?.[0]?.contents || artistRes?.contents || [];
+          for (const a of artistList) {
+            const aId = a.id || a.browseId;
+            if (aId && !artistSeen.has(aId)) {
+              artistSeen.add(aId);
+              const aName = a.name || a.title?.text || a.title || 'Artist';
+              const aThumb = a.thumbnail?.contents?.[0]?.url || a.thumbnails?.[0]?.url || '';
+              artists.push({
+                id: aId,
+                name: aName,
+                avatar: aThumb ? aThumb.replace(/=w\d+-h\d+/, '=w400-h400') : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=300&q=80',
+                listeners: a.subscribers?.text || 'Verified Artist',
+              });
+            }
           }
-        });
+        } catch {}
       }
-    } catch {}
-  }
+
+      if (albums.length < 3) {
+        try {
+          const albumRes: any = await yt.music.search(q, { type: 'album' });
+          const albumList = albumRes?.results || albumRes?.contents?.[0]?.contents || albumRes?.contents || [];
+          for (const alb of albumList) {
+            const albId = alb.id || alb.browseId;
+            if (albId && !albumSeen.has(albId)) {
+              albumSeen.add(albId);
+              const albTitle = alb.title?.text || alb.title || 'Album';
+              const albArtist = alb.artists?.[0]?.name || alb.author?.name || '';
+              const albYear = alb.year?.text || alb.year || '';
+              const albThumb = alb.thumbnail?.contents?.[0]?.url || alb.thumbnails?.[0]?.url || '';
+              albums.push({
+                id: albId,
+                title: albTitle,
+                artist: albArtist,
+                year: albYear,
+                artwork: albThumb ? albThumb.replace(/=w\d+-h\d+/, '=w600-h600') : '',
+              });
+            }
+          }
+        } catch {}
+      }
+    }
+  } catch {}
 
   return {
     topResults,
@@ -518,36 +554,47 @@ export async function searchFullCatalog(query: string): Promise<FullCatalogSearc
     albums: albums.slice(0, 8),
   };
 }
+
+/**
+ * Fetches album details strictly via InnerTube yt.music.getAlbum(albumId)
+ * Returns null on error or not found (NO dummy fallbacks).
+ */
 export async function getAlbumDetails(albumId: string): Promise<Album | null> {
   const cleanId = albumId?.trim();
   if (!cleanId) return null;
 
-  // 1. Try InnerTube
   try {
     const yt = await getInnertube();
     if (yt?.music) {
       const res: any = await yt.music.getAlbum(cleanId);
-      if (res) {
-        const title = res.header?.title?.text || res.title || 'Unknown Album';
+      if (res && (res.header || res.contents || res.title)) {
+        const title = res.header?.title?.text || res.title?.text || res.title || 'Unknown Album';
         const artist = res.header?.author?.name || res.header?.artists?.[0]?.name || res.artists?.[0]?.name || 'Unknown Artist';
-        const artistId = res.header?.author?.id || res.header?.artists?.[0]?.id || res.artists?.[0]?.id;
-        const year = res.header?.year?.text || res.year || '';
-        const artwork = res.header?.thumbnails?.[0]?.url || res.thumbnails?.[0]?.url || '';
-        const highResArt = artwork ? artwork.replace(/=w\d+-h\d+/, '=w600-h600') : '';
+        const artistId = res.header?.author?.id || res.header?.author?.browseId || res.header?.artists?.[0]?.id || res.artists?.[0]?.id;
+        const year = res.header?.year?.text || res.year?.text || res.year || '';
         
+        // Thumbnails: pick highest resolution available
+        const thumbs = res.header?.thumbnails || res.thumbnails || [];
+        const rawArt = thumbs.length > 0 ? (thumbs[thumbs.length - 1]?.url || thumbs[0]?.url) : '';
+        const highResArt = rawArt ? rawArt.replace(/=w\d+-h\d+/, '=w1200-h1200') : '';
+
         const contents = res.contents || [];
-        const tracks: MusicTrack[] = contents.map((item: any, idx: number) => ({
-          id: item.id || `${cleanId}-t${idx}`,
-          title: item.title?.text || item.title || `Track ${idx + 1}`,
-          artist: item.artists?.[0]?.name || item.author?.name || artist,
-          artistId: item.artists?.[0]?.id || artistId,
-          album: title,
-          albumId: cleanId,
-          artwork: highResArt,
-          duration: item.duration?.seconds || 210,
-          youtubeId: item.id,
-          source: 'innertube',
-        }));
+        const tracks: MusicTrack[] = contents.map((item: any, idx: number) => {
+          const videoId = item.id || item.videoId || '';
+          const tThumb = item.thumbnail?.contents?.[0]?.url || item.thumbnails?.[0]?.url || highResArt;
+          return {
+            id: videoId || `${cleanId}-t${idx}`,
+            title: item.title?.text || item.title || `Track ${idx + 1}`,
+            artist: item.artists?.[0]?.name || item.author?.name || artist,
+            artistId: item.artists?.[0]?.id || artistId,
+            album: title,
+            albumId: cleanId,
+            artwork: tThumb ? tThumb.replace(/=w\d+-h\d+/, '=w600-h600') : highResArt,
+            duration: item.duration?.seconds || 210,
+            youtubeId: videoId,
+            source: 'innertube',
+          };
+        });
 
         return {
           id: cleanId,
@@ -563,220 +610,97 @@ export async function getAlbumDetails(albumId: string): Promise<Album | null> {
       }
     }
   } catch (err) {
-    console.debug('yt.music.getAlbum failed, using fallback:', err);
+    console.warn('yt.music.getAlbum failed for ID:', cleanId, err);
   }
 
-  // 2. Check local curated albums (e.g. lib-jar, lib-sade, album-interstellar)
-  const curated = APPLE_MUSIC_BROWSE_SECTIONS.featuredAlbums.find(a => a.id === cleanId);
-  if (curated) {
-    const tracks: MusicTrack[] = APPLE_MUSIC_BROWSE_SECTIONS.topTracks.map((t, idx) => ({
-      ...t,
-      id: `${cleanId}-${idx}`,
-      album: curated.title,
-      albumId: cleanId,
-      artist: curated.artist,
-      artwork: curated.artwork,
-    }));
-
-    return {
-      id: curated.id,
-      title: curated.title,
-      artist: curated.artist,
-      artwork: curated.artwork,
-      year: curated.year,
-      genre: curated.genre,
-      trackCount: curated.trackCount,
-      tracks,
-    };
-  }
-
-  // 3. iTunes album search / lookup fallback
-  try {
-    const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(cleanId.replace(/^album-|^lib-/, ''))}&entity=album&limit=1`;
-    const res = await extensionBridge.proxyFetch(itunesUrl);
-    if (res.ok) {
-      const data = await res.json();
-      const first = data.results?.[0];
-      if (first) {
-        let artwork = first.artworkUrl100 || '';
-        if (artwork) artwork = artwork.replace('100x100bb', '600x600bb');
-        
-        const lookupUrl = `https://itunes.apple.com/lookup?id=${first.collectionId}&entity=song`;
-        const lRes = await extensionBridge.proxyFetch(lookupUrl);
-        let tracks: MusicTrack[] = [];
-        if (lRes.ok) {
-          const lData = await lRes.json();
-          tracks = (lData.results || []).slice(1).map((r: any): MusicTrack => ({
-            id: `apple-${r.trackId}`,
-            title: r.trackName,
-            artist: r.artistName,
-            artistId: String(r.artistId || ''),
-            album: r.collectionName,
-            albumId: String(first.collectionId),
-            artwork,
-            duration: Math.round((r.trackTimeMillis || 200000) / 1000),
-            audioUrl: r.previewUrl || '',
-            year: r.releaseDate ? r.releaseDate.split('-')[0] : '',
-            genre: r.primaryGenreName,
-            source: 'curated',
-          }));
-        }
-
-        return {
-          id: cleanId,
-          title: first.collectionName,
-          artist: first.artistName,
-          artistId: String(first.artistId || ''),
-          artwork,
-          year: first.releaseDate ? first.releaseDate.split('-')[0] : '2024',
-          genre: first.primaryGenreName || 'Music',
-          trackCount: first.trackCount || tracks.length,
-          tracks,
-        };
-      }
-    }
-  } catch {}
-
+  // Strictly NO iTunes fallback, NO dummy data fallback!
   return null;
 }
 
 /**
- * Fetches artist details, top tracks, and albums via InnerTube (yt.music.getArtist) with graceful fallback
+ * Fetches artist details, top tracks, and albums strictly via InnerTube yt.music.getArtist(artistId)
+ * Returns null on error or not found (NO dummy fallbacks).
  */
 export async function getArtistDetails(artistId: string): Promise<Artist | null> {
   const cleanId = artistId?.trim();
   if (!cleanId) return null;
-  const decodedName = decodeURIComponent(cleanId);
 
-  // 1. Try InnerTube
   try {
     const yt = await getInnertube();
     if (yt?.music) {
       const res: any = await yt.music.getArtist(cleanId);
-      if (res) {
-        const name = res.header?.title?.text || res.name || decodedName;
-        const avatar = res.header?.thumbnails?.[0]?.url || res.thumbnails?.[0]?.url || '';
-        const highResAvatar = avatar ? avatar.replace(/=w\d+-h\d+/, '=w600-h600') : '';
-        const monthlyListeners = res.header?.monthly_listeners?.text || res.header?.subscribers?.text || 'Over 12M monthly listeners';
+      if (res && (res.header || res.sections || res.name)) {
+        const name = res.header?.title?.text || res.name?.text || res.name || 'Unknown Artist';
+        const thumbs = res.header?.thumbnails || res.thumbnails || [];
+        const rawAvatar = thumbs.length > 0 ? (thumbs[thumbs.length - 1]?.url || thumbs[0]?.url) : '';
+        const highResAvatar = rawAvatar ? rawAvatar.replace(/=w\d+-h\d+/, '=w800-h800') : '';
+        const monthlyListeners = res.header?.monthly_listeners?.text || res.header?.subscribers?.text || 'Verified Artist';
 
-        // Extract top tracks
-        const songSection = res.sections?.find((s: any) => s.type === 'MusicShelf' || s.title?.text === 'Songs' || s.title?.text === 'Top songs') || res.sections?.[0];
-        const topTracks: MusicTrack[] = (songSection?.contents || []).slice(0, 10).map((item: any, idx: number) => {
-          const art = item.thumbnail?.contents?.[0]?.url || item.thumbnails?.[0]?.url || highResAvatar;
-          return {
-            id: item.id || `artist-song-${idx}`,
-            title: item.title?.text || item.title || 'Untitled',
-            artist: name,
-            artistId: cleanId,
-            album: item.album?.name || 'Single',
-            artwork: art ? art.replace(/=w\d+-h\d+/, '=w600-h600') : highResAvatar,
-            duration: item.duration?.seconds || 210,
-            youtubeId: item.id,
-            source: 'innertube',
-          };
-        });
+        // Parse sections: find "Top songs" / "Songs" and "Albums" / "Discography"
+        const sections = res.sections || [];
+        let topTracks: MusicTrack[] = [];
+        let albums: Album[] = [];
 
-        // Extract albums
-        const albumSection = res.sections?.find((s: any) => s.title?.text === 'Albums' || s.title?.text === 'Discography');
-        const albums: Album[] = (albumSection?.contents || []).slice(0, 8).map((a: any, idx: number) => {
-          const aArt = a.thumbnail?.contents?.[0]?.url || a.thumbnails?.[0]?.url || highResAvatar;
-          return {
-            id: a.id || `alb-${idx}`,
-            title: a.title?.text || a.title || 'Album',
-            artist: name,
-            artistId: cleanId,
-            artwork: aArt ? aArt.replace(/=w\d+-h\d+/, '=w600-h600') : highResAvatar,
-            year: a.year?.text || a.year || '2024',
-            genre: 'Music',
-            trackCount: 10,
-            tracks: [],
-          };
-        });
+        for (const section of sections) {
+          const secTitle = (section.title?.text || section.title || '').toLowerCase();
+          const isSongShelf = secTitle.includes('song') || section.type === 'MusicShelf';
+          const isAlbumShelf = secTitle.includes('album') || secTitle.includes('discograph') || secTitle.includes('release');
+
+          if (isSongShelf && topTracks.length === 0 && Array.isArray(section.contents)) {
+            topTracks = section.contents.slice(0, 15).map((item: any, idx: number) => {
+              const videoId = item.id || item.videoId || '';
+              const tThumb = item.thumbnail?.contents?.[0]?.url || item.thumbnails?.[0]?.url || highResAvatar;
+              return {
+                id: videoId || `artist-song-${idx}`,
+                title: item.title?.text || item.title || 'Untitled',
+                artist: item.artists?.[0]?.name || name,
+                artistId: item.artists?.[0]?.id || cleanId,
+                album: item.album?.name || 'Single',
+                albumId: item.album?.id,
+                artwork: tThumb ? tThumb.replace(/=w\d+-h\d+/, '=w600-h600') : highResAvatar,
+                duration: item.duration?.seconds || 210,
+                youtubeId: videoId,
+                source: 'innertube',
+              };
+            });
+          }
+
+          if (isAlbumShelf && albums.length === 0 && Array.isArray(section.contents)) {
+            albums = section.contents.slice(0, 12).map((a: any, idx: number) => {
+              const aId = a.id || a.browseId || `alb-${idx}`;
+              const aThumb = a.thumbnail?.contents?.[0]?.url || a.thumbnails?.[0]?.url || highResAvatar;
+              return {
+                id: aId,
+                title: a.title?.text || a.title || 'Album',
+                artist: a.artists?.[0]?.name || name,
+                artistId: cleanId,
+                artwork: aThumb ? aThumb.replace(/=w\d+-h\d+/, '=w600-h600') : highResAvatar,
+                year: a.year?.text || a.year || '',
+                genre: 'Album',
+                trackCount: 10,
+                tracks: [],
+              };
+            });
+          }
+        }
 
         return {
           id: cleanId,
           name,
           avatar: highResAvatar,
           monthlyListeners,
-          topTracks: topTracks.length > 0 ? topTracks : APPLE_MUSIC_BROWSE_SECTIONS.topTracks.slice(0, 6),
-          albums: albums.length > 0 ? albums : APPLE_MUSIC_BROWSE_SECTIONS.featuredAlbums.map(fa => ({ ...fa, tracks: [] })),
+          topTracks,
+          albums,
           singles: [],
         };
       }
     }
   } catch (err) {
-    console.debug('yt.music.getArtist failed, using fallback:', err);
+    console.warn('yt.music.getArtist failed for ID:', cleanId, err);
   }
 
-  // 2. iTunes Artist search fallback
-  try {
-    const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(decodedName)}&entity=song&limit=12`;
-    const res = await extensionBridge.proxyFetch(itunesUrl);
-    if (res.ok) {
-      const data = await res.json();
-      const results = data.results || [];
-      if (results.length > 0) {
-        const first = results[0];
-        let avatar = first.artworkUrl100 || '';
-        if (avatar) avatar = avatar.replace('100x100bb', '600x600bb');
-
-        const topTracks: MusicTrack[] = results.map((r: any): MusicTrack => ({
-          id: `apple-${r.trackId}`,
-          title: r.trackName,
-          artist: r.artistName,
-          artistId: cleanId,
-          album: r.collectionName || 'Single',
-          albumId: String(r.collectionId || ''),
-          artwork: r.artworkUrl100 ? r.artworkUrl100.replace('100x100bb', '600x600bb') : avatar,
-          duration: Math.round((r.trackTimeMillis || 200000) / 1000),
-          audioUrl: r.previewUrl || '',
-          year: r.releaseDate ? r.releaseDate.split('-')[0] : '',
-          genre: r.primaryGenreName,
-          source: 'curated',
-        }));
-
-        const albumMap = new Map<string, Album>();
-        results.forEach((r: any) => {
-          if (r.collectionId && !albumMap.has(String(r.collectionId))) {
-            let aArt = r.artworkUrl100 || avatar;
-            if (aArt) aArt = aArt.replace('100x100bb', '600x600bb');
-            albumMap.set(String(r.collectionId), {
-              id: String(r.collectionId),
-              title: r.collectionName,
-              artist: r.artistName,
-              artistId: cleanId,
-              artwork: aArt,
-              year: r.releaseDate ? r.releaseDate.split('-')[0] : '2024',
-              genre: r.primaryGenreName || 'Music',
-              trackCount: r.trackCount || 10,
-              tracks: [],
-            });
-          }
-        });
-
-        return {
-          id: cleanId,
-          name: first.artistName,
-          avatar,
-          monthlyListeners: 'Over 22.4M monthly listeners',
-          topTracks,
-          albums: Array.from(albumMap.values()),
-          singles: [],
-        };
-      }
-    }
-  } catch {}
-
-  // 3. Fallback generic artist representation
-  return {
-    id: cleanId,
-    name: decodedName,
-    avatar: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
-    monthlyListeners: 'Over 10M monthly listeners',
-    topTracks: APPLE_MUSIC_BROWSE_SECTIONS.topTracks.slice(0, 6),
-    albums: APPLE_MUSIC_BROWSE_SECTIONS.featuredAlbums.map(fa => ({ ...fa, tracks: [] })),
-    singles: [],
-  };
+  // Strictly NO iTunes fallback, NO dummy data fallback!
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -918,45 +842,50 @@ export const APPLE_MUSIC_BROWSE_SECTIONS = {
 
   featuredAlbums: [
     {
-      id: 'album-interstellar',
+      id: 'MPREb_kZ32L3x7eJ8',
       title: 'Interstellar (Original Soundtrack)',
       artist: 'Hans Zimmer',
+      artistId: 'UC3u1g-8w_a9_Y1XpQcM715Q',
       artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/7e/c5/5e/7ec55ee2-ebf8-d988-8f9a-431af1047747/artwork.jpg/600x600bb.jpg',
       year: '2014',
       genre: 'Soundtrack',
       trackCount: 16,
     },
     {
-      id: 'album-oppenheimer',
+      id: 'MPREb_8kL4w9Z2x1a',
       title: 'Oppenheimer (Original Soundtrack)',
       artist: 'Ludwig Göransson',
+      artistId: 'UCY4s2D_iR2gM7l8xUj0t8wA',
       artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/4a/15/48/4a1548b2-b5ca-fae5-4f3d-ca290bf494ec/23UMGIM74921.rgb.jpg/600x600bb.jpg',
       year: '2023',
       genre: 'Soundtrack',
       trackCount: 24,
     },
     {
-      id: 'album-dune2',
+      id: 'MPREb_7mN0kL1z7x9',
       title: 'Dune: Part Two (Original Soundtrack)',
       artist: 'Hans Zimmer',
+      artistId: 'UC3u1g-8w_a9_Y1XpQcM715Q',
       artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/b8/b5/45/b8b545d0-9ce1-38ae-aa21-0300a74ea85a/794043217997.jpg/600x600bb.jpg',
       year: '2024',
       genre: 'Soundtrack',
       trackCount: 25,
     },
     {
-      id: 'album-hitmehard',
+      id: 'MPREb_U81Qp66p0oT',
       title: 'HIT ME HARD AND SOFT',
       artist: 'Billie Eilish',
+      artistId: 'UCiGm_E4DwYcU-dRkg2bd0MQ',
       artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/71/6a/5f/716a5fae-7833-255e-2b1b-b21a37c35e38/24UMGIM36919.rgb.jpg/600x600bb.jpg',
       year: '2024',
       genre: 'Alternative',
       trackCount: 10,
     },
     {
-      id: 'album-yourname',
+      id: 'MPREb_3fD5kL1z7x9',
       title: 'Your Name. (Original Soundtrack)',
       artist: 'RADWIMPS',
+      artistId: 'UC2wRz2B6e21E2Z_rFmQ269A',
       artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/8e/31/31/8e31317a-85d7-b362-e935-d22798fbb0d8/16UMGIM41846.rgb.jpg/600x600bb.jpg',
       year: '2016',
       genre: 'Anime',

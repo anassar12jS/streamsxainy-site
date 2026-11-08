@@ -224,17 +224,27 @@ export const NewRoute: React.FC = () => {
               </div>
 
               {/* Title & Artist */}
-              <h3 className="font-semibold text-sm text-white truncate group-hover:underline">
+              <h3 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/music/album/${alb.id}`);
+                }}
+                className="font-semibold text-sm text-white truncate hover:underline cursor-pointer"
+              >
                 {alb.title}
               </h3>
               <p className="text-xs text-[#b3b3b3] truncate mt-0.5">
-                <Link
-                  to={`/music/artist/${encodeURIComponent(alb.artist)}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="hover:text-white hover:underline transition-colors"
-                >
-                  {alb.artist}
-                </Link>
+                {(alb as any).artistId ? (
+                  <Link
+                    to={`/music/artist/${(alb as any).artistId}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="hover:text-white hover:underline transition-colors"
+                  >
+                    {alb.artist}
+                  </Link>
+                ) : (
+                  <span>{alb.artist}</span>
+                )}
               </p>
               <p className="text-[11px] text-[#777777] mt-0.5 font-normal">
                 {alb.year || '2024'} • {alb.genre || 'Album'}

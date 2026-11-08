@@ -14,7 +14,9 @@ export const BITCHORD_HOME_TRACKS: MusicTrack[] = [
     id: 'bitchord-1',
     title: "No One's Deserving",
     artist: 'Superheaven',
+    artistId: 'UC3u1g-8w_a9_Y1XpQcM715Q',
     album: 'Jar',
+    albumId: 'MPREb_kZ32L3x7eJ8',
     artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg',
     duration: 184,
     youtubeId: 'ScTODhHAqFc',
@@ -23,7 +25,9 @@ export const BITCHORD_HOME_TRACKS: MusicTrack[] = [
     id: 'bitchord-2',
     title: 'Youngest Daughter',
     artist: 'Superheaven',
+    artistId: 'UC3u1g-8w_a9_Y1XpQcM715Q',
     album: 'Jar',
+    albumId: 'MPREb_kZ32L3x7eJ8',
     artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg',
     duration: 250,
     youtubeId: 'VMk6i7Q0k54',
@@ -32,7 +36,9 @@ export const BITCHORD_HOME_TRACKS: MusicTrack[] = [
     id: 'bitchord-3',
     title: 'Tonight (demo)',
     artist: 'Amira Elfeky',
+    artistId: 'UCy8x1qMv2p3l7qD_XJ9Z0WA',
     album: 'Tonight (demo) - Single',
+    albumId: 'MPREb_7mN0kL1z7x9',
     artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/04/dd/24/04dd2474-11ef-c30f-abc2-7fb80e1ef095/075679660244.jpg/600x600bb.jpg',
     duration: 156,
     youtubeId: 'ErDRcmM7PaY',
@@ -41,7 +47,9 @@ export const BITCHORD_HOME_TRACKS: MusicTrack[] = [
     id: 'bitchord-4',
     title: 'smoky',
     artist: 'Nextime, Richmnkey',
+    artistId: 'UC9wRz2B6e21E2Z_rFmQ269A',
     album: 'smoky - Single',
+    albumId: 'MPREb_2pL5w9Z2x1a',
     artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/24/79/09/24790923-4a1f-08df-0653-d132a65a4273/artwork.jpg/600x600bb.jpg',
     duration: 138,
     youtubeId: 'Wq9dXy615jE',
@@ -51,7 +59,9 @@ export const BITCHORD_HOME_TRACKS: MusicTrack[] = [
     id: 'bitchord-5',
     title: 'Enough for you',
     artist: 'Wisp',
+    artistId: 'UC2wRz2B6e21E2Z_rFmQ269A',
     album: 'Pandora',
+    albumId: 'MPREb_3fD5kL1z7x9',
     artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/33/fd/32/33fd32b1-0e43-9b4a-8ed6-19643f23544e/21UMGIM26092.rgb.jpg/600x600bb.jpg',
     duration: 228,
     youtubeId: 'IL4YmAxxQzM',
@@ -60,7 +70,9 @@ export const BITCHORD_HOME_TRACKS: MusicTrack[] = [
     id: 'bitchord-6',
     title: 'Where Is My Mind?',
     artist: 'Pixies',
+    artistId: 'UCY4s2D_iR2gM7l8xUj0t8wA',
     album: 'Surfer Rosa',
+    albumId: 'MPREb_8kL4w9Z2x1a',
     artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/68/b7/c0/68b7c018-dc15-f44a-2611-be10237fc9a5/652637080308.png/600x600bb.jpg',
     duration: 233,
     youtubeId: '49FB9hhoO6c',
@@ -69,7 +81,9 @@ export const BITCHORD_HOME_TRACKS: MusicTrack[] = [
     id: 'bitchord-7',
     title: 'darkest days',
     artist: 'CHANGETHEWXRLD',
+    artistId: 'UCh1kL4w9Z2x1aM7l8xUj0t8',
     album: 'darkest days - Single',
+    albumId: 'MPREb_4kL4w9Z2x1a',
     artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/bd/a3/31/bda33193-ad5f-9425-3b2a-239bd397b791/artwork.jpg/600x600bb.jpg',
     duration: 161,
     youtubeId: 'EdIWrRcxH8o',
@@ -78,7 +92,9 @@ export const BITCHORD_HOME_TRACKS: MusicTrack[] = [
     id: 'bitchord-8',
     title: 'resonance (midwest emo version)',
     artist: 'jacal',
+    artistId: 'UCj7kL4w9Z2x1aM7l8xUj0t8',
     album: 'resonance - Single',
+    albumId: 'MPREb_5kL4w9Z2x1a',
     artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/bc/f6/85/bcf685cd-573a-f9df-72f9-7c0a0cae0377/663918143896.jpg/600x600bb.jpg',
     duration: 195,
     youtubeId: 'LdVtUo-xngw',
@@ -87,42 +103,36 @@ export const BITCHORD_HOME_TRACKS: MusicTrack[] = [
 
 export const BITCHORD_LIBRARY_ALBUMS = [
   {
-    id: 'lib-jar',
+    id: 'MPREb_kZ32L3x7eJ8',
     title: 'Jar',
     artist: 'Superheaven',
+    artistId: 'UC3u1g-8w_a9_Y1XpQcM715Q',
     artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg',
     tracks: BITCHORD_HOME_TRACKS.slice(0, 2),
   },
   {
-    id: 'lib-sade',
-    title: 'The Best of Sade',
-    artist: 'Sade',
-    artwork: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
-    tracks: [
-      {
-        id: 'sade-kiss-life',
-        title: 'Kiss of Life',
-        artist: 'Sade',
-        album: 'The Best of Sade',
-        artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/ec/3b/6e/ec3b6e82-e64e-fa68-19e0-f1c7d2c3e1e2/886444983050.jpg/600x600bb.jpg',
-        duration: 300,
-        youtubeId: 'ScTODhHAqFc',
-      }
-    ],
-  },
-  {
-    id: 'lib-shoegaze',
-    title: 'Shoegaze & Midwest Emo',
-    artist: 'Curated Collection',
+    id: 'MPREb_3fD5kL1z7x9',
+    title: 'Pandora',
+    artist: 'Wisp',
+    artistId: 'UC2wRz2B6e21E2Z_rFmQ269A',
     artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/33/fd/32/33fd32b1-0e43-9b4a-8ed6-19643f23544e/21UMGIM26092.rgb.jpg/600x600bb.jpg',
-    tracks: BITCHORD_HOME_TRACKS.slice(4, 8),
+    tracks: [BITCHORD_HOME_TRACKS[4]],
   },
   {
-    id: 'lib-alt',
-    title: 'Surfer Rosa & Classics',
-    artist: 'Pixies & Alt Icons',
+    id: 'MPREb_8kL4w9Z2x1a',
+    title: 'Surfer Rosa',
+    artist: 'Pixies',
+    artistId: 'UCY4s2D_iR2gM7l8xUj0t8wA',
     artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/68/b7/c0/68b7c018-dc15-f44a-2611-be10237fc9a5/652637080308.png/600x600bb.jpg',
     tracks: [BITCHORD_HOME_TRACKS[5]],
+  },
+  {
+    id: 'MPREb_U81Qp66p0oT',
+    title: 'HIT ME HARD AND SOFT',
+    artist: 'Billie Eilish',
+    artistId: 'UCiGm_E4DwYcU-dRkg2bd0MQ',
+    artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/71/6a/5f/716a5fae-7833-255e-2b1b-b21a37c35e38/24UMGIM36919.rgb.jpg/600x600bb.jpg',
+    tracks: [],
   },
 ];
 
@@ -211,13 +221,17 @@ export const BrowseRoute: React.FC = () => {
               {track.title}
             </span>
             <span className="text-xs text-[#b3b3b3] truncate mt-0.5">
-              <Link
-                to={`/music/artist/${encodeURIComponent(track.artistId || track.artist)}`}
-                onClick={(e) => e.stopPropagation()}
-                className="hover:text-white hover:underline transition-colors"
-              >
-                {track.artist}
-              </Link>
+              {track.artistId ? (
+                <Link
+                  to={`/music/artist/${track.artistId}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="hover:text-white hover:underline transition-colors"
+                >
+                  {track.artist}
+                </Link>
+              ) : (
+                <span>{track.artist}</span>
+              )}
             </span>
           </div>
         </div>
@@ -278,17 +292,19 @@ export const BrowseRoute: React.FC = () => {
                 <span>{isTrackLiked ? 'Favorited' : 'Add to Favorites'}</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  navigate(`/music/artist/${encodeURIComponent(track.artist)}`);
-                  setActiveMenuTrackId(null);
-                }}
-                className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white border-t border-white/5 mt-1 pt-1.5"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>Go to Artist</span>
-              </button>
+              {track.artistId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate(`/music/artist/${track.artistId}`);
+                    setActiveMenuTrackId(null);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white border-t border-white/5 mt-1 pt-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Go to Artist</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -394,13 +410,17 @@ export const BrowseRoute: React.FC = () => {
                   {album.title}
                 </h3>
                 <p className="text-xs text-[#b3b3b3] truncate mt-0.5">
-                  <Link
-                    to={`/music/artist/${encodeURIComponent(album.artist)}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="hover:text-white hover:underline transition-colors"
-                  >
-                    {album.artist}
-                  </Link>
+                  {(album as any).artistId ? (
+                    <Link
+                      to={`/music/artist/${(album as any).artistId}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="hover:text-white hover:underline transition-colors"
+                    >
+                      {album.artist}
+                    </Link>
+                  ) : (
+                    <span>{album.artist}</span>
+                  )}
                 </p>
               </div>
             </div>

@@ -112,12 +112,16 @@ export const AlbumRoute: React.FC = () => {
 
               {/* Artist link underneath title */}
               <p className="text-base sm:text-lg">
-                <Link 
-                  to={`/music/artist/${encodeURIComponent(album.artistId || album.artist)}`}
-                  className="font-semibold text-white/90 hover:text-white hover:underline transition-colors"
-                >
-                  {album.artist}
-                </Link>
+                {album.artistId ? (
+                  <Link 
+                    to={`/music/artist/${album.artistId}`}
+                    className="font-semibold text-white/90 hover:text-white hover:underline transition-colors"
+                  >
+                    {album.artist}
+                  </Link>
+                ) : (
+                  <span className="font-semibold text-white/90">{album.artist}</span>
+                )}
               </p>
 
               <p className="text-xs text-[#b3b3b3] font-normal">
@@ -197,26 +201,34 @@ export const AlbumRoute: React.FC = () => {
                         {track.title}
                       </span>
                       <span className="md:hidden text-xs text-[#b3b3b3] truncate block mt-0.5">
-                        <Link
-                          to={`/music/artist/${encodeURIComponent(track.artistId || track.artist)}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="hover:text-white hover:underline"
-                        >
-                          {track.artist}
-                        </Link>
+                        {track.artistId ? (
+                          <Link
+                            to={`/music/artist/${track.artistId}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:text-white hover:underline"
+                          >
+                            {track.artist}
+                          </Link>
+                        ) : (
+                          <span>{track.artist}</span>
+                        )}
                       </span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-6 shrink-0 text-xs text-[#b3b3b3]">
                     <span className="hidden md:inline min-w-[120px] truncate text-right">
-                      <Link
-                        to={`/music/artist/${encodeURIComponent(track.artistId || track.artist)}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="hover:text-white hover:underline"
-                      >
-                        {track.artist}
-                      </Link>
+                      {track.artistId ? (
+                        <Link
+                          to={`/music/artist/${track.artistId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="hover:text-white hover:underline"
+                        >
+                          {track.artist}
+                        </Link>
+                      ) : (
+                        <span>{track.artist}</span>
+                      )}
                     </span>
 
                     <button

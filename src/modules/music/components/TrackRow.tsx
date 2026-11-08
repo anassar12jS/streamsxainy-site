@@ -117,13 +117,17 @@ export const TrackRow: React.FC<TrackRowProps> = ({
             )}
           </div>
           <p className="text-xs text-[#b3b3b3] truncate mt-0.5">
-            <Link
-              to={`/music/artist/${encodeURIComponent(track.artistId || track.artist)}`}
-              onClick={(e) => e.stopPropagation()}
-              className="hover:text-white hover:underline transition-colors"
-            >
-              {track.artist}
-            </Link>
+            {track.artistId ? (
+              <Link
+                to={`/music/artist/${track.artistId}`}
+                onClick={(e) => e.stopPropagation()}
+                className="hover:text-white hover:underline transition-colors"
+              >
+                {track.artist}
+              </Link>
+            ) : (
+              <span>{track.artist}</span>
+            )}
           </p>
         </div>
       </div>
@@ -132,13 +136,17 @@ export const TrackRow: React.FC<TrackRowProps> = ({
       {showAlbum && (
         <div className="hidden md:block w-1/4 px-4 truncate text-xs text-[#b3b3b3]">
           {track.album && (
-            <Link
-              to={`/music/album/${encodeURIComponent(track.albumId || track.album)}`}
-              onClick={(e) => e.stopPropagation()}
-              className="hover:text-white hover:underline transition-colors"
-            >
-              {track.album}
-            </Link>
+            track.albumId ? (
+              <Link
+                to={`/music/album/${track.albumId}`}
+                onClick={(e) => e.stopPropagation()}
+                className="hover:text-white hover:underline transition-colors"
+              >
+                {track.album}
+              </Link>
+            ) : (
+              <span>{track.album}</span>
+            )
           )}
         </div>
       )}
