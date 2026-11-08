@@ -41,6 +41,7 @@ export const MusicModule: React.FC = () => {
   // Store bindings
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
+  const currentTime = useMusicPlayerStore(state => state.currentTime);
   const volume = useMusicPlayerStore(state => state.volume);
   const isMuted = useMusicPlayerStore(state => state.isMuted);
   const repeatMode = useMusicPlayerStore(state => state.repeatMode);
@@ -338,7 +339,7 @@ export const MusicModule: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlayPause, volume]);
+  }, [togglePlayPause, currentTrack, currentTime, volume]);
 
   return (
     <div 
@@ -375,7 +376,7 @@ export const MusicModule: React.FC = () => {
         {/* Subroutes */}
         <Routes>
           <Route path="/" element={<BrowseRoute />} />
-          <Route path="/browse" element={<NewRoute />} />
+          <Route path="/browse" element={<BrowseRoute />} />
           <Route path="/new" element={<NewRoute />} />
           <Route path="/search" element={<SearchRoute />} />
           <Route path="/album/:id" element={<AlbumRoute />} />
