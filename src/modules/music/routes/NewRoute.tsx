@@ -1,79 +1,28 @@
 import React, { useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Play, ChevronLeft, ChevronRight, Sparkles, Video, Disc } from 'lucide-react';
+import { Play, ChevronLeft, ChevronRight, Sparkles, Video, Disc, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
-import { APPLE_MUSIC_BROWSE_SECTIONS } from '../api/innertube';
-import { MusicTrack } from '../types';
-
-interface MusicVideoItem {
-  id: string;
-  title: string;
-  artist: string;
-  artistId?: string;
-  thumbnail: string;
-  duration: string;
-  youtubeId: string;
-  views?: string;
-}
-
-const NEW_MUSIC_VIDEOS: MusicVideoItem[] = [
-  {
-    id: 'mv-1',
-    title: 'Houdini (Official Music Video)',
-    artist: 'Dua Lipa',
-    artistId: 'dua-lipa',
-    thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80',
-    duration: '3:05',
-    youtubeId: 'suAR1PYFNYA',
-    views: '115M views',
-  },
-  {
-    id: 'mv-2',
-    title: 'vampire (Live & Studio Cut)',
-    artist: 'Olivia Rodrigo',
-    artistId: 'olivia-rodrigo',
-    thumbnail: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=800&q=80',
-    duration: '3:40',
-    youtubeId: 'Zl3wG_m_tXo',
-    views: '92M views',
-  },
-  {
-    id: 'mv-3',
-    title: 'Fortnight (feat. Post Malone)',
-    artist: 'Taylor Swift',
-    artistId: 'taylor-swift',
-    thumbnail: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=800&q=80',
-    duration: '3:48',
-    youtubeId: 'q3zXXCF385g',
-    views: '84M views',
-  },
-  {
-    id: 'mv-4',
-    title: 'Espresso (Official Visualizer)',
-    artist: 'Sabrina Carpenter',
-    artistId: 'sabrina-carpenter',
-    thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80',
-    duration: '2:55',
-    youtubeId: 'eVli-tstM5E',
-    views: '140M views',
-  },
-  {
-    id: 'mv-5',
-    title: 'Dune: Part Two Main Theme (Live Concert)',
-    artist: 'Hans Zimmer',
-    artistId: 'hans-zimmer',
-    thumbnail: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=800&q=80',
-    duration: '4:20',
-    youtubeId: 'N9qYF9DZPdw',
-    views: '35M views',
-  },
-];
+import { getExploreNewReleases } from '../api/innertube';
+import { MusicTrack, Album } from '../types';
 
 export const NewRoute: React.FC = () => {
   const navigate = useNavigate();
   const playTrack = useMusicPlayerStore(state => state.playTrack);
+  const currentTrack = useMusicPlayerStore(state => state.currentTrack);
+  const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
+
   const albumsScrollRef = useRef<HTMLDivElement | null>(null);
   const videosScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const { data: explore, isLoading } = useQuery({
+    queryKey: ['music-explore-new'],
+    queryFn: () => getExploreNewReleases(),
+    staleTime: 1000 * 60 * 15,
+  });
+
+  const albums: Album[] = explore?.newAlbums || [];
+  const videos: MusicTrack[] = explore?.trendingVideos || [];
 
   const scrollShelf = (ref: React.RefObject<HTMLDivElement | null>, direction: 'left' | 'right') => {
     if (!ref.current) return;
@@ -84,31 +33,27 @@ export const NewRoute: React.FC = () => {
     });
   };
 
-  const handlePlayAlbum = (album: any) => {
-    navigate(`/music/album/${album.id}`);
+  const handlePlayVideoAsTrack = (video: MusicTrack) => {
+    playTrack(video);
   };
 
-  const handlePlayVideoAsTrack = (video: MusicVideoItem) => {
-    const track: MusicTrack = {
-      id: `vid-${video.id}`,
-      title: video.title,
-      artist: video.artist,
-      artistId: video.artistId,
-      album: 'Music Video',
-      artwork: video.thumbnail,
-      duration: 210,
-      youtubeId: video.youtubeId,
-      source: 'innertube',
-    };
-    playTrack(track);
+  const featured = albums[0] || {
+    id: 'MPREb_featured',
+    title: 'HIT ME HARD AND SOFT',
+    artist: 'Billie Eilish',
+    artistId: 'UCiGm_E4DwYcU-dRkg2bd0MQ',
+    artwork: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=800&q=80',
+    year: '2024',
+    genre: 'Alternative Pop',
+    trackCount: 10,
+    tracks: [],
   };
 
   return (
     <div 
-      className="space-y-10 animate-fade-in pb-32 pt-2 px-1 sm:px-4 max-w-7xl mx-auto"
+      className="space-y-10 animate-fade-in pb-32 pt-2 px-1 sm:px-4 max-w-7xl mx-auto text-white"
       style={{ fontFamily: "'DM Sans', sans-serif" }}
     >
-      
       {/* 1. Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -116,7 +61,7 @@ export const NewRoute: React.FC = () => {
             New
           </h1>
           <p className="text-sm text-[#b3b3b3] mt-1 font-normal">
-            Discover the latest releases, trending singles, and music videos.
+            Latest releases, trending singles, and music videos directly from YouTube Music.
           </p>
         </div>
       </div>
@@ -125,220 +70,213 @@ export const NewRoute: React.FC = () => {
       <div className="relative rounded-2xl overflow-hidden p-6 sm:p-10 border border-white/10 bg-[#121212] shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
         <div 
           className="absolute inset-0 bg-cover bg-center filter blur-3xl opacity-25 scale-125 pointer-events-none"
-          style={{ backgroundImage: `url('https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/71/6a/5f/716a5fae-7833-255e-2b1b-b21a37c35e38/24UMGIM36919.rgb.jpg/600x600bb.jpg')` }}
+          style={{ backgroundImage: `url(${featured.artwork})` }}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#121212] via-[#121212]/90 to-transparent pointer-events-none" />
 
-        <div className="relative z-10 space-y-3 max-w-xl text-center md:text-left">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-white/50 bg-white/5 px-2.5 py-0.5 rounded-full border border-white/10">
-            Featured Premiere
-          </span>
-          <h2 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
-            HIT ME HARD AND SOFT
-          </h2>
-          <p className="text-sm text-[#b3b3b3] font-normal">
-            Billie Eilish's critically acclaimed third studio album, featuring "LUNCH" and "BIRDS OF A FEATHER".
-          </p>
-          <div className="flex items-center justify-center md:justify-start gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => navigate('/music/album/lib-billie')}
-              className="px-6 py-2.5 rounded-full bg-white hover:bg-white/90 text-black font-semibold text-xs shadow-lg flex items-center gap-2 hover:scale-105 active:scale-95 transition-all cursor-pointer"
-            >
-              <Play className="w-4 h-4 fill-current ml-0.5" />
-              <span>Listen Now</span>
-            </button>
-            <Link
-              to="/music/artist/Billie%20Eilish"
-              className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs flex items-center gap-2 border border-white/10 hover:scale-105 active:scale-95 transition-all cursor-pointer"
-            >
-              <span>Artist Profile</span>
-            </Link>
+        <div className="relative z-10 flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
+          <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 shrink-0 bg-[#1e1e1e]">
+            <img 
+              src={featured.artwork} 
+              alt={featured.title} 
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80';
+              }}
+              className="w-full h-full object-cover" 
+            />
           </div>
-        </div>
 
-        <div className="relative z-10 w-44 h-44 sm:w-56 sm:h-56 rounded-xl overflow-hidden shadow-2xl border border-white/10 shrink-0 bg-[#161616]">
-          <img 
-            src="https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/71/6a/5f/716a5fae-7833-255e-2b1b-b21a37c35e38/24UMGIM36919.rgb.jpg/600x600bb.jpg" 
-            alt="Hit Me Hard and Soft" 
-            className="w-full h-full object-cover"
-          />
+          <div className="space-y-2 max-w-lg">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-400 bg-rose-500/10 px-2.5 py-0.5 rounded-full border border-rose-500/20 inline-flex items-center gap-1">
+              <Sparkles className="w-3 h-3" /> Featured New Album
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              {featured.title}
+            </h2>
+            <p className="text-sm text-white/90 font-medium">
+              {featured.artist} • {featured.genre || 'New Release'} ({featured.year || '2024'})
+            </p>
+            <p className="text-xs text-[#a3a3a3] leading-relaxed pt-1">
+              Stream the newest studio project with lossless audio dynamic resolution.
+            </p>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => navigate(`/music/album/${featured.id}`)}
+                className="px-6 py-2.5 rounded-full bg-white hover:bg-white/90 text-black font-semibold text-xs shadow-lg flex items-center gap-2 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              >
+                <Play className="w-4 h-4 fill-current ml-0.5" />
+                <span>View Album & Tracks</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* 3. SHELF: New albums & singles (Square Art) */}
-      <div className="space-y-4 relative group/shelf">
+      {/* 3. New Albums & EPs Shelf */}
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-white tracking-tight">
-              New albums & singles
-            </h2>
-            <p className="text-xs text-[#b3b3b3] mt-0.5 font-normal">
-              Fresh long-plays, EPs, and worldwide debuts.
+            <h3 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+              <Disc className="w-5 h-5 text-rose-400" />
+              <span>New Releases & Albums</span>
+            </h3>
+            <p className="text-xs text-[#a3a3a3] mt-0.5">
+              Fresh albums and EPs on YouTube Music
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => scrollShelf(albumsScrollRef, 'left')}
-              className="w-8 h-8 rounded-full bg-[#161616] hover:bg-[#222222] border border-white/10 text-white flex items-center justify-center transition-all cursor-pointer hover:scale-105"
-              title="Previous"
+              className="p-1.5 rounded-full bg-[#1a1a1a] hover:bg-[#252525] text-white/70 hover:text-white transition-colors cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               type="button"
               onClick={() => scrollShelf(albumsScrollRef, 'right')}
-              className="w-8 h-8 rounded-full bg-[#161616] hover:bg-[#222222] border border-white/10 text-white flex items-center justify-center transition-all cursor-pointer hover:scale-105"
-              title="Next"
+              className="p-1.5 rounded-full bg-[#1a1a1a] hover:bg-[#252525] text-white/70 hover:text-white transition-colors cursor-pointer"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Horizontal scroll container */}
-        <div 
-          ref={albumsScrollRef}
-          className="flex items-center gap-4 overflow-x-auto pb-4 pt-1 am-scrollbar scroll-smooth"
-        >
-          {APPLE_MUSIC_BROWSE_SECTIONS.featuredAlbums.map(alb => (
-            <div
-              key={alb.id}
-              onClick={() => handlePlayAlbum(alb)}
-              className="group flex-shrink-0 w-[180px] sm:w-[210px] bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 rounded-2xl p-3 transition-colors duration-150 cursor-pointer shadow-lg"
-            >
-              {/* Square Artwork */}
-              <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-[#242426] mb-3">
-                <img 
-                  src={alb.artwork} 
-                  alt={alb.title} 
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
-                />
-                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-xl">
-                    <Play className="w-5 h-5 fill-current ml-0.5" />
+        {isLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 animate-pulse">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="space-y-2">
+                <div className="aspect-square bg-[#1a1a1a] rounded-xl" />
+                <div className="h-4 bg-[#1a1a1a] rounded w-3/4" />
+                <div className="h-3 bg-[#1a1a1a] rounded w-1/2" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div 
+            ref={albumsScrollRef}
+            className="flex gap-4 overflow-x-auto no-scrollbar scroll-smooth pb-2"
+          >
+            {albums.map((album) => (
+              <div
+                key={album.id}
+                onClick={() => navigate(`/music/album/${album.id}`)}
+                className="w-44 sm:w-48 shrink-0 group p-3 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer transition-colors shadow-md select-none"
+              >
+                <div className="relative aspect-square rounded-xl overflow-hidden mb-3 bg-[#1e1e1e]">
+                  <img 
+                    src={album.artwork} 
+                    alt={album.title} 
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=400&q=80';
+                    }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-xl">
+                      <Play className="w-5 h-5 fill-current ml-0.5" />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Title & Artist */}
-              <h3 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate(`/music/album/${alb.id}`);
-                }}
-                className="font-semibold text-sm text-white truncate hover:underline cursor-pointer"
-              >
-                {alb.title}
-              </h3>
-              <p className="text-xs text-[#b3b3b3] truncate mt-0.5">
-                {(alb as any).artistId ? (
-                  <Link
-                    to={`/music/artist/${(alb as any).artistId}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="hover:text-white hover:underline transition-colors"
-                  >
-                    {alb.artist}
-                  </Link>
-                ) : (
-                  <span>{alb.artist}</span>
-                )}
-              </p>
-              <p className="text-[11px] text-[#777777] mt-0.5 font-normal">
-                {alb.year || '2024'} • {alb.genre || 'Album'}
-              </p>
-            </div>
-          ))}
-        </div>
+                <h4 className="font-semibold text-xs sm:text-sm text-white truncate group-hover:underline">
+                  {album.title}
+                </h4>
+                <p className="text-[11px] text-[#a3a3a3] truncate mt-0.5">
+                  {album.artist}
+                </p>
+                <span className="text-[10px] text-white/50 block mt-0.5">
+                  {album.year || 'Album'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* 4. SHELF: New music videos (16:9 Thumbnails) */}
-      <div className="space-y-4 relative group/shelf">
+      {/* 4. Trending Music Videos Shelf */}
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div>
-              <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-                <Video className="w-5 h-5 text-purple-400" />
-                <span>New music videos</span>
-              </h2>
-              <p className="text-xs text-[#b3b3b3] mt-0.5 font-normal">
-                High-definition music videos, live sessions, and official visuals.
-              </p>
-            </div>
+          <div>
+            <h3 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+              <Video className="w-5 h-5 text-purple-400" />
+              <span>Trending Music Videos</span>
+            </h3>
+            <p className="text-xs text-[#a3a3a3] mt-0.5">
+              Popular music videos and audio premieres
+            </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => scrollShelf(videosScrollRef, 'left')}
-              className="w-8 h-8 rounded-full bg-[#161616] hover:bg-[#222222] border border-white/10 text-white flex items-center justify-center transition-all cursor-pointer hover:scale-105"
-              title="Previous"
+              className="p-1.5 rounded-full bg-[#1a1a1a] hover:bg-[#252525] text-white/70 hover:text-white transition-colors cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               type="button"
               onClick={() => scrollShelf(videosScrollRef, 'right')}
-              className="w-8 h-8 rounded-full bg-[#161616] hover:bg-[#222222] border border-white/10 text-white flex items-center justify-center transition-all cursor-pointer hover:scale-105"
-              title="Next"
+              className="p-1.5 rounded-full bg-[#1a1a1a] hover:bg-[#252525] text-white/70 hover:text-white transition-colors cursor-pointer"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* 16:9 Horizontal scroll container */}
         <div 
           ref={videosScrollRef}
-          className="flex items-center gap-4 overflow-x-auto pb-4 pt-1 am-scrollbar scroll-smooth"
+          className="flex gap-4 overflow-x-auto no-scrollbar scroll-smooth pb-2"
         >
-          {NEW_MUSIC_VIDEOS.map(video => (
-            <div
-              key={video.id}
-              onClick={() => handlePlayVideoAsTrack(video)}
-              className="group flex-shrink-0 w-[280px] sm:w-[320px] bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 rounded-2xl p-3 transition-colors duration-150 cursor-pointer shadow-lg"
-            >
-              {/* 16:9 Aspect Ratio Thumbnail */}
-              <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-[#242426] mb-3">
-                <img 
-                  src={video.thumbnail} 
-                  alt={video.title} 
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
-                />
-                <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <div className="w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shadow-xl">
-                    <Play className="w-5 h-5 fill-current ml-0.5" />
+          {videos.map((video) => {
+            const isPlaying = currentTrack?.id === video.id && playbackStatus === 'playing';
+            const isLoadingThis = currentTrack?.id === video.id && playbackStatus === 'loading';
+
+            return (
+              <div
+                key={video.id}
+                onClick={() => handlePlayVideoAsTrack(video)}
+                className="w-64 sm:w-72 shrink-0 group p-3 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer transition-colors shadow-md select-none"
+              >
+                <div className="relative aspect-video rounded-xl overflow-hidden mb-3 bg-[#1e1e1e]">
+                  <img 
+                    src={video.artwork} 
+                    alt={video.title} 
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80';
+                    }}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                  />
+                  <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity ${
+                    isPlaying || isLoadingThis ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  }`}>
+                    {isLoadingThis ? (
+                      <Loader2 className="w-8 h-8 text-white animate-spin" />
+                    ) : (
+                      <div className="w-11 h-11 rounded-full bg-white text-black flex items-center justify-center shadow-xl">
+                        <Play className="w-5 h-5 fill-current ml-0.5" />
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 text-white text-[10px] font-mono rounded">
-                  {video.duration}
-                </div>
-              </div>
 
-              {/* Title & Artist */}
-              <h3 className="font-semibold text-sm text-white truncate group-hover:underline">
-                {video.title}
-              </h3>
-              <p className="text-xs text-[#b3b3b3] truncate mt-0.5">
-                <Link
-                  to={`/music/artist/${encodeURIComponent(video.artistId || video.artist)}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="hover:text-white hover:underline transition-colors"
-                >
+                <h4 className="font-semibold text-xs sm:text-sm text-white truncate group-hover:underline">
+                  {video.title}
+                </h4>
+                <p className="text-[11px] text-[#a3a3a3] truncate mt-0.5">
                   {video.artist}
-                </Link>
-                {video.views && (
-                  <span className="text-[#777777] ml-2 font-normal">• {video.views}</span>
-                )}
-              </p>
-            </div>
-          ))}
+                </p>
+              </div>
+            );
+          })}
         </div>
       </div>
-
     </div>
   );
 };
+
 export default NewRoute;

@@ -9,7 +9,7 @@ import { MusicTrack } from '../types';
 export const ArtistRoute: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const setTrack = useMusicPlayerStore(state => state.setTrack);
+  const playTrack = useMusicPlayerStore(state => state.playTrack);
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
   const togglePlayPause = useMusicPlayerStore(state => state.togglePlayPause);
@@ -29,14 +29,14 @@ export const ArtistRoute: React.FC = () => {
     if (shuffle) {
       list.sort(() => Math.random() - 0.5);
     }
-    setTrack(list[0], list);
+    playTrack(list[0], list);
   };
 
   const handleTrackClick = (track: MusicTrack) => {
     if (currentTrack?.id === track.id) {
       togglePlayPause();
     } else {
-      setTrack(track, artist?.topTracks || [track]);
+      playTrack(track, artist?.topTracks || [track]);
     }
   };
 
@@ -97,6 +97,9 @@ export const ArtistRoute: React.FC = () => {
                 <img 
                   src={artist.avatar} 
                   alt={artist.name} 
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';
+                  }}
                   className="w-full h-full object-cover" 
                 />
               </div>
