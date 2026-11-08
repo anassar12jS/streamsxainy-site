@@ -231,20 +231,35 @@ export class MusicAudioEngine {
     if (!this.ytPlayer || !this.isYtReady) {
       this.pendingVideoId = videoId;
       this.callbacks?.onStatusChange?.('loading');
-      return;
+
+      // Wait up to 4s for YouTube iframe API & player readiness
+      await new Promise<void>((resolve) => {
+        const check = setInterval(() => {
+          if (this.ytPlayer && this.isYtReady) {
+            clearInterval(check);
+            resolve();
+          }
+        }, 60);
+        setTimeout(() => {
+          clearInterval(check);
+          resolve();
+        }, 4000);
+      });
     }
 
-    try {
-      this.ytPlayer.loadVideoById({
-        videoId,
-        startSeconds: 0,
-      });
-      this.ytPlayer.playVideo();
-      this.callbacks?.onStatusChange?.('playing');
-      this.startYouTubeTimer();
-    } catch (err) {
-      console.warn('Error loading video in YouTube player:', err);
-      this.callbacks?.onStatusChange?.('error');
+    if (this.ytPlayer && this.isYtReady) {
+      try {
+        this.pendingVideoId = null;
+        this.ytPlayer.loadVideoById({
+          videoId,
+          startSeconds: 0,
+        });
+        this.ytPlayer.playVideo();
+        this.startYouTubeTimer();
+      } catch (err) {
+        console.warn('Error loading video in YouTube player:', err);
+        this.callbacks?.onStatusChange?.('error');
+      }
     }
   }
 

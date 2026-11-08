@@ -25,6 +25,7 @@ import { PlaylistRoute } from './routes/PlaylistRoute';
 import { RadioRoute } from './routes/RadioRoute';
 import { LibraryRoute } from './routes/LibraryRoute';
 import { ReplayRoute } from './routes/ReplayRoute';
+import { SettingsRoute } from './routes/SettingsRoute';
 
 export const MusicModule: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -352,7 +353,7 @@ export const MusicModule: React.FC = () => {
 
   return (
     <div 
-      className="h-full w-full flex bg-[#0a0a0a] text-[#ffffff] relative overflow-hidden"
+      className="h-full w-full flex bg-[#0f0f0f] text-[#ffffff] relative overflow-hidden"
       style={{ fontFamily: "'DM Sans', sans-serif" }}
     >
       
@@ -373,8 +374,11 @@ export const MusicModule: React.FC = () => {
         onOpenYouTubeLink={() => setIsYtLinkOpen(true)}
       />
 
-      {/* Main Content Scroll View: Exactly #0a0a0a */}
-      <main className="flex-1 min-w-0 h-full overflow-y-auto px-4 sm:px-8 pt-6 pb-40 am-scrollbar bg-[#0a0a0a]">
+      {/* Main Content Scroll View: BitChord #0f0f0f with 120px bottom padding */}
+      <main 
+        className="flex-1 min-w-0 h-full overflow-y-auto px-4 sm:px-8 pt-6 am-scrollbar bg-[#0f0f0f]"
+        style={{ paddingBottom: '120px' }}
+      >
         
         {/* Extension Detection Banner */}
         <ExtensionBanner />
@@ -390,6 +394,7 @@ export const MusicModule: React.FC = () => {
           <Route path="/playlist/:id" element={<PlaylistRoute />} />
           <Route path="/radio" element={<RadioRoute />} />
           <Route path="/replay" element={<ReplayRoute />} />
+          <Route path="/settings" element={<SettingsRoute />} />
           <Route path="/library/recent" element={<LibraryRoute defaultTab="recent" />} />
           <Route path="/library/songs" element={<LibraryRoute defaultTab="songs" />} />
           <Route path="/library/artists" element={<LibraryRoute defaultTab="artists" />} />

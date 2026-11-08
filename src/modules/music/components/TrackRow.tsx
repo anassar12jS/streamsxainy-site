@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Pause, Heart, MoreHorizontal, Plus, Disc } from 'lucide-react';
+import { Play, Pause, Heart, MoreHorizontal, Plus, Disc, Loader2 } from 'lucide-react';
 import { MusicTrack } from '../types';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
@@ -31,6 +31,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
 
   const isCurrent = currentTrack?.id === track.id;
   const isPlaying = isCurrent && playbackStatus === 'playing';
+  const isLoading = isCurrent && playbackStatus === 'loading';
 
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -65,9 +66,11 @@ export const TrackRow: React.FC<TrackRowProps> = ({
       {/* Left: Index / Play Button & Title */}
       <div className="flex items-center gap-3.5 min-w-0 flex-1">
         
-        {/* Track Number / Play Indicator */}
+        {/* Track Number / Play / Loading Indicator */}
         <div className="w-6 text-center flex items-center justify-center shrink-0">
-          {isPlaying ? (
+          {isLoading ? (
+            <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+          ) : isPlaying ? (
             <div className="flex items-end justify-center gap-0.5 h-4 w-4">
               <span className="w-1 bg-white h-3 animate-pulse rounded-full" />
               <span className="w-1 bg-white h-4 animate-bounce rounded-full" />

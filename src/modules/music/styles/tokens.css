@@ -1,79 +1,31 @@
-/* Apple Music CSS Custom Properties & Design Tokens (BitChord Web) */
+/* BitChord Authentic Design Tokens & CSS Custom Properties */
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..900;1,9..40,300..900&display=swap');
 
 :root {
-  --am-font: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --am-bg-main: #0a0a0a;
-  --am-bg-surface: #121212;
-  --am-bg-sidebar: #121212;
-  --am-bg-chrome: rgba(18, 18, 18, 0.88);
-  --am-bg-card: #141414;
-  --am-bg-card-hover: #1a1a1a;
-  --am-bg-sidebar-active: #282828;
-  --am-accent-red: #ffffff;
-  --am-accent-red-hover: rgba(255, 255, 255, 0.9);
-  --am-accent-red-glow: rgba(255, 255, 255, 0.15);
-  --am-border: rgba(255, 255, 255, 0.08);
-  --am-border-strong: rgba(255, 255, 255, 0.14);
-  --am-text-primary: #ffffff;
-  --am-text-secondary: #b3b3b3;
-  --am-text-muted: #777777;
-  --am-now-playing-bg: rgba(255, 255, 255, 0.06);
-  --am-scrubber-track: rgba(255, 255, 255, 0.18);
-  --am-sidebar-width: 230px;
-  --am-header-height: 56px;
+  --bitchord-font: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --bitchord-bg-main: #0f0f0f;
+  --bitchord-bg-sidebar: #121212;
+  --bitchord-bg-surface: #121212;
+  --bitchord-bg-card: #181818;
+  --bitchord-bg-card-hover: #242424;
+  --bitchord-bg-pill: rgba(40, 40, 40, 0.6);
+  --bitchord-border: rgba(255, 255, 255, 0.08);
+  --bitchord-border-strong: rgba(255, 255, 255, 0.15);
+  --bitchord-text-primary: #ffffff;
+  --bitchord-text-secondary: #a3a3a3;
+  --bitchord-text-muted: #666666;
+  --bitchord-accent-red: #fa243c;
 }
 
-.am-shell {
-  font-family: var(--am-font);
-  background-color: var(--am-bg-main);
-  color: var(--am-text-primary);
-  letter-spacing: -0.011em;
+body, html, #root {
+  font-family: var(--bitchord-font) !important;
+  background-color: var(--bitchord-bg-main);
+  color: var(--bitchord-text-primary);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Glassmorphism Top Chrome */
-.am-chrome {
-  background: var(--am-bg-chrome);
-  backdrop-filter: blur(28px) saturate(190%);
-  -webkit-backdrop-filter: blur(28px) saturate(190%);
-  border-bottom: 1px solid var(--am-border);
-}
-
-/* Apple Music Scrubber Slider */
-.am-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-}
-.am-slider::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 9999px;
-  background: var(--am-scrubber-track);
-  transition: height 0.15s ease;
-}
-.am-slider:hover::-webkit-slider-runnable-track {
-  height: 6px;
-}
-.am-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-  margin-top: -4px;
-  opacity: 0;
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
-.am-slider:hover::-webkit-slider-thumb {
-  opacity: 1;
-  transform: scale(1.15);
-}
-
-/* Minimal Custom WebKit Scrollbar (Width: 8px, #333 on transparent track) */
+/* Custom Minimal WebKit Scrollbar (Width: 8px, #333 on transparent track) */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -86,35 +38,42 @@
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #444444;
+  background: #484848;
 }
 
-.am-scrollbar::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+.bitchord-shell {
+  font-family: var(--bitchord-font);
+  background-color: var(--bitchord-bg-main);
+  color: var(--bitchord-text-primary);
 }
-.am-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+
+.bitchord-sidebar {
+  background-color: var(--bitchord-bg-sidebar);
+  border-right: 1px solid var(--bitchord-border);
 }
-.am-scrollbar::-webkit-scrollbar-thumb {
-  background: #333333;
+
+/* Seamless Frosted Glass Floating Player Pill */
+.bitchord-floating-pill {
+  background: rgba(40, 40, 40, 0.6) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Slim Micro Scrubber */
+.bitchord-micro-scrubber {
+  height: 2px;
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 9999px;
+  cursor: pointer;
+  position: relative;
+  transition: height 0.15s ease;
 }
-.am-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #444444;
+.bitchord-micro-scrubber:hover {
+  height: 4px;
 }
-
-/* Horizontal Shelf Snap */
-.am-shelf-container {
-  display: flex;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
-  gap: 16px;
-  padding-bottom: 8px;
+.bitchord-micro-scrubber-fill {
+  background: #ffffff;
+  border-radius: 9999px;
+  height: 100%;
 }
-.am-shelf-item {
-  scroll-snap-align: start;
-  flex-shrink: 0;
-}
-

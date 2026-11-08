@@ -2,11 +2,12 @@ import React, { useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
   Play, Pause, ChevronRight, ChevronLeft, MoreHorizontal, 
-  Plus, Disc, Heart, Sparkles, ExternalLink, Music2, Radio
+  Plus, Disc, Heart, Sparkles, ExternalLink, Music2, Radio, Loader2
 } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { APPLE_MUSIC_BROWSE_SECTIONS } from '../api/innertube';
 import { MusicTrack } from '../types';
+import { GlobalSearchBar } from '../components/GlobalSearchBar';
 
 export const BITCHORD_HOME_TRACKS: MusicTrack[] = [
   // Left Column
@@ -111,6 +112,24 @@ export const BITCHORD_LIBRARY_ALBUMS = [
     tracks: BITCHORD_HOME_TRACKS.slice(0, 2),
   },
   {
+    id: 'MPREb_sadeBest',
+    title: 'The Best of Sade',
+    artist: 'Sade',
+    artistId: 'UCsade1234567890',
+    artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/5f/ad/2a/5fad2aca-d998-701d-7b27-c074339d5fd0/886972262628.jpg/600x600bb.jpg',
+    tracks: [
+      {
+        id: 'sade-kiss',
+        title: 'Kiss of Life',
+        artist: 'Sade',
+        album: 'The Best of Sade',
+        artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/5f/ad/2a/5fad2aca-d998-701d-7b27-c074339d5fd0/886972262628.jpg/600x600bb.jpg',
+        duration: 300,
+        youtubeId: 'ScTODhHAqFc',
+      }
+    ],
+  },
+  {
     id: 'MPREb_3fD5kL1z7x9',
     title: 'Pandora',
     artist: 'Wisp',
@@ -131,7 +150,7 @@ export const BITCHORD_LIBRARY_ALBUMS = [
     title: 'HIT ME HARD AND SOFT',
     artist: 'Billie Eilish',
     artistId: 'UCiGm_E4DwYcU-dRkg2bd0MQ',
-    artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/71/6a/5f/716a5fae-7833-255e-2b1b-b21a37c35e38/24UMGIM36919.rgb.jpg/600x600bb.jpg',
+    artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/92/9f/69/929f69f1-9977-3a44-d674-11f70c852d1b/24UMGIM36186.rgb.jpg/600x600bb.jpg',
     tracks: [],
   },
 ];
@@ -181,6 +200,7 @@ export const BrowseRoute: React.FC = () => {
   const renderTrackItem = (track: MusicTrack) => {
     const isCurrent = currentTrack?.id === track.id;
     const isPlaying = isPlayingTrack(track.id);
+    const isLoading = isCurrent && playbackStatus === 'loading';
     const isTrackLiked = isLiked(track.id);
     const isMenuOpen = activeMenuTrackId === track.id;
 
@@ -193,7 +213,7 @@ export const BrowseRoute: React.FC = () => {
         }`}
       >
         <div className="flex items-center gap-3 min-w-0">
-          {/* Artwork Thumbnail with Hover Play Button */}
+          {/* Artwork Thumbnail with Hover Play Button & Loading Spinner */}
           <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-[#242426]">
             <img 
               src={track.artwork} 
@@ -201,11 +221,13 @@ export const BrowseRoute: React.FC = () => {
               className="w-full h-full object-cover transition-transform group-hover:scale-105" 
             />
             
-            {/* Play Overlay */}
-            <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity ${
-              isPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            {/* Play Overlay / Loading Indicator */}
+            <div className={`absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity ${
+              isLoading ? 'opacity-100' : isPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
             }`}>
-              {isPlaying ? (
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 text-white animate-spin" />
+              ) : isPlaying ? (
                 <Pause className="w-5 h-5 text-white fill-current" />
               ) : (
                 <Play className="w-5 h-5 text-white fill-current ml-0.5" />
@@ -313,8 +335,11 @@ export const BrowseRoute: React.FC = () => {
   };
 
   return (
-    <div className="space-y-10 animate-fade-in pb-40 pt-2 px-1 sm:px-4 max-w-7xl mx-auto">
+    <div className="space-y-8 animate-fade-in pb-40 pt-2 px-1 sm:px-4 max-w-7xl mx-auto">
       
+      {/* Top Center Global Search Bar (Phase 5) */}
+      <GlobalSearchBar />
+
       {/* 1. Header: Home */}
       <div>
         <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">

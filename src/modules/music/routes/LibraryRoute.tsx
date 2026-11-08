@@ -52,12 +52,13 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
   );
 
   // Group artists with large avatars
-  const artistMap = new Map<string, { id?: string; name: string; avatar: string; count: number; tracks: MusicTrack[] }>();
-  allKnownTracks.forEach(t => {
-    const existing = artistMap.get(t.artist) || { id: t.artistId, name: t.artist, avatar: t.artwork, count: 0, tracks: [] };
+  interface ArtistGroup { id?: string; name: string; avatar: string; count: number; tracks: MusicTrack[] }
+  const artistMap = new Map<string, ArtistGroup>();
+  allKnownTracks.forEach((t: any) => {
+    const existing: ArtistGroup = artistMap.get(t.artist) || { id: t.artistId, name: t.artist, avatar: t.artwork, count: 0, tracks: [] };
     if (!existing.id && t.artistId) existing.id = t.artistId;
     existing.count += 1;
-    existing.tracks.push(t);
+    existing.tracks.push(t as MusicTrack);
     artistMap.set(t.artist, existing);
   });
   const libraryArtists = Array.from(artistMap.values());
