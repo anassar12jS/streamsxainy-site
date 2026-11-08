@@ -5,7 +5,10 @@ import { extensionBridge } from '../extension/bridge';
 let ytInstance: Innertube | null = null;
 let isInitializing = false;
 
-import { getInnertubeForChannel } from './innertubeFactory';
+import { getInnertubeForChannel, resetInnertubeInstances } from './innertubeFactory';
+
+/** Drops all cached clients so the next getInnertube() builds a fresh one (e.g. after switching channel). */
+export const resetInnertube = resetInnertubeInstances;
 
 /**
  * Initializes YouTube.js Innertube client with custom extension proxy fetch.

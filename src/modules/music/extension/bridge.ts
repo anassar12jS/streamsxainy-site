@@ -35,6 +35,33 @@ export interface ExtensionStatus {
   activeAccount?: string;
 }
 
+/** One selectable YouTube Music channel (a Google account's own channel or a brand channel). */
+export interface YtChannel {
+  id: string;
+  name: string;
+  email?: string;
+  handle?: string | null;
+  photoUrl?: string;
+  selected?: boolean;
+  brand?: boolean;
+}
+
+/** Normalised `yt.authState`. Never contains invented accounts. */
+export interface YtAuthState {
+  extensionAvailable: boolean;
+  /** Browser has Google session cookies */
+  browserSignedIn: boolean;
+  /** YouTube integration switched on in the extension popup */
+  connected: boolean;
+  /** YouTube actually accepted the session and returned an account */
+  signedIn: boolean;
+  problem?: string | null;
+  /** code is the extension's own code when it sent one (e.g. 'forbidden'), else the BridgeError code */
+  error?: { code: string; message: string } | null;
+  accounts: YtChannel[];
+  active: YtChannel | null;
+}
+
 export interface BridgeCallOptions {
   timeoutMs?: number;
   retryOnWakeup?: boolean;
@@ -67,8 +94,8 @@ export class BitChordExtensionBridge {
       this.setStatus({
         available: true,
         version: (window as any).__BITCHORD_EXTENSION__.version || '0.4.4',
-        hasYouTubeAuth: (window as any).__BITCHORD_EXTENSION__.hasYouTubeAuth ?? true,
-        hasDiscordRpc: (window as any).__BITCHORD_EXTENSION__.hasDiscordRpc ?? true,
+        hasYouTubeAuth: (window as any).__BITCHORD_EXTENSION__.hasYouTubeAuth ?? false,
+        hasDiscordRpc: (window as any).__BITCHORD_EXTENSION__.hasDiscordRpc ?? false,
       });
       return;
     }
@@ -92,16 +119,15 @@ export class BitChordExtensionBridge {
     // Listen for postMessage from content scripts or companion tabs
     const onMessage = (event: MessageEvent) => {
       if (!event.data) return;
+      // Only a real pong counts; a reply carrying channel:'bitchord-bridge' may be a refusal.
       if (
-        event.data.channel === 'bitchord-bridge' ||
         event.data.type === 'BITCHORD_EXTENSION_PONG' ||
-        event.data.type === 'BITCHORD_PONG'
+        event.data.type === 'BITCHORD_PONG' ||
+        (event.data.channel === 'bitchord-bridge' && event.data.ok === true)
       ) {
         this.setStatus({
           available: true,
-          version: event.data.version || event.data.result?.version || '0.4.4',
-          hasYouTubeAuth: true,
-          hasDiscordRpc: true,
+          version: event.data.version || event.data.result?.version,
         });
       }
     };
@@ -236,8 +262,8 @@ export class BitChordExtensionBridge {
   public async ping(timeoutMs = 2500): Promise<{ ok: boolean; version?: string }> {
     try {
       const res = await this.call<{ version?: string }>('ping', {}, { timeoutMs, retryOnWakeup: false });
-      this.setStatus({ available: true, version: res?.version || '0.4.4' });
-      return { ok: true, version: res?.version || '0.4.4' };
+      this.setStatus({ available: true, version: res?.version });
+      return { ok: true, version: res?.version };
     } catch (err) {
       return { ok: false };
     }
@@ -397,94 +423,76 @@ export class BitChordExtensionBridge {
   }
 
   /**
-   * Fetches authenticated Google/YouTube Music accounts from the extension.
-   * Defensive parser accepting multiple possible shapes.
+   * Reads the REAL signed-in YouTube Music state from the extension. The extension returns
+   * accounts[] each with channels[]; they are flattened here into one selectable list.
+   * No placeholder or cached accounts are ever invented: when nothing is signed in,
+   * `accounts` is empty and `problem` / `error` say why.
    */
-  public async getAuthState(refresh = true): Promise<{ 
-    accounts: Array<{ 
-      id: string; 
-      name: string; 
-      email?: string; 
-      photoUrl?: string; 
-      avatarUrl?: string;
-      selected?: boolean;
-      channels?: Array<{
-        id: string;
-        name: string;
-        avatarUrl?: string;
-        photoUrl?: string;
-        selected?: boolean;
-        handle?: string;
-        subscriberCount?: string;
-      }>;
-    }> 
-  }> {
+  public async getAuthState(refresh = true): Promise<YtAuthState> {
+    const empty: YtAuthState = {
+      extensionAvailable: false,
+      browserSignedIn: false,
+      connected: false,
+      signedIn: false,
+      problem: null,
+      error: null,
+      accounts: [],
+      active: null,
+    };
+
+    let raw: any;
     try {
-      const res = await this.call<any>('yt.authState', { refresh });
-      if (res) {
-        if (Array.isArray(res.accounts)) {
-          return { accounts: res.accounts };
-        }
-        if (Array.isArray(res)) {
-          return { accounts: res };
-        }
-        if (res.result && Array.isArray(res.result.accounts)) {
-          return { accounts: res.result.accounts };
-        }
-      }
-    } catch (e) {
-      console.debug('[BitChord Bridge] yt.authState failed:', e);
+      raw = await this.call<any>('yt.authState', { refresh }, { timeoutMs: 15000 });
+    } catch (e: any) {
+      const extCode = e?.originalError?.code; // e.g. 'forbidden' when the origin isn't allowed
+      return {
+        ...empty,
+        extensionAvailable: e?.code !== 'NO_EXTENSION',
+        error: { code: extCode || e?.code || 'UNKNOWN', message: e?.message || String(e) },
+      };
     }
 
-    // Fallback cached profile in localStorage if extension was logged in previously
-    try {
-      const saved = localStorage.getItem('bitchord_active_account');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          accounts: [
-            {
-              id: parsed.id || 'channel_default',
-              name: parsed.name || 'BitChord User',
-              email: parsed.email || 'user@bitchord.app',
-              photoUrl: parsed.avatar || parsed.photoUrl || parsed.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
-              selected: true,
-              channels: parsed.channels || []
-            }
-          ]
-        };
-      }
-    } catch {}
-
-    return { accounts: [] };
+    const activeId: string | undefined = raw?.active?.id;
+    const accounts: YtChannel[] = (raw?.accounts ?? []).flatMap((acc: any) =>
+      (acc.channels ?? []).map((ch: any): YtChannel => ({
+        id: ch.id,
+        name: ch.name,
+        email: acc.email ?? undefined,
+        handle: ch.handle ?? null,
+        photoUrl: ch.avatarUrl ?? acc.avatarUrl ?? undefined,
+        brand: !!ch.brand,
+        selected: ch.id === activeId,
+      }))
+    );
+    const active = accounts.find(a => a.selected) ?? null;
+    return {
+      extensionAvailable: true,
+      browserSignedIn: !!raw?.browserSignedIn,
+      connected: !!raw?.connected,
+      signedIn: !!raw?.signedIn && !!active,
+      problem: raw?.problem ?? null,
+      error: null,
+      accounts,
+      active,
+    };
   }
 
   /**
-   * Locks in authenticated session channel for youtubei.js
+   * Locks in the channel used for authenticated requests. Throws if the extension refuses
+   * (it validates the id against the browser's real accounts).
    */
-  public async selectChannel(channelId: string): Promise<any> {
+  public async selectChannel(channelId: string): Promise<YtAuthState> {
+    await this.call('yt.selectChannel', { channelId });
     try {
-      const res = await this.call('yt.selectChannel', { channelId });
-      try {
-        localStorage.setItem('bitchord_selected_channel_id', channelId);
-      } catch {}
-      return res || { ok: true, channelId };
-    } catch (e) {
-      console.warn('[BitChord Bridge] selectChannel failed:', e);
-      throw e;
-    }
+      localStorage.setItem('bitchord_selected_channel_id', channelId);
+    } catch {}
+    return this.getAuthState(false);
   }
 
   public updateDiscordRpc(track: { title: string; artist: string; duration: number; artwork?: string }) {
     if (!this.status.available) return;
     try {
-      this.call('discord.updateActivity', {
-        details: track.title,
-        state: `by ${track.artist}`,
-        largeImageKey: track.artwork || 'bitchord_logo',
-        largeImageText: 'BitChord Music',
-        startTimestamp: Math.floor(Date.now() / 1000),
-      }, { timeoutMs: 3000, retryOnWakeup: false }).catch(() => {});
+      this.call('discord.presence', { track, options: {} }, { timeoutMs: 3000, retryOnWakeup: false }).catch(() => {});
     } catch {}
   }
 }

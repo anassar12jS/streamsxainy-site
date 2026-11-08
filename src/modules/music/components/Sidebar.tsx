@@ -10,6 +10,8 @@ import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { extensionBridge, BitChordExtensionBridge } from '../extension/bridge';
 
 import { useSessionStore } from '../store/useSessionStore';
+import { resetInnertube } from '../api/innertube';
+import { syncUserYouTubeMusicLibrary } from '../api/youtubeAuth';
 
 interface SidebarProps {
   isOpenOnMobile?: boolean;
@@ -46,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Active user representation
   const activeUser = {
     id: activeChannel?.id || 'channel_primary',
-    name: activeChannel?.name || 'anas',
+    name: activeChannel?.name || 'Not signed in',
     avatar: activeChannel?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&q=80',
     handle: activeChannel?.handle || 'YouTube Music',
   };
@@ -130,11 +132,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Account Selection Handler
   const handleAccountSelect = async (channelId: string) => {
-    await selectChannel(channelId);
-    // Instantly invalidate queries to auto-sync the new user's library
-    queryClient.invalidateQueries();
-    setShowAccountPopover(false);
+    try {
+      await selectChannel(channelId); // throws if the extension refuses; state unchanged then
+      resetInnertube();
+      queryClient.invalidateQueries();
+      setShowAccountPopover(false);
+      // Pull the new account's real library; Library page refreshes on the update event.
+      syncUserYouTubeMusicLibrary().catch(err => console.warn('[YT sync]', err?.message || err));
+    } catch (err: any) {
+      console.warn('[YT select channel] failed:', err?.message || err);
+    }
   };
+
+  // Verify the session on load instead of trusting whatever was cached in localStorage.
+  useEffect(() => {
+    refreshSession(false).catch(() => {});
+  }, []);
 
   const handleDisconnect = () => {
     disconnectSession();

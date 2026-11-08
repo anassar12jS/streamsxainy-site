@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { 
   Heart, Clock, Play, Shuffle, Music2, Users, Disc, 
@@ -9,7 +9,7 @@ import { APPLE_MUSIC_BROWSE_SECTIONS } from '../api/innertube';
 import { BITCHORD_HOME_TRACKS, BITCHORD_LIBRARY_ALBUMS } from './BrowseRoute';
 import { TrackRow } from '../components/TrackRow';
 import { 
-  getLinkedYouTubeAccount, getImportedYouTubeTracks, 
+  getLinkedYouTubeAccount, getImportedYouTubeTracks, YT_LIBRARY_UPDATED_EVENT, 
   getImportedYouTubePlaylists, LinkedYouTubeAccount 
 } from '../api/youtubeAuth';
 import { YouTubeAccountModal } from '../components/YouTubeAccountModal';
@@ -37,6 +37,12 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
     setImportedTracks(getImportedYouTubeTracks());
     setImportedPlaylists(getImportedYouTubePlaylists());
   };
+
+  // Re-read imported data whenever a sync / account switch / playlist import finishes
+  useEffect(() => {
+    window.addEventListener(YT_LIBRARY_UPDATED_EVENT, handleSyncUpdate);
+    return () => window.removeEventListener(YT_LIBRARY_UPDATED_EVENT, handleSyncUpdate);
+  }, []);
 
   // Compile all known songs across library
   const allKnownTracks = [

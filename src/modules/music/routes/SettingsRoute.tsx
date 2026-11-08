@@ -112,7 +112,7 @@ export const SettingsRoute: React.FC = () => {
                   </span>
                 </div>
                 <p className="text-xs text-[#a3a3a3] truncate mt-0.5">
-                  Connected as: <span className="text-white font-medium">{activeAccount?.name || 'anas (YouTube Music)'}</span>
+                  Connected as: <span className="text-white font-medium">{activeAccount?.name || 'not signed in'}</span>
                 </p>
               </div>
             </div>
