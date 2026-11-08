@@ -344,9 +344,180 @@ export async function searchInnerTube(query: string): Promise<MusicTrack[]> {
   return [];
 }
 
+export interface SearchSuggestionsResult {
+  textSuggestions: string[];
+  entitySuggestions: Array<{
+    id: string;
+    title: string;
+    subtitle: string;
+    type: 'song' | 'artist' | 'album';
+    artwork: string;
+    track?: MusicTrack;
+  }>;
+}
+
+export interface FullCatalogSearchResult {
+  topResults: MusicTrack[];
+  artists: Array<{ id: string; name: string; avatar: string; listeners?: string }>;
+  albums: Array<{ id: string; title: string; artist: string; year?: string; artwork: string }>;
+}
+
 /**
- * Fetches album details and tracklist via InnerTube (yt.music.getAlbum) with graceful fallback
+ * Fetches query text suggestions and rich entity suggestions
  */
+export async function getSearchSuggestions(query: string): Promise<SearchSuggestionsResult> {
+  const q = query.trim();
+  if (!q) return { textSuggestions: [], entitySuggestions: [] };
+
+  let textSuggestions: string[] = [];
+  const entitySuggestions: SearchSuggestionsResult['entitySuggestions'] = [];
+
+  // 1. Try yt.music.getSearchSuggestions if available
+  try {
+    const yt = await getInnertube();
+    if (yt?.music && typeof (yt.music as any).getSearchSuggestions === 'function') {
+      const res: any = await (yt.music as any).getSearchSuggestions(q);
+      if (Array.isArray(res)) {
+        textSuggestions = res.map((item: any) => typeof item === 'string' ? item : item?.text || String(item)).slice(0, 5);
+      }
+    }
+  } catch {}
+
+  // 2. Fallback text suggestions from YouTube suggest API
+  if (textSuggestions.length === 0) {
+    try {
+      const suggestUrl = `https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&client=firefox&q=${encodeURIComponent(q)}`;
+      const sRes = await extensionBridge.proxyFetch(suggestUrl);
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        if (Array.isArray(sData?.[1])) {
+          textSuggestions = sData[1].slice(0, 5);
+        }
+      }
+    } catch {}
+  }
+
+  // 3. Rich entity suggestions via iTunes quick lookup
+  try {
+    const entityUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&limit=6`;
+    const eRes = await extensionBridge.proxyFetch(entityUrl);
+    if (eRes.ok) {
+      const eData = await eRes.json();
+      (eData.results || []).forEach((item: any) => {
+        let artwork = item.artworkUrl100 || '';
+        if (artwork) artwork = artwork.replace('100x100bb', '300x300bb');
+        if (item.wrapperType === 'track') {
+          entitySuggestions.push({
+            id: `song-${item.trackId}`,
+            title: item.trackName,
+            subtitle: `Song • ${item.artistName}`,
+            type: 'song',
+            artwork,
+            track: {
+              id: `apple-${item.trackId}`,
+              title: item.trackName,
+              artist: item.artistName,
+              album: item.collectionName || 'Single',
+              artwork,
+              duration: Math.round((item.trackTimeMillis || 210000) / 1000),
+              source: 'innertube',
+            },
+          });
+        } else if (item.wrapperType === 'artist') {
+          entitySuggestions.push({
+            id: `artist-${item.artistId}`,
+            title: item.artistName,
+            subtitle: 'Artist',
+            type: 'artist',
+            artwork: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=300&q=80',
+          });
+        } else if (item.collectionType === 'Album') {
+          entitySuggestions.push({
+            id: `album-${item.collectionId}`,
+            title: item.collectionName,
+            subtitle: `Album • ${item.artistName}`,
+            type: 'album',
+            artwork,
+          });
+        }
+      });
+    }
+  } catch {}
+
+  return {
+    textSuggestions: textSuggestions.slice(0, 5),
+    entitySuggestions: entitySuggestions.slice(0, 4),
+  };
+}
+
+/**
+ * Searches full catalog providing Top Results, Artists Shelf, and Albums Shelf
+ */
+export async function searchFullCatalog(query: string): Promise<FullCatalogSearchResult> {
+  const q = query.trim();
+  if (!q) return { topResults: [], artists: [], albums: [] };
+
+  const topResults: MusicTrack[] = await searchInnerTube(q);
+  const artists: FullCatalogSearchResult['artists'] = [];
+  const albums: FullCatalogSearchResult['albums'] = [];
+
+  // Derive unique artists and albums from search results
+  const artistSeen = new Set<string>();
+  const albumSeen = new Set<string>();
+
+  topResults.forEach(track => {
+    if (track.artist && !artistSeen.has(track.artist)) {
+      artistSeen.add(track.artist);
+      artists.push({
+        id: track.artistId || track.artist,
+        name: track.artist,
+        avatar: track.artwork || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=300&q=80',
+        listeners: 'Verified Artist',
+      });
+    }
+    if (track.album && track.album !== 'Single' && !albumSeen.has(track.album)) {
+      albumSeen.add(track.album);
+      albums.push({
+        id: track.albumId || `album-${encodeURIComponent(track.album)}`,
+        title: track.album,
+        artist: track.artist,
+        year: track.year || '2024',
+        artwork: track.artwork,
+      });
+    }
+  });
+
+  // Query iTunes albums if needed to populate rich album covers
+  if (albums.length < 3) {
+    try {
+      const albUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=album&limit=6`;
+      const aRes = await extensionBridge.proxyFetch(albUrl);
+      if (aRes.ok) {
+        const aData = await aRes.json();
+        (aData.results || []).forEach((r: any) => {
+          let art = r.artworkUrl100 || '';
+          if (art) art = art.replace('100x100bb', '600x600bb');
+          if (!albumSeen.has(r.collectionName)) {
+            albumSeen.add(r.collectionName);
+            albums.push({
+              id: String(r.collectionId),
+              title: r.collectionName,
+              artist: r.artistName,
+              year: r.releaseDate ? r.releaseDate.split('-')[0] : '2024',
+              artwork: art,
+            });
+          }
+        });
+      }
+    } catch {}
+  }
+
+  return {
+    topResults,
+    artists: artists.slice(0, 8),
+    albums: albums.slice(0, 8),
+  };
+}
 export async function getAlbumDetails(albumId: string): Promise<Album | null> {
   const cleanId = albumId?.trim();
   if (!cleanId) return null;

@@ -1,214 +1,476 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Search as SearchIcon, Disc, Play, Sparkles, Filter } from 'lucide-react';
-import { searchInnerTube } from '../api/innertube';
+import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { 
+  Search as SearchIcon, X, Play, Disc, Mic2, Compass, 
+  ChevronRight, ArrowUpRight, Music2
+} from 'lucide-react';
+import { 
+  getSearchSuggestions, searchFullCatalog, 
+  SearchSuggestionsResult, FullCatalogSearchResult 
+} from '../api/innertube';
 import { MusicTrack } from '../types';
 import { TrackRow } from '../components/TrackRow';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
-const QUICK_TAGS = [
-  'Hans Zimmer', 'Dune', 'Oppenheimer', 'Interstellar', 
-  'Attack on Titan', 'Demon Slayer', 'Billie Eilish', 
-  'The Weeknd', 'RADWIMPS', 'Cyberpunk', 'Lo-Fi Chill'
+const QUICK_TRENDING_TAGS = [
+  'Hans Zimmer', 'Dune', 'Billie Eilish', 'Interstellar', 
+  'The Weeknd', 'RADWIMPS', 'Attack on Titan', 'Oppenheimer', 
+  'Cyberpunk 2077', 'Lofi Beats'
 ];
 
 export const SearchRoute: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const queryParam = searchParams.get('q') || '';
-  
-  const [searchInput, setSearchInput] = useState(queryParam);
-  const [debouncedQuery, setDebouncedQuery] = useState(queryParam);
-  const [results, setResults] = useState<MusicTrack[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+
+  const [inputValue, setInputValue] = useState(queryParam);
+  const [debouncedInput, setDebouncedInput] = useState(queryParam);
+  const [suggestions, setSuggestions] = useState<SearchSuggestionsResult>({ textSuggestions: [], entitySuggestions: [] });
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+
+  const [catalogResults, setCatalogResults] = useState<FullCatalogSearchResult | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
   const playTrack = useMusicPlayerStore(state => state.playTrack);
+  const searchContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Sync state if URL query changes
   useEffect(() => {
-    setSearchInput(queryParam);
-    setDebouncedQuery(queryParam);
+    setInputValue(queryParam);
+    if (queryParam) {
+      executeSearch(queryParam);
+    } else {
+      setCatalogResults(null);
+    }
   }, [queryParam]);
 
-  // Debounce search query
+  // Debounce autocomplete suggestions (300ms)
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedQuery(searchInput.trim());
+      setDebouncedInput(inputValue.trim());
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchInput]);
+  }, [inputValue]);
 
-  // Execute search online
+  // Fetch suggestions when debounced input changes
   useEffect(() => {
-    if (!debouncedQuery) {
-      setResults([]);
-      setIsLoading(false);
+    if (!debouncedInput) {
+      setSuggestions({ textSuggestions: [], entitySuggestions: [] });
+      setIsDropdownOpen(false);
       return;
     }
 
     let isCurrent = true;
-    setIsLoading(true);
+    setIsSuggesting(true);
 
-    searchInnerTube(debouncedQuery).then(res => {
+    getSearchSuggestions(debouncedInput).then(res => {
       if (isCurrent) {
-        setResults(res);
-        setIsLoading(false);
+        setSuggestions(res);
+        setIsSuggesting(false);
+        setIsDropdownOpen(res.textSuggestions.length > 0 || res.entitySuggestions.length > 0);
       }
     });
 
     return () => {
       isCurrent = false;
     };
-  }, [debouncedQuery]);
+  }, [debouncedInput]);
 
-  const handleTagClick = (tag: string) => {
-    setSearchInput(tag);
-    setSearchParams({ q: tag });
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const executeSearch = async (queryText: string) => {
+    const q = queryText.trim();
+    if (!q) return;
+
+    setIsDropdownOpen(false);
+    setIsSearching(true);
+    setSearchParams({ q });
+
+    try {
+      const results = await searchFullCatalog(q);
+      setCatalogResults(results);
+    } catch (err) {
+      console.error('Catalog search failed:', err);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
-  const topResult = results[0];
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      executeSearch(inputValue);
+    } else if (e.key === 'Escape') {
+      setIsDropdownOpen(false);
+    }
+  };
+
+  const handleClear = () => {
+    setInputValue('');
+    setSuggestions({ textSuggestions: [], entitySuggestions: [] });
+    setIsDropdownOpen(false);
+    setCatalogResults(null);
+    setSearchParams({});
+  };
+
+  const handleSelectTextSuggestion = (text: string) => {
+    setInputValue(text);
+    executeSearch(text);
+  };
+
+  const handleSelectEntitySuggestion = (entity: SearchSuggestionsResult['entitySuggestions'][0]) => {
+    setIsDropdownOpen(false);
+    if (entity.type === 'song' && entity.track) {
+      playTrack(entity.track);
+    } else if (entity.type === 'artist') {
+      navigate(`/music/artist/${encodeURIComponent(entity.title)}`);
+    } else if (entity.type === 'album') {
+      navigate(`/music/album/${entity.id.replace('album-', '')}`);
+    } else {
+      executeSearch(entity.title);
+    }
+  };
+
+  /**
+   * Highlights the matching prefix in white, and the remaining text in gray
+   */
+  const renderHighlightedText = (fullText: string, currentQuery: string) => {
+    const lowerFull = fullText.toLowerCase();
+    const lowerQuery = currentQuery.toLowerCase();
+    if (!lowerQuery || !lowerFull.startsWith(lowerQuery)) {
+      return <span className="text-[#b3b3b3]">{fullText}</span>;
+    }
+    const matched = fullText.slice(0, currentQuery.length);
+    const rest = fullText.slice(currentQuery.length);
+    return (
+      <>
+        <span className="text-white font-semibold">{matched}</span>
+        <span className="text-[#b3b3b3] font-normal">{rest}</span>
+      </>
+    );
+  };
 
   return (
-    <div className="space-y-8 animate-fade-in pb-16">
+    <div 
+      className="space-y-10 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4"
+      style={{ fontFamily: "'DM Sans', sans-serif" }}
+    >
       
-      {/* Search Bar & Quick Tags */}
-      <div className="space-y-4">
-        <div className="relative max-w-2xl">
-          <SearchIcon className="w-5 h-5 text-[#fa243c] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => {
-              setSearchInput(e.target.value);
-              setSearchParams(e.target.value.trim() ? { q: e.target.value.trim() } : {});
-            }}
-            placeholder="Search artists, songs, soundtracks, or anime..."
-            className="w-full bg-[#18181b] border border-white/10 focus:border-[#fa243c] rounded-2xl pl-12 pr-4 py-3.5 text-base text-white placeholder-white/40 focus:outline-none transition-all shadow-xl"
-          />
-        </div>
+      {/* ========================================================================= */}
+      {/* 1. TOP CENTER GLOBAL SEARCH BAR & AUTOCOMPLETE DROPDOWN                   */}
+      {/* ========================================================================= */}
+      <div className="flex flex-col items-center justify-center pt-2 sm:pt-4">
+        <div ref={searchContainerRef} className="relative w-full max-w-2xl">
+          
+          {/* Pill-shaped Input Container: border-radius: 9999px, bg-[#1a1a1a] */}
+          <div className="relative flex items-center bg-[#1a1a1a] focus-within:bg-[#202020] border border-white/10 focus-within:border-white/30 rounded-full px-5 py-3 shadow-2xl transition-all">
+            <SearchIcon className="w-5 h-5 text-[#b3b3b3] shrink-0 mr-3 pointer-events-none" />
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                if (!isDropdownOpen && e.target.value.trim()) {
+                  setIsDropdownOpen(true);
+                }
+              }}
+              onFocus={() => {
+                if (suggestions.textSuggestions.length > 0 || suggestions.entitySuggestions.length > 0) {
+                  setIsDropdownOpen(true);
+                }
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="Search songs, artists, albums, or anime OSTs..."
+              className="w-full bg-transparent border-0 outline-none text-sm sm:text-base text-white placeholder-[#777777] font-normal"
+            />
+            {inputValue && (
+              <button
+                type="button"
+                onClick={handleClear}
+                className="p-1 rounded-full text-[#b3b3b3] hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0 ml-2"
+                title="Clear"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
 
-        {/* Quick Tag Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 am-scrollbar text-xs">
-          <span className="text-white/40 font-mono text-[11px] shrink-0 uppercase tracking-wider">
-            Trending:
-          </span>
-          {QUICK_TAGS.map(tag => (
-            <button
-              key={tag}
-              onClick={() => handleTagClick(tag)}
-              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white transition-colors shrink-0 cursor-pointer"
-            >
-              {tag}
-            </button>
-          ))}
+          {/* RICH AUTOCOMPLETE DROPDOWN */}
+          {isDropdownOpen && (
+            <div className="absolute left-0 right-0 top-full mt-2 bg-[#121212] border border-white/10 rounded-2xl shadow-[0_24px_50px_rgba(0,0,0,0.85)] z-50 overflow-hidden divide-y divide-white/5 animate-in fade-in zoom-in-95 duration-150">
+              
+              {/* TOP HALF: Text Suggestions (matched portion in white, rest in gray) */}
+              {suggestions.textSuggestions.length > 0 && (
+                <div className="p-2 space-y-0.5">
+                  {suggestions.textSuggestions.map((text, i) => (
+                    <div
+                      key={`sug-${i}`}
+                      onClick={() => handleSelectTextSuggestion(text)}
+                      className="flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs sm:text-sm hover:bg-[#1a1a1a] cursor-pointer transition-colors"
+                    >
+                      <SearchIcon className="w-3.5 h-3.5 text-[#777777] shrink-0" />
+                      <div className="truncate">
+                        {renderHighlightedText(text, inputValue)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* BOTTOM HALF: Rich Entities (Songs, Artists, Albums) with thumbnail */}
+              {suggestions.entitySuggestions.length > 0 && (
+                <div className="p-2 space-y-0.5 bg-[#161616]">
+                  <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#777777]">
+                    Top Entities
+                  </p>
+                  {suggestions.entitySuggestions.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => handleSelectEntitySuggestion(item)}
+                      className="flex items-center justify-between px-3.5 py-2 rounded-xl hover:bg-[#1a1a1a] cursor-pointer transition-colors group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img 
+                          src={item.artwork} 
+                          alt="" 
+                          className={`w-9 h-9 object-cover shrink-0 bg-[#222222] ${
+                            item.type === 'artist' ? 'rounded-full' : 'rounded-lg'
+                          }`}
+                        />
+                        <div className="min-w-0">
+                          <h5 className="text-xs sm:text-sm font-semibold text-white truncate group-hover:underline">
+                            {item.title}
+                          </h5>
+                          <p className="text-[11px] text-[#b3b3b3] truncate">
+                            {item.subtitle}
+                          </p>
+                        </div>
+                      </div>
+                      <ArrowUpRight className="w-3.5 h-3.5 text-[#777777] group-hover:text-white shrink-0 ml-2" />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+            </div>
+          )}
+
+          {/* Quick Trending Tags */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-3 am-scrollbar text-xs">
+            <span className="text-[#777777] font-semibold text-[11px] shrink-0 uppercase tracking-wider">
+              Trending:
+            </span>
+            {QUICK_TRENDING_TAGS.map(tag => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => {
+                  setInputValue(tag);
+                  executeSearch(tag);
+                }}
+                className="px-3 py-1 rounded-full bg-[#161616] hover:bg-[#1a1a1a] border border-white/5 text-[#b3b3b3] hover:text-white transition-colors shrink-0 cursor-pointer text-xs"
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+
         </div>
       </div>
 
-      {/* Results View */}
-      {isLoading ? (
+      {/* ========================================================================= */}
+      {/* 2. SEARCH RESULTS VIEW                                                    */}
+      {/* ========================================================================= */}
+      {isSearching ? (
         <div className="py-24 flex flex-col items-center justify-center text-white/50 gap-3">
-          <Disc className="w-8 h-8 animate-spin text-[#fa243c]" />
-          <p className="text-sm font-semibold">Searching Apple Music & BitChord catalogues...</p>
+          <Disc className="w-8 h-8 animate-spin text-white/60" />
+          <p className="text-sm font-semibold text-white">Searching catalog...</p>
         </div>
-      ) : debouncedQuery && results.length > 0 ? (
-        <div className="space-y-8">
+      ) : catalogResults && catalogResults.topResults.length > 0 ? (
+        <div className="space-y-10 animate-fade-in">
           
-          {/* Top Result Card + Songs Split View */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* Top Result Spotlight */}
-            {topResult && (
-              <div className="space-y-3">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#fa243c] font-mono">
-                  Top Result
-                </span>
-                <div 
-                  onClick={() => playTrack(topResult, results)}
-                  className="p-5 rounded-3xl bg-[#141416] border border-white/10 hover:border-[#fa243c]/50 transition-all cursor-pointer group flex flex-col justify-between h-[230px] shadow-xl relative overflow-hidden"
+          {/* SECTION A: TOP RESULTS (CSS Grid of wide rectangular cards bg-[#181818]) */}
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold text-white tracking-tight">
+              Top Results
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {catalogResults.topResults.slice(0, 6).map((track) => (
+                <div
+                  key={track.id}
+                  onClick={() => playTrack(track, catalogResults.topResults)}
+                  className="group flex items-center gap-4 p-3 rounded-2xl bg-[#181818] hover:bg-[#1f1f1f] border border-white/5 cursor-pointer transition-colors duration-150 shadow-lg relative"
                 >
-                  <div className="flex items-start gap-4">
+                  {/* Large image on left */}
+                  <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-[#242426] shrink-0">
                     <img 
-                      src={topResult.artwork} 
-                      alt="" 
-                      className="w-24 h-24 rounded-2xl object-cover shadow-xl border border-white/10 group-hover:scale-105 transition-transform" 
+                      src={track.artwork} 
+                      alt={track.title} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
-                    <div className="min-w-0">
-                      <h3 className="text-lg font-black text-white group-hover:text-[#fa243c] transition-colors line-clamp-2">
-                        {topResult.title}
-                      </h3>
-                      <p className="text-xs text-white/60 mt-1 truncate">
-                        {topResult.artist}
-                      </p>
-                      <span className="inline-block mt-2 px-2 py-0.5 rounded-md bg-white/10 text-[10px] font-mono text-white/70">
-                        {topResult.album || 'Single'}
-                      </span>
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-xl">
+                        <Play className="w-4 h-4 fill-current ml-0.5" />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                    <span className="text-xs text-white/40 font-mono">
+                  {/* Title & subtitle on right */}
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-white/40 bg-white/5 px-2 py-0.5 rounded-full inline-block mb-1">
                       Song
                     </span>
-                    <button
-                      type="button"
-                      className="w-10 h-10 rounded-full bg-[#fa243c] text-white flex items-center justify-center shadow-lg group-hover:scale-110 active:scale-95 transition-transform"
-                    >
-                      <Play className="w-4 h-4 fill-current ml-0.5 text-white" />
-                    </button>
+                    <h3 className="text-sm sm:text-base font-semibold text-white truncate group-hover:underline">
+                      {track.title}
+                    </h3>
+                    <p className="text-xs text-[#b3b3b3] truncate mt-0.5">
+                      <Link
+                        to={`/music/artist/${encodeURIComponent(track.artistId || track.artist)}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-white hover:underline transition-colors"
+                      >
+                        {track.artist}
+                      </Link>
+                    </p>
+                    <p className="text-[11px] text-[#777777] truncate mt-0.5">
+                      {track.album || 'Single'}
+                    </p>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* Songs Results List */}
-            <div className="lg:col-span-2 space-y-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#fa243c] font-mono">
-                Matching Songs ({results.length})
-              </span>
-              <div className="bg-[#141416] p-2.5 rounded-3xl border border-white/5 space-y-0.5 shadow-xl">
-                {results.slice(0, 7).map((track, idx) => (
-                  <TrackRow
-                    key={track.id}
-                    track={track}
-                    index={idx}
-                    playlistContext={results}
-                  />
-                ))}
-              </div>
+              ))}
             </div>
-
           </div>
 
-          {/* Remaining Tracks Grid */}
-          {results.length > 7 && (
-            <div className="space-y-3 pt-4">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-white/40 font-mono">
-                All Song Results
-              </span>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-1 bg-[#141416] p-3 rounded-3xl border border-white/5">
-                {results.slice(7).map((track, idx) => (
-                  <TrackRow
-                    key={track.id}
-                    track={track}
-                    index={idx + 7}
-                    playlistContext={results}
-                  />
+          {/* SECTION B: ARTISTS SHELF (Horizontal shelf of large circular avatars) */}
+          {catalogResults.artists.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-white tracking-tight">
+                Artists
+              </h2>
+
+              <div className="flex items-center gap-5 overflow-x-auto pb-4 pt-1 am-scrollbar">
+                {catalogResults.artists.map((artist) => (
+                  <div
+                    key={artist.id}
+                    onClick={() => navigate(`/music/artist/${encodeURIComponent(artist.name)}`)}
+                    className="group flex-shrink-0 w-36 sm:w-44 flex flex-col items-center text-center p-3 rounded-2xl hover:bg-[#1a1a1a] transition-colors cursor-pointer"
+                  >
+                    <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden mb-3 bg-[#1e1e1e] ring-2 ring-white/10 group-hover:scale-105 transition-transform duration-300 shadow-xl">
+                      <img 
+                        src={artist.avatar} 
+                        alt={artist.name} 
+                        className="w-full h-full object-cover" 
+                      />
+                    </div>
+                    <h4 className="text-xs sm:text-sm font-semibold text-white truncate max-w-full group-hover:underline">
+                      {artist.name}
+                    </h4>
+                    <p className="text-[11px] text-[#b3b3b3] mt-0.5">
+                      {artist.listeners || 'Artist'}
+                    </p>
+                  </div>
                 ))}
               </div>
             </div>
           )}
 
+          {/* SECTION C: ALBUMS SHELF (Horizontal shelf of square album covers) */}
+          {catalogResults.albums.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-white tracking-tight">
+                Albums
+              </h2>
+
+              <div className="flex items-center gap-4 overflow-x-auto pb-4 pt-1 am-scrollbar">
+                {catalogResults.albums.map((alb) => (
+                  <div
+                    key={alb.id}
+                    onClick={() => navigate(`/music/album/${alb.id}`)}
+                    className="group flex-shrink-0 w-[180px] sm:w-[200px] bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 rounded-2xl p-3 transition-colors duration-150 cursor-pointer shadow-lg"
+                  >
+                    <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-[#242426] mb-3">
+                      <img 
+                        src={alb.artwork} 
+                        alt={alb.title} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                      />
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-xl">
+                          <Play className="w-5 h-5 fill-current ml-0.5" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <h4 className="font-semibold text-xs sm:text-sm text-white truncate group-hover:underline">
+                      {alb.title}
+                    </h4>
+                    <p className="text-xs text-[#b3b3b3] truncate mt-0.5">
+                      <Link
+                        to={`/music/artist/${encodeURIComponent(alb.artist)}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-white hover:underline transition-colors"
+                      >
+                        {alb.artist}
+                      </Link>
+                    </p>
+                    <p className="text-[11px] text-[#777777] mt-0.5">
+                      {alb.year || 'Album'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SECTION D: MATCHING SONGS TABLE */}
+          <div className="space-y-3 pt-4">
+            <h2 className="text-xl font-bold text-white tracking-tight">
+              All Songs
+            </h2>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between px-3.5 py-2 text-[11px] font-semibold text-[#b3b3b3] uppercase tracking-wider border-b border-white/10 mb-1">
+                <span># Title</span>
+                <span className="hidden md:inline">Album</span>
+                <span>Time</span>
+              </div>
+
+              {catalogResults.topResults.map((track, idx) => (
+                <TrackRow
+                  key={`${track.id}-${idx}`}
+                  track={track}
+                  index={idx}
+                  showArtwork={true}
+                  showAlbum={true}
+                  playlistContext={catalogResults.topResults}
+                />
+              ))}
+            </div>
+          </div>
+
         </div>
-      ) : debouncedQuery ? (
-        <div className="py-20 text-center text-white/50 bg-[#141416] rounded-3xl border border-white/10 p-8 max-w-md mx-auto">
-          <p className="text-base font-bold text-white">No results found for "{debouncedQuery}"</p>
-          <p className="text-xs text-white/40 mt-1">Check spelling or try a different song or artist query.</p>
+      ) : queryParam ? (
+        <div className="py-20 text-center text-white/50 bg-[#121212] rounded-2xl border border-white/5 p-8 max-w-md mx-auto">
+          <p className="text-base font-semibold text-white">No results found for "{queryParam}"</p>
+          <p className="text-xs text-[#b3b3b3] mt-1">Check spelling or try a broader search query.</p>
         </div>
       ) : (
         <div className="py-24 text-center text-white/40 max-w-sm mx-auto space-y-2">
           <SearchIcon className="w-10 h-10 text-white/20 mx-auto" />
-          <h3 className="text-base font-bold text-white/80">Search Apple Music</h3>
-          <p className="text-xs text-white/40">
-            Find millions of full-length tracks, soundtracks, anime openings, and albums.
+          <h3 className="text-base font-semibold text-white">Global Music Search</h3>
+          <p className="text-xs text-[#b3b3b3]">
+            Type a song, artist, or album title above to discover millions of tracks.
           </p>
         </div>
       )}
@@ -216,3 +478,4 @@ export const SearchRoute: React.FC = () => {
     </div>
   );
 };
+export default SearchRoute;

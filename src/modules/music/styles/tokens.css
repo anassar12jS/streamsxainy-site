@@ -9,10 +9,10 @@
   --am-bg-chrome: rgba(18, 18, 18, 0.88);
   --am-bg-card: #141414;
   --am-bg-card-hover: #1a1a1a;
+  --am-bg-sidebar-active: #282828;
   --am-accent-red: #ffffff;
   --am-accent-red-hover: rgba(255, 255, 255, 0.9);
   --am-accent-red-glow: rgba(255, 255, 255, 0.15);
-  --am-accent-pink: #d60067;
   --am-border: rgba(255, 255, 255, 0.08);
   --am-border-strong: rgba(255, 255, 255, 0.14);
   --am-text-primary: #ffffff;
@@ -73,7 +73,22 @@
   transform: scale(1.15);
 }
 
-/* Apple Music Scrollbar */
+/* Minimal Custom WebKit Scrollbar (Width: 8px, #333 on transparent track) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #333333;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #444444;
+}
+
 .am-scrollbar::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -82,11 +97,11 @@
   background: transparent;
 }
 .am-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: #333333;
   border-radius: 9999px;
 }
 .am-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.24);
+  background: #444444;
 }
 
 /* Horizontal Shelf Snap */
@@ -102,3 +117,4 @@
   scroll-snap-align: start;
   flex-shrink: 0;
 }
+

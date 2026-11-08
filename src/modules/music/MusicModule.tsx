@@ -7,16 +7,17 @@ import { resolveStreamUrl, resolveVideoId } from './api/innertube';
 import { extensionBridge } from './extension/bridge';
 import { Sidebar } from './components/Sidebar';
 import { PlayerChrome } from './components/PlayerChrome';
-import { LyricsPanel } from './components/LyricsPanel';
 import { QueueDrawer } from './components/QueueDrawer';
 import { ExtensionBanner } from './components/ExtensionBanner';
 import { ListenTogetherModal } from './components/ListenTogetherModal';
 import { MusicSettingsModal } from './components/MusicSettingsModal';
 import { YouTubeMusicLinkModal } from './components/YouTubeMusicLinkModal';
 import { YouTubeAccountModal } from './components/YouTubeAccountModal';
+import { ImmersivePlayerOverlay } from './components/ImmersivePlayerOverlay';
 import { replayRecorder } from './api/replay';
 
 import { BrowseRoute, BITCHORD_HOME_TRACKS } from './routes/BrowseRoute';
+import { NewRoute } from './routes/NewRoute';
 import { SearchRoute } from './routes/SearchRoute';
 import { AlbumRoute } from './routes/AlbumRoute';
 import { ArtistRoute } from './routes/ArtistRoute';
@@ -381,13 +382,20 @@ export const MusicModule: React.FC = () => {
         {/* Subroutes */}
         <Routes>
           <Route path="/" element={<BrowseRoute />} />
-          <Route path="/browse" element={<BrowseRoute />} />
+          <Route path="/browse" element={<NewRoute />} />
+          <Route path="/new" element={<NewRoute />} />
           <Route path="/search" element={<SearchRoute />} />
           <Route path="/album/:id" element={<AlbumRoute />} />
           <Route path="/artist/:id" element={<ArtistRoute />} />
           <Route path="/playlist/:id" element={<PlaylistRoute />} />
           <Route path="/radio" element={<RadioRoute />} />
           <Route path="/replay" element={<ReplayRoute />} />
+          <Route path="/library/recent" element={<LibraryRoute defaultTab="recent" />} />
+          <Route path="/library/songs" element={<LibraryRoute defaultTab="songs" />} />
+          <Route path="/library/artists" element={<LibraryRoute defaultTab="artists" />} />
+          <Route path="/library/albums" element={<LibraryRoute defaultTab="albums" />} />
+          <Route path="/library/for-you" element={<LibraryRoute defaultTab="for-you" />} />
+          <Route path="/library/liked" element={<LibraryRoute defaultTab="liked" />} />
           <Route path="/library/replay" element={<ReplayRoute />} />
           <Route path="/library/*" element={<LibraryRoute />} />
           <Route path="*" element={<Navigate to="/music" replace />} />
@@ -400,8 +408,8 @@ export const MusicModule: React.FC = () => {
         onSeek={handleSeek}
       />
 
-      {/* Synced Lyrics Fullscreen / Side Panel */}
-      <LyricsPanel
+      {/* Full-Screen Lyrics & Queue Immersive View */}
+      <ImmersivePlayerOverlay
         steeredClock={engineRef.current?.steeredClock}
         onSeek={handleSeek}
       />

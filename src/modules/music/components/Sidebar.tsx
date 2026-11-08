@@ -24,7 +24,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchInput, setSearchInput] = useState('');
   const extensionConnected = useMusicPlayerStore(state => state.extensionConnected);
 
   const [activeUser, setActiveUser] = useState<{ name: string; avatar: string }>({
@@ -47,21 +46,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     } catch {}
   }, []);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = searchInput.trim();
-    if (q) {
-      navigate(`/music/search?q=${encodeURIComponent(q)}`);
-    } else {
-      navigate('/music/search');
-    }
-    if (onCloseMobile) onCloseMobile();
-  };
-
   const navLinks = [
     { path: '/music/search', label: 'Search', icon: Search },
     { path: '/music', label: 'Home', icon: Home },
-    { path: '/music/browse', label: 'New', icon: LayoutGrid },
+    { path: '/music/new', label: 'New', icon: LayoutGrid },
     { path: '/music/radio', label: 'Radio', icon: Radio },
   ];
 
@@ -88,10 +76,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     >
       
       {/* Top Section */}
-      <div className="p-4 space-y-5">
+      <div className="p-4 space-y-4">
         
         {/* BitChord Brand Header with 3-curve wavy equalizer icon */}
-        <div className="flex items-center justify-between px-1 pt-1">
+        <div className="flex items-center justify-between px-1 pt-1 pb-1">
           <Link 
             to="/music" 
             className="flex items-center gap-2.5 group cursor-pointer"
@@ -117,20 +105,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </Link>
         </div>
 
-        {/* Search Input */}
-        <form onSubmit={handleSearchSubmit}>
-          <div className="relative flex items-center bg-[#1a1a1a] focus-within:bg-[#222222] border border-white/5 focus-within:border-white/20 rounded-xl px-2.5 py-1.5 transition-all">
-            <Search className="w-4 h-4 text-[#b3b3b3] mr-2 shrink-0 pointer-events-none" />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search..."
-              className="w-full bg-transparent border-0 outline-none text-xs text-white placeholder-[#777777] font-normal"
-            />
-          </div>
-        </form>
-
         {/* Main Nav (Search, Home, New, Radio) */}
         <div className="space-y-0.5">
           {navLinks.map(link => {
@@ -144,7 +118,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={onCloseMobile}
                 className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors duration-150 cursor-pointer ${
                   isCurrent
-                    ? 'bg-[rgba(255,255,255,0.1)] text-[#ffffff]'
+                    ? 'bg-[#282828] text-[#ffffff]'
                     : 'text-[#b3b3b3] hover:text-[#ffffff] hover:bg-[#1a1a1a]'
                 }`}
               >
@@ -196,7 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onClick={onCloseMobile}
                   className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors duration-150 cursor-pointer ${
                     isCurrent
-                      ? 'bg-[rgba(255,255,255,0.1)] text-[#ffffff]'
+                      ? 'bg-[#282828] text-[#ffffff]'
                       : 'text-[#b3b3b3] hover:text-[#ffffff] hover:bg-[#1a1a1a]'
                   }`}
                 >
