@@ -55,8 +55,10 @@ export interface MusicPlayerState {
   activeLyrics: LyricsData | null;
   isLoadingLyrics: boolean;
   trackPlayNonce: number;
+  activeAccount: any | null;
 
   // Actions
+  setActiveAccount: (account: any) => void;
   setTrack: (track: MusicTrack, queue?: MusicTrack[]) => void;
   playTrack: (track: MusicTrack, queue?: MusicTrack[]) => void;
   play: () => void;
@@ -105,6 +107,19 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   activeLyrics: null,
   isLoadingLyrics: false,
   trackPlayNonce: 0,
+  activeAccount: null,
+
+  setActiveAccount: (account: any) => {
+    try {
+      if (account) {
+        localStorage.setItem('bitchord_active_account', JSON.stringify(account));
+        if (account.id) {
+          localStorage.setItem('bitchord_selected_channel_id', account.id);
+        }
+      }
+    } catch {}
+    set({ activeAccount: account });
+  },
 
   setTrack: (track, newQueue) => {
     const state = get();

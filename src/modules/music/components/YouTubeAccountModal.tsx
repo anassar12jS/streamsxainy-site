@@ -3,7 +3,8 @@ import {
   X, Check, RefreshCw, Youtube, ExternalLink, Sparkles, 
   CheckCircle2, AlertCircle, ShieldCheck, UserCheck, Layers
 } from 'lucide-react';
-import { extensionBridge } from '../extension/bridge';
+import { useQueryClient } from '@tanstack/react-query';
+import { extensionBridge, BitChordExtensionBridge } from '../extension/bridge';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
 export interface AccountItem {
@@ -25,6 +26,7 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
   onClose,
   onAccountSelected,
 }) => {
+  const queryClient = useQueryClient();
   const [accounts, setAccounts] = useState<AccountItem[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<string>(() => {
     try {
@@ -37,71 +39,173 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
   const [isSelecting, setIsSelecting] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'info' | 'error'; text: string } | null>(null);
 
-  const extensionConnected = useMusicPlayerStore(state => state.extensionConnected);
-
-  const fetchAccounts = async (refresh = true) => {
+  /**
+   * Fix 1: Force Extension Cache Refresh on Open
+   * When opening the popover, bypass the 10-minute cache and check Google cookies immediately
+   */
+  const fetchAccounts = async () => {
     setIsLoading(true);
     setStatusMessage(null);
-    try {
-      const res = await extensionBridge.getAuthState(refresh);
-      const list = res?.accounts || [];
-      setAccounts(list);
 
-      const active = list.find(a => a.selected) || list[0];
-      if (active && !selectedChannelId) {
-        setSelectedChannelId(active.id);
+    const chromeRuntime = (window as any).chrome?.runtime;
+    if (chromeRuntime && typeof chromeRuntime.sendMessage === 'function') {
+      // refresh: true forces background.js to ignore the cache and check Google cookies immediately
+      chromeRuntime.sendMessage(
+        BitChordExtensionBridge.EXTENSION_ID,
+        { 
+          channel: 'bitchord-bridge', 
+          direction: 'to-extension', 
+          protocol: 1, 
+          method: 'yt.authState', 
+          params: { refresh: true } 
+        },
+        (response: any) => {
+          if (chromeRuntime.lastError) {
+            console.debug('Chrome runtime lastError suppressed:', chromeRuntime.lastError);
+          }
+          if (response?.ok && response.result?.accounts) {
+            const list = response.result.accounts;
+            setAccounts(list);
+            const active = list.find((a: any) => a.selected) || response.result.active;
+            if (active) {
+              setSelectedChannelId(active.id);
+              useMusicPlayerStore.getState().setActiveAccount(active);
+            }
+            setIsLoading(false);
+            return;
+          }
+
+          // Fallback to bridge helper if response format differs
+          extensionBridge.getAuthState(true).then(res => {
+            setAccounts(res?.accounts || []);
+            setIsLoading(false);
+          });
+        }
+      );
+    } else {
+      try {
+        const res = await extensionBridge.getAuthState(true);
+        setAccounts(res?.accounts || []);
+      } catch (err: any) {
+        console.warn('Failed to load accounts:', err);
+        setStatusMessage({
+          type: 'error',
+          text: 'Could not fetch accounts from extension bridge.',
+        });
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err: any) {
-      console.warn('Failed to load accounts:', err);
-      setStatusMessage({
-        type: 'error',
-        text: 'Could not fetch accounts from extension bridge. Verify extension permissions.',
-      });
-    } finally {
-      setIsLoading(false);
     }
   };
 
   useEffect(() => {
     if (isOpen) {
-      fetchAccounts(true);
+      fetchAccounts();
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSelectAccount = async (account: AccountItem) => {
-    setIsSelecting(account.id);
+  /**
+   * Fix 2: Global Cache Invalidation on Account Switch
+   * Invalidate all youtubei.js queries globally so the app immediately auto-syncs the new user's data
+   */
+  const handleAccountSelect = (channelId: string, accountObj?: AccountItem) => {
+    setIsSelecting(channelId);
     setStatusMessage(null);
+
+    const chromeRuntime = (window as any).chrome?.runtime;
+    if (chromeRuntime && typeof chromeRuntime.sendMessage === 'function') {
+      chromeRuntime.sendMessage(
+        BitChordExtensionBridge.EXTENSION_ID,
+        { 
+          channel: 'bitchord-bridge', 
+          direction: 'to-extension', 
+          protocol: 1, 
+          method: 'yt.selectChannel', 
+          params: { channelId } 
+        },
+        (response: any) => {
+          if (chromeRuntime.lastError) {
+            console.debug('Chrome runtime lastError:', chromeRuntime.lastError);
+          }
+          if (response?.ok) {
+            const activeAcc = response.result?.active || accountObj || { id: channelId, name: 'Active User' };
+
+            // 1. Update local Zustand state to reflect the new active user
+            useMusicPlayerStore.getState().setActiveAccount(activeAcc);
+
+            // 2. CRITICAL: Purge all old React Query data to force auto-sync
+            queryClient.invalidateQueries();
+
+            setSelectedChannelId(channelId);
+            setAccounts(prev => prev.map(a => ({
+              ...a,
+              selected: a.id === channelId,
+            })));
+
+            try {
+              localStorage.setItem('bitchord_selected_channel_id', channelId);
+              localStorage.setItem('bitchord_active_account', JSON.stringify(activeAcc));
+            } catch {}
+
+            setStatusMessage({
+              type: 'success',
+              text: `Switched account to "${activeAcc.name || channelId}". Cache invalidated & auto-syncing library.`,
+            });
+
+            if (onAccountSelected) {
+              onAccountSelected(activeAcc);
+            }
+
+            setTimeout(() => {
+              onClose();
+            }, 600);
+          } else {
+            fallbackSelect(channelId, accountObj);
+          }
+          setIsSelecting(null);
+        }
+      );
+    } else {
+      fallbackSelect(channelId, accountObj);
+    }
+  };
+
+  const fallbackSelect = async (channelId: string, accountObj?: AccountItem) => {
     try {
-      // Step 1: Call extension bridge to lock in channel for InnerTube
-      await extensionBridge.selectChannel(account.id);
-      setSelectedChannelId(account.id);
+      await extensionBridge.selectChannel(channelId);
+      const activeAcc = accountObj || { id: channelId, name: 'Active User' };
 
-      // Save to localStorage for instant persistence
-      try {
-        localStorage.setItem('bitchord_selected_channel_id', account.id);
-        localStorage.setItem('bitchord_active_account', JSON.stringify(account));
-      } catch {}
+      // 1. Update local Zustand state to reflect the new active user
+      useMusicPlayerStore.getState().setActiveAccount(activeAcc);
 
-      // Update local state list selected flag
+      // 2. CRITICAL: Purge all old React Query data to force auto-sync
+      queryClient.invalidateQueries();
+
+      setSelectedChannelId(channelId);
       setAccounts(prev => prev.map(a => ({
         ...a,
-        selected: a.id === account.id,
+        selected: a.id === channelId,
       })));
+
+      try {
+        localStorage.setItem('bitchord_selected_channel_id', channelId);
+        localStorage.setItem('bitchord_active_account', JSON.stringify(activeAcc));
+      } catch {}
 
       setStatusMessage({
         type: 'success',
-        text: `Locked in "${account.name}" for YouTube Music session.`,
+        text: `Switched account to "${activeAcc.name || channelId}". Cache invalidated.`,
       });
 
       if (onAccountSelected) {
-        onAccountSelected(account);
+        onAccountSelected(activeAcc);
       }
 
       setTimeout(() => {
         onClose();
-      }, 700);
+      }, 600);
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
@@ -168,12 +272,12 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
           <div className="flex items-center justify-between text-xs text-[#b3b3b3]">
             <span>Available Google Accounts ({accounts.length})</span>
             <button
-              onClick={() => fetchAccounts(true)}
+              onClick={() => fetchAccounts()}
               disabled={isLoading}
               className="flex items-center gap-1 text-[11px] text-white/60 hover:text-white font-medium cursor-pointer transition-colors"
             >
               <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin text-red-400' : ''}`} />
-              <span>Refresh</span>
+              <span>Refresh (Bypass Cache)</span>
             </button>
           </div>
 
@@ -182,7 +286,7 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
             {isLoading ? (
               <div className="py-12 flex flex-col items-center justify-center text-white/40 gap-2">
                 <RefreshCw className="w-5 h-5 animate-spin text-white/50" />
-                <span className="text-xs">Querying authenticated sessions...</span>
+                <span className="text-xs">Querying authenticated sessions from Google cookies...</span>
               </div>
             ) : accounts.length === 0 ? (
               <div className="py-8 text-center text-white/40 border border-white/5 rounded-xl p-4">
@@ -198,7 +302,7 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
                 return (
                   <div
                     key={acc.id}
-                    onClick={() => handleSelectAccount(acc)}
+                    onClick={() => handleAccountSelect(acc.id, acc)}
                     className={`flex items-center justify-between p-3 rounded-xl border transition-colors cursor-pointer select-none ${
                       isSelected
                         ? 'bg-[rgba(255,255,255,0.08)] border-white/20 text-white'

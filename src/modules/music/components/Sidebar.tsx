@@ -25,6 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const location = useLocation();
   const navigate = useNavigate();
   const extensionConnected = useMusicPlayerStore(state => state.extensionConnected);
+  const activeAccount = useMusicPlayerStore(state => state.activeAccount);
 
   const [activeUser, setActiveUser] = useState<{ name: string; avatar: string }>({
     name: 'anas',
@@ -45,6 +46,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }
     } catch {}
   }, []);
+
+  useEffect(() => {
+    if (activeAccount?.name) {
+      setActiveUser({
+        name: activeAccount.name.split(' ')[0] || 'anas',
+        avatar: activeAccount.photoUrl || activeAccount.avatar || activeUser.avatar,
+      });
+    }
+  }, [activeAccount]);
 
   const navLinks = [
     { path: '/music/search', label: 'Search', icon: Search },
