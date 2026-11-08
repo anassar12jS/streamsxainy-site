@@ -71,6 +71,41 @@ export async function fetchLyrics(artist: string, title: string, duration?: numb
     }
   } catch {}
 
+  // 3. Try lyrics-api.binimum.org fallback
+  try {
+    const binimumUrl = `https://lyrics-api.binimum.org/lyrics?title=${encodeURIComponent(cleanTitle)}&artist=${encodeURIComponent(cleanArtist)}`;
+    const res = await extensionBridge.proxyFetch(binimumUrl);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && (data.syncedLyrics || data.lines || data.plainLyrics)) {
+        const synced: SyncedLyricLine[] = [];
+        if (Array.isArray(data.lines)) {
+          for (const l of data.lines) {
+            if (typeof l.startTimeMs === 'number' && l.words) {
+              synced.push({ time: l.startTimeMs / 1000, text: l.words });
+            }
+          }
+        }
+        const plain = data.plainLyrics || data.lyrics || '';
+        const ttml = generateTTMLFromLRC(synced, cleanTitle, cleanArtist);
+        return { plain, ttml, synced };
+      }
+    }
+  } catch {}
+
+  // 4. Try lyrics.paxsenix.org fallback
+  try {
+    const paxUrl = `https://lyrics.paxsenix.org/search?title=${encodeURIComponent(cleanTitle)}&artist=${encodeURIComponent(cleanArtist)}`;
+    const res = await extensionBridge.proxyFetch(paxUrl);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && (data.synced || data.plain)) {
+        const ttml = generateTTMLFromLRC(data.synced || [], cleanTitle, cleanArtist);
+        return { plain: data.plain || '', ttml, synced: data.synced || [] };
+      }
+    }
+  } catch {}
+
   return null;
 }
 
