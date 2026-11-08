@@ -30,6 +30,7 @@ export async function getInnertubeForChannel(channelId?: string): Promise<Innert
       }
 
       const client = await Innertube.create({
+        retrieve_player: false,
         cache: new UniversalCache(false),
         fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
           const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;

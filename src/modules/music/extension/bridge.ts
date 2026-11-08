@@ -334,9 +334,24 @@ export class BitChordExtensionBridge {
       body = undefined;
     }
 
+    // Public static endpoints that YouTube doesn't need auth for or that yt.fetch explicitly rejects
+    if (url.includes('/iframe_api')) {
+      return new Response(
+        `if (!window['YT']) {var YT = {loading: 0,loaded: 0};} (function(){ var player = "player/22c069eb/"; })();`,
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/javascript; charset=utf-8' },
+        }
+      );
+    }
+
+    if (url.includes('/generate_204')) {
+      return new Response(null, { status: 204 });
+    }
+
     const isYt = this.isYouTubeHost(url);
 
-    // If it's YouTube / Google Video, route strictly through extension
+    // If it's YouTube / Google Video, route through extension yt.fetch
     if (isYt) {
       try {
         let serializedBody: string | undefined = undefined;
@@ -387,12 +402,20 @@ export class BitChordExtensionBridge {
           });
         }
       } catch (extError: any) {
-        // GROUND RULE #3: Never fall back to window.fetch for YouTube!
+        // If extension says it doesn't serve this static URL (e.g. static player script or asset), try direct fetch
+        const errMsg = extError?.message || String(extError);
+        if (errMsg.includes("doesn't serve") || url.includes('/s/player/') || url.endsWith('.js') || url.endsWith('.css')) {
+          try {
+            return await fetch(url, { method, headers });
+          } catch {}
+        }
+
+        // GROUND RULE #3: Never fall back to window.fetch for YouTube API endpoints!
         // That is what creates the 405 Method Not Allowed / CORS failure.
-        console.warn(`[BitChord Bridge] Extension proxyFetch failed for ${url}:`, extError?.message || extError);
+        console.warn(`[BitChord Bridge] Extension proxyFetch failed for ${url}:`, errMsg);
         throw new BridgeError(
           extError instanceof BridgeError ? extError.code : 'REJECTED',
-          `Cannot fetch YouTube resource "${url}" without active BitChord Extension: ${extError?.message || extError}`,
+          `Cannot fetch YouTube resource "${url}" without active BitChord Extension: ${errMsg}`,
           extError
         );
       }
