@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Shuffle, SkipBack, Play, Pause, SkipForward, Repeat, Repeat1,
   Star, MoreHorizontal, MessageSquareQuote, ListMusic, Volume2, VolumeX,
-  Menu, Disc3
+  Menu, Disc3, Plus, ExternalLink, Disc, Share2, Check
 } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
@@ -15,6 +16,7 @@ export const PlayerChrome: React.FC<PlayerChromeProps> = ({
   onToggleMobileSidebar,
   onSeek,
 }) => {
+  const navigate = useNavigate();
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
   const currentTime = useMusicPlayerStore(state => state.currentTime);
@@ -37,8 +39,11 @@ export const PlayerChrome: React.FC<PlayerChromeProps> = ({
   const toggleLyrics = useMusicPlayerStore(state => state.toggleLyrics);
   const toggleQueue = useMusicPlayerStore(state => state.toggleQueue);
   const toggleLike = useMusicPlayerStore(state => state.toggleLike);
+  const addToQueue = useMusicPlayerStore(state => state.addToQueue);
 
   const [isVolumeHovered, setIsVolumeHovered] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const isPlaying = playbackStatus === 'playing';
   const isLiked = currentTrack ? likedTrackIds.includes(currentTrack.id) : false;
@@ -143,14 +148,24 @@ export const PlayerChrome: React.FC<PlayerChromeProps> = ({
                 <img 
                   src={currentTrack.artwork} 
                   alt="" 
-                  className="w-9 h-9 rounded-md object-cover shrink-0 shadow-md border border-white/10" 
+                  onClick={() => navigate(`/music/album/${currentTrack.albumId || 'album-default'}`)}
+                  className="w-9 h-9 rounded-md object-cover shrink-0 shadow-md border border-white/10 cursor-pointer hover:scale-105 transition-transform" 
+                  title="View Album"
                 />
                 
                 <div className="min-w-0 flex flex-col justify-center">
-                  <span className="text-xs font-semibold text-white truncate max-w-[120px] sm:max-w-[190px]">
+                  <span 
+                    onClick={() => navigate(`/music/album/${currentTrack.albumId || 'album-default'}`)}
+                    className="text-xs font-semibold text-white truncate max-w-[120px] sm:max-w-[190px] cursor-pointer hover:underline"
+                    title={currentTrack.title}
+                  >
                     {currentTrack.title}
                   </span>
-                  <span className="text-[11px] text-white/50 truncate max-w-[120px] sm:max-w-[190px]">
+                  <span 
+                    onClick={() => navigate(`/music/artist/${encodeURIComponent(currentTrack.artist)}`)}
+                    className="text-[11px] text-white/50 truncate max-w-[120px] sm:max-w-[190px] cursor-pointer hover:text-white transition-colors"
+                    title={currentTrack.artist}
+                  >
                     {currentTrack.artist}
                   </span>
 
@@ -176,7 +191,7 @@ export const PlayerChrome: React.FC<PlayerChromeProps> = ({
           </div>
 
           {/* 3. RIGHT: Favorite, More, Lyrics, Queue, Volume */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0 text-white/60">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0 text-white/60 relative">
             
             {/* Star Favorite */}
             <button
@@ -191,13 +206,102 @@ export const PlayerChrome: React.FC<PlayerChromeProps> = ({
             </button>
 
             {/* Three Dots More */}
-            <button
-              type="button"
-              className="p-1.5 rounded-full hover:text-white transition-colors cursor-pointer"
-              title="More options"
-            >
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsMoreMenuOpen(prev => !prev)}
+                className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                  isMoreMenuOpen ? 'text-white bg-white/10' : 'hover:text-white'
+                }`}
+                title="More options"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+
+              {/* Popover Action Menu */}
+              {isMoreMenuOpen && currentTrack && (
+                <div 
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-0 bottom-full mb-3 w-52 bg-[#1e1e20] border border-white/10 rounded-2xl shadow-2xl z-50 p-1.5 text-xs animate-in fade-in zoom-in-95 text-white/90"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleLike(currentTrack.id);
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white"
+                  >
+                    <Star className={`w-3.5 h-3.5 ${isLiked ? 'fill-amber-400 text-amber-400' : ''}`} />
+                    <span>{isLiked ? 'Remove from Favorites' : 'Add to Favorites'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addToQueue(currentTrack, true);
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Play Next</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addToQueue(currentTrack, false);
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white"
+                  >
+                    <Disc className="w-3.5 h-3.5" />
+                    <span>Add to Queue</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigate(`/music/artist/${encodeURIComponent(currentTrack.artist)}`);
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white border-t border-white/5 mt-1 pt-1.5"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Go to Artist</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigate(`/music/album/${currentTrack.albumId || 'album-default'}`);
+                      setIsMoreMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Go to Album</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${currentTrack.title} - ${currentTrack.artist}`);
+                      setCopiedLink(true);
+                      setTimeout(() => {
+                        setCopiedLink(false);
+                        setIsMoreMenuOpen(false);
+                      }, 1200);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white"
+                  >
+                    {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
+                    <span>{copiedLink ? 'Copied to Clipboard' : 'Share Track Info'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Lyrics Toggle */}
             <button

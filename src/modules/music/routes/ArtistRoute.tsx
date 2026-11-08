@@ -10,7 +10,7 @@ import { MusicTrack } from '../types';
 export const ArtistRoute: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const setTrack = useMusicPlayerStore(state => state.setTrack);
+  const playTrack = useMusicPlayerStore(state => state.playTrack);
 
   // Match or resolve artist details
   const artistName = id ? decodeURIComponent(id) : 'Hans Zimmer';
@@ -28,7 +28,7 @@ export const ArtistRoute: React.FC = () => {
     if (displayTracks.length === 0) return;
     let list = [...displayTracks];
     if (shuffle) list.sort(() => Math.random() - 0.5);
-    setTrack(list[0], list);
+    playTrack(list[0], list);
   };
 
   return (

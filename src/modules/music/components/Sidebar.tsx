@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Search, Home, LayoutGrid, Clock, Mic2, Disc, Music2, 
   UserCheck, Sparkles, Settings, ExternalLink, ChevronsUpDown,
-  Film, CheckCircle2, AlertCircle, Users
+  Film, CheckCircle2, AlertCircle, Users, Youtube
 } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
@@ -12,6 +12,7 @@ interface SidebarProps {
   onCloseMobile?: () => void;
   onOpenSettings?: () => void;
   onOpenListenTogether?: () => void;
+  onOpenYouTubeLink?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -19,6 +20,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
   onOpenSettings,
   onOpenListenTogether,
+  onOpenYouTubeLink,
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -188,6 +190,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Bottom Section */}
       <div className="p-3 space-y-2 border-t border-[#242426]/70 bg-[#161616]">
         
+        {/* Link YouTube Music Button */}
+        <div 
+          onClick={onOpenYouTubeLink}
+          className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold bg-red-950/30 hover:bg-red-900/40 border border-red-500/20 text-red-200 transition-colors cursor-pointer group shadow-sm"
+          title="Connect YouTube Music to sync library"
+        >
+          <div className="flex items-center gap-2.5">
+            <Youtube className="w-4 h-4 text-red-500 fill-current group-hover:scale-110 transition-transform" />
+            <span>YouTube Music</span>
+          </div>
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-red-500/20 text-red-300">
+            Sync
+          </span>
+        </div>
+
         {/* BitChord Extension Status */}
         <div 
           onClick={() => {

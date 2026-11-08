@@ -21,7 +21,7 @@ export const SearchRoute: React.FC = () => {
   const [results, setResults] = useState<MusicTrack[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const setTrack = useMusicPlayerStore(state => state.setTrack);
+  const playTrack = useMusicPlayerStore(state => state.playTrack);
 
   // Sync state if URL query changes
   useEffect(() => {
@@ -122,7 +122,7 @@ export const SearchRoute: React.FC = () => {
                   Top Result
                 </span>
                 <div 
-                  onClick={() => setTrack(topResult, results)}
+                  onClick={() => playTrack(topResult, results)}
                   className="p-5 rounded-3xl bg-[#141416] border border-white/10 hover:border-[#fa243c]/50 transition-all cursor-pointer group flex flex-col justify-between h-[230px] shadow-xl relative overflow-hidden"
                 >
                   <div className="flex items-start gap-4">

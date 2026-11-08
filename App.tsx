@@ -130,7 +130,7 @@ const App: React.FC = () => {
         />
       )}
       
-      <main className="flex-grow">
+      <main className={isMusic ? "flex-grow h-screen overflow-hidden" : "flex-grow"}>
         <ErrorBoundary>
           <Suspense fallback={<PageLoadingFallback />}>
             <Routes>

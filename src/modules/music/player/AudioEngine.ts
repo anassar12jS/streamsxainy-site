@@ -85,11 +85,19 @@ export class MusicAudioEngine {
 
   private initAudioContext() {
     try {
+      if ((this.audioElement as any).__sourceNode) {
+        this.sourceNode = (this.audioElement as any).__sourceNode;
+        this.audioContext = (this.audioElement as any).__audioContext;
+        return;
+      }
+
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtx) {
         this.audioContext = new AudioCtx();
         this.sourceNode = this.audioContext.createMediaElementSource(this.audioElement);
         this.sourceNode.connect(this.audioContext.destination);
+        (this.audioElement as any).__sourceNode = this.sourceNode;
+        (this.audioElement as any).__audioContext = this.audioContext;
       }
     } catch (err) {
       console.warn('Web Audio Context initialization deferred or already attached:', err);

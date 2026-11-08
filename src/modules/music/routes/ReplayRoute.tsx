@@ -8,7 +8,7 @@ export const ReplayRoute: React.FC = () => {
   const [stats, setStats] = useState<ReplayStats>(() => replayRecorder.getStats());
   const [isExporting, setIsExporting] = useState(false);
   const posterCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const setTrack = useMusicPlayerStore(state => state.setTrack);
+  const playTrack = useMusicPlayerStore(state => state.playTrack);
 
   useEffect(() => {
     setStats(replayRecorder.getStats());
@@ -217,7 +217,7 @@ export const ReplayRoute: React.FC = () => {
             {stats.topTracks.map((item, idx) => (
               <div
                 key={item.track.id}
-                onClick={() => setTrack(item.track)}
+                onClick={() => playTrack(item.track)}
                 className="group flex items-center justify-between p-2.5 rounded-2xl hover:bg-white/5 transition-all cursor-pointer"
               >
                 <div className="flex items-center gap-3.5 min-w-0">

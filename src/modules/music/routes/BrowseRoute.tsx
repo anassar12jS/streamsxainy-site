@@ -1,7 +1,11 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Pause, ChevronRight, MoreHorizontal, ChevronLeft } from 'lucide-react';
+import { 
+  Play, Pause, ChevronRight, ChevronLeft, MoreHorizontal, 
+  Plus, Disc, Heart, Sparkles, ExternalLink, Music2, Radio
+} from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
+import { APPLE_MUSIC_BROWSE_SECTIONS } from '../api/innertube';
 import { MusicTrack } from '../types';
 
 export const BITCHORD_HOME_TRACKS: MusicTrack[] = [
@@ -93,7 +97,7 @@ export const BITCHORD_LIBRARY_ALBUMS = [
     id: 'lib-sade',
     title: 'The Best of Sade',
     artist: 'Sade',
-    artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/ec/3b/6e/ec3b6e82-e64e-fa68-19e0-f1c7d2c3e1e2/886444983050.jpg/600x600bb.jpg',
+    artwork: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
     tracks: [
       {
         id: 'sade-kiss-life',
@@ -124,22 +128,31 @@ export const BITCHORD_LIBRARY_ALBUMS = [
 
 export const BrowseRoute: React.FC = () => {
   const navigate = useNavigate();
-  const setTrack = useMusicPlayerStore(state => state.setTrack);
+  const playTrack = useMusicPlayerStore(state => state.playTrack);
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
   const togglePlayPause = useMusicPlayerStore(state => state.togglePlayPause);
+  const toggleLike = useMusicPlayerStore(state => state.toggleLike);
+  const isLiked = useMusicPlayerStore(state => state.isLiked);
+  const addToQueue = useMusicPlayerStore(state => state.addToQueue);
 
+  const [activeMenuTrackId, setActiveMenuTrackId] = useState<string | null>(null);
   const carouselRef = useRef<HTMLDivElement | null>(null);
 
   const isPlayingTrack = (trackId: string) => {
     return currentTrack?.id === trackId && playbackStatus === 'playing';
   };
 
+  // Instant 1-click playback handler
   const handleTrackClick = (track: MusicTrack) => {
     if (currentTrack?.id === track.id) {
-      togglePlayPause();
+      if (playbackStatus === 'playing') {
+        togglePlayPause();
+      } else {
+        playTrack(track, BITCHORD_HOME_TRACKS);
+      }
     } else {
-      setTrack(track, BITCHORD_HOME_TRACKS);
+      playTrack(track, BITCHORD_HOME_TRACKS);
     }
   };
 
@@ -158,12 +171,16 @@ export const BrowseRoute: React.FC = () => {
   const renderTrackItem = (track: MusicTrack) => {
     const isCurrent = currentTrack?.id === track.id;
     const isPlaying = isPlayingTrack(track.id);
+    const isTrackLiked = isLiked(track.id);
+    const isMenuOpen = activeMenuTrackId === track.id;
 
     return (
       <div
         key={track.id}
         onClick={() => handleTrackClick(track)}
-        className="group relative flex items-center justify-between p-2 rounded-xl hover:bg-[#202022]/80 transition-colors cursor-pointer select-none"
+        className={`group relative flex items-center justify-between p-2 rounded-xl transition-colors cursor-pointer select-none ${
+          isCurrent ? 'bg-[#fa243c]/12' : 'hover:bg-[#202022]/80'
+        }`}
       >
         <div className="flex items-center gap-3 min-w-0">
           {/* Artwork Thumbnail with Hover Play Button */}
@@ -189,7 +206,7 @@ export const BrowseRoute: React.FC = () => {
           {/* Title & Artist */}
           <div className="min-w-0 flex flex-col justify-center">
             <span className={`text-sm font-semibold truncate ${
-              isCurrent ? 'text-rose-400' : 'text-white group-hover:text-white'
+              isCurrent ? 'text-rose-400 font-bold' : 'text-white group-hover:text-white'
             }`}>
               {track.title}
             </span>
@@ -199,24 +216,82 @@ export const BrowseRoute: React.FC = () => {
           </div>
         </div>
 
-        {/* Three dots menu */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            useMusicPlayerStore.getState().addToQueue(track);
-          }}
-          className="opacity-0 group-hover:opacity-100 p-2 text-white/40 hover:text-white transition-opacity"
-          title="Add to queue"
-        >
-          <MoreHorizontal className="w-4 h-4" />
-        </button>
+        {/* Three dots contextual menu */}
+        <div className="relative flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveMenuTrackId(isMenuOpen ? null : track.id);
+            }}
+            className="opacity-0 group-hover:opacity-100 p-2 text-white/40 hover:text-white rounded-lg hover:bg-white/5 transition-all"
+            title="Options"
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+
+          {/* Popover Action Menu */}
+          {isMenuOpen && (
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="absolute right-0 top-full mt-1 w-48 bg-[#1e1e20] border border-white/10 rounded-2xl shadow-2xl z-40 p-1.5 text-xs animate-in fade-in zoom-in-95"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  addToQueue(track, true);
+                  setActiveMenuTrackId(null);
+                }}
+                className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Play Next</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  addToQueue(track, false);
+                  setActiveMenuTrackId(null);
+                }}
+                className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white"
+              >
+                <Disc className="w-3.5 h-3.5" />
+                <span>Add to Queue</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  toggleLike(track.id);
+                  setActiveMenuTrackId(null);
+                }}
+                className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white"
+              >
+                <Heart className={`w-3.5 h-3.5 ${isTrackLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
+                <span>{isTrackLiked ? 'Favorited' : 'Add to Favorites'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  navigate(`/music/artist/${encodeURIComponent(track.artist)}`);
+                  setActiveMenuTrackId(null);
+                }}
+                className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white border-t border-white/5 mt-1 pt-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Go to Artist</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="space-y-8 animate-fade-in pb-32 pt-2 px-1 sm:px-4 max-w-7xl mx-auto">
+    <div className="space-y-10 animate-fade-in pb-40 pt-2 px-1 sm:px-4 max-w-7xl mx-auto">
       
       {/* 1. Header: Home */}
       <div>
@@ -249,7 +324,7 @@ export const BrowseRoute: React.FC = () => {
       </div>
 
       {/* 3. From your library Section */}
-      <div className="space-y-4 pt-4 relative group/carousel">
+      <div className="space-y-4 pt-2 relative group/carousel">
         <div 
           onClick={() => navigate('/music/library/albums')}
           className="inline-flex items-center gap-1.5 cursor-pointer group"
@@ -260,17 +335,27 @@ export const BrowseRoute: React.FC = () => {
           <ChevronRight className="w-5 h-5 text-white/50 group-hover:text-white group-hover:translate-x-0.5 transition-all" />
         </div>
 
+        {/* Left Carousel Arrow */}
+        <button
+          type="button"
+          onClick={() => scrollCarousel('left')}
+          className="absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[#28282b]/90 hover:bg-[#343438] border border-white/10 text-white flex items-center justify-center shadow-2xl transition-all cursor-pointer z-10 hover:scale-105"
+          title="Previous"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+
         {/* Horizontal Card Row */}
         <div 
           ref={carouselRef}
-          className="flex items-center gap-5 overflow-x-auto pb-4 pt-1 no-scrollbar scroll-smooth"
+          className="flex items-center gap-5 overflow-x-auto pb-4 pt-1 no-scrollbar scroll-smooth px-2"
         >
           {BITCHORD_LIBRARY_ALBUMS.map(album => (
             <div
               key={album.id}
               onClick={() => {
                 if (album.tracks && album.tracks.length > 0) {
-                  setTrack(album.tracks[0], album.tracks);
+                  playTrack(album.tracks[0], album.tracks);
                 }
               }}
               className="group/card flex-shrink-0 w-[240px] sm:w-[280px] bg-[#1e1e20] hover:bg-[#262629] border border-white/5 rounded-2xl overflow-hidden p-3 transition-all cursor-pointer shadow-lg"
@@ -304,7 +389,7 @@ export const BrowseRoute: React.FC = () => {
           ))}
         </div>
 
-        {/* Carousel Navigation Arrow Button (as visible in screenshot) */}
+        {/* Right Carousel Arrow Button */}
         <button
           type="button"
           onClick={() => scrollCarousel('right')}
@@ -313,6 +398,63 @@ export const BrowseRoute: React.FC = () => {
         >
           <ChevronRight className="w-5 h-5" />
         </button>
+      </div>
+
+      {/* 4. Featured Playlists & Soundtracks Shelf */}
+      <div className="space-y-4 pt-4">
+        <div 
+          onClick={() => navigate('/music/browse')}
+          className="inline-flex items-center gap-1.5 cursor-pointer group"
+        >
+          <h2 className="text-lg sm:text-xl font-bold text-white group-hover:text-rose-400 transition-colors">
+            Featured Soundtracks & Playlists
+          </h2>
+          <ChevronRight className="w-5 h-5 text-white/50 group-hover:text-white group-hover:translate-x-0.5 transition-all" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {APPLE_MUSIC_BROWSE_SECTIONS.heroSpotlight.map(spot => (
+            <div
+              key={spot.id}
+              onClick={() => navigate(`/music/playlist/${spot.targetId}`)}
+              className="group p-4 rounded-3xl bg-[#1a1a1c] hover:bg-[#222226] border border-white/5 cursor-pointer transition-all shadow-xl hover:scale-[1.01]"
+            >
+              <div className="relative aspect-[16/9] rounded-2xl overflow-hidden mb-3 bg-[#242426]">
+                <img 
+                  src={spot.artwork} 
+                  alt={spot.title} 
+                  onError={(e) => {
+                    const fallbackMap: Record<string, string> = {
+                      'spot-1': 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1200&q=80',
+                      'spot-2': 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=80',
+                      'spot-3': 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=80',
+                    };
+                    (e.target as HTMLImageElement).src = fallbackMap[spot.id] || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1200&q=80';
+                  }}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                />
+                <div className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-[10px] font-mono font-bold text-[#fa243c]">
+                  {spot.badge}
+                </div>
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shadow-xl">
+                    <Play className="w-6 h-6 fill-current ml-0.5" />
+                  </div>
+                </div>
+              </div>
+
+              <h4 className="font-bold text-sm text-white truncate">
+                {spot.title}
+              </h4>
+              <p className="text-xs text-white/50 truncate mt-0.5">
+                {spot.artist}
+              </p>
+              <p className="text-[11px] text-white/40 mt-1 line-clamp-1">
+                {spot.description}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
 
     </div>

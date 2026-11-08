@@ -9,7 +9,7 @@ import { MusicTrack } from '../types';
 
 export const PlaylistRoute: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const setTrack = useMusicPlayerStore(state => state.setTrack);
+  const playTrack = useMusicPlayerStore(state => state.playTrack);
 
   // Match playlist or provide default curated playlist
   const spotlight = APPLE_MUSIC_BROWSE_SECTIONS.heroSpotlight.find(s => s.targetId === id) || {
@@ -30,7 +30,7 @@ export const PlaylistRoute: React.FC = () => {
     let list = [...tracks];
     if (shuffle) list.sort(() => Math.random() - 0.5);
     if (list.length > 0) {
-      setTrack(list[0], list);
+      playTrack(list[0], list);
     }
   };
 

@@ -8,7 +8,7 @@ import { MusicTrack } from '../types';
 
 export const AlbumRoute: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const setTrack = useMusicPlayerStore(state => state.setTrack);
+  const playTrack = useMusicPlayerStore(state => state.playTrack);
 
   // Look up album in curated collections or mock
   const albumMeta = APPLE_MUSIC_BROWSE_SECTIONS.featuredAlbums.find(a => a.id === id) || {
@@ -29,7 +29,7 @@ export const AlbumRoute: React.FC = () => {
       list.sort(() => Math.random() - 0.5);
     }
     if (list.length > 0) {
-      setTrack(list[0], list);
+      playTrack(list[0], list);
     }
   };
 

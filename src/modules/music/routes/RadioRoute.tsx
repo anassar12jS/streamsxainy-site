@@ -7,16 +7,20 @@ import { MusicTrack } from '../types';
 export const RadioRoute: React.FC = () => {
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
-  const setTrack = useMusicPlayerStore(state => state.setTrack);
+  const playTrack = useMusicPlayerStore(state => state.playTrack);
   const togglePlayPause = useMusicPlayerStore(state => state.togglePlayPause);
 
   const stations = APPLE_MUSIC_BROWSE_SECTIONS.liveRadios;
 
   const handleStationClick = (station: MusicTrack) => {
     if (currentTrack?.id === station.id) {
-      togglePlayPause();
+      if (playbackStatus === 'playing') {
+        togglePlayPause();
+      } else {
+        playTrack(station);
+      }
     } else {
-      setTrack(station);
+      playTrack(station);
     }
   };
 

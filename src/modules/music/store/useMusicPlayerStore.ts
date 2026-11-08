@@ -54,9 +54,11 @@ export interface MusicPlayerState {
   recentlyPlayed: MusicTrack[];
   activeLyrics: LyricsData | null;
   isLoadingLyrics: boolean;
+  trackPlayNonce: number;
 
   // Actions
   setTrack: (track: MusicTrack, queue?: MusicTrack[]) => void;
+  playTrack: (track: MusicTrack, queue?: MusicTrack[]) => void;
   play: () => void;
   pause: () => void;
   togglePlayPause: () => void;
@@ -102,6 +104,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   recentlyPlayed: loadStoredRecent(),
   activeLyrics: null,
   isLoadingLyrics: false,
+  trackPlayNonce: 0,
 
   setTrack: (track, newQueue) => {
     const state = get();
@@ -139,7 +142,12 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
       activeLyrics: null,
       isLoadingLyrics: true,
       recentlyPlayed: updatedRecent,
+      trackPlayNonce: Date.now(),
     });
+  },
+
+  playTrack: (track, newQueue) => {
+    get().setTrack(track, newQueue);
   },
 
   play: () => set({ playbackStatus: 'playing' }),
@@ -147,7 +155,11 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   togglePlayPause: () => {
     const { playbackStatus, currentTrack, queue } = get();
     if (!currentTrack && queue.length > 0) {
-      get().setTrack(queue[0]);
+      get().playTrack(queue[0]);
+      return;
+    }
+    if (playbackStatus === 'idle' && currentTrack) {
+      get().playTrack(currentTrack);
       return;
     }
     if (playbackStatus === 'playing') {

@@ -12,6 +12,7 @@ import { QueueDrawer } from './components/QueueDrawer';
 import { ExtensionBanner } from './components/ExtensionBanner';
 import { ListenTogetherModal } from './components/ListenTogetherModal';
 import { MusicSettingsModal } from './components/MusicSettingsModal';
+import { YouTubeMusicLinkModal } from './components/YouTubeMusicLinkModal';
 import { replayRecorder } from './api/replay';
 
 import { BrowseRoute, BITCHORD_HOME_TRACKS } from './routes/BrowseRoute';
@@ -30,6 +31,7 @@ export const MusicModule: React.FC = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isListenTogetherOpen, setIsListenTogetherOpen] = useState(false);
+  const [isYtLinkOpen, setIsYtLinkOpen] = useState(false);
 
   // Store bindings
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
@@ -37,8 +39,10 @@ export const MusicModule: React.FC = () => {
   const volume = useMusicPlayerStore(state => state.volume);
   const isMuted = useMusicPlayerStore(state => state.isMuted);
   const repeatMode = useMusicPlayerStore(state => state.repeatMode);
+  const trackPlayNonce = useMusicPlayerStore(state => state.trackPlayNonce);
   
   const setTrack = useMusicPlayerStore(state => state.setTrack);
+  const playTrack = useMusicPlayerStore(state => state.playTrack);
   const setTime = useMusicPlayerStore(state => state.setTime);
   const setPlaybackStatus = useMusicPlayerStore(state => state.setPlaybackStatus);
   const nextTrack = useMusicPlayerStore(state => state.nextTrack);
@@ -159,7 +163,8 @@ export const MusicModule: React.FC = () => {
 
   // 2. Respond to track changes & stream resolution
   useEffect(() => {
-    if (!currentTrack || !engineRef.current || playbackStatus === 'idle') return;
+    if (!currentTrack || !engineRef.current) return;
+    if (playbackStatus === 'idle' && trackPlayNonce === 0) return;
 
     let isCancelled = false;
 
@@ -275,7 +280,7 @@ export const MusicModule: React.FC = () => {
     return () => {
       isCancelled = true;
     };
-  }, [currentTrack?.id, playbackStatus === 'idle' ? null : currentTrack?.id]);
+  }, [currentTrack?.id, trackPlayNonce]);
 
   // 3. Play / Pause state sync
   useEffect(() => {
@@ -344,7 +349,7 @@ export const MusicModule: React.FC = () => {
   }, [togglePlayPause, volume]);
 
   return (
-    <div className="min-h-screen flex bg-[#161616] text-[#e1e1e3] relative overflow-hidden font-sans">
+    <div className="h-full w-full flex bg-[#161616] text-[#e1e1e3] relative overflow-hidden font-sans">
       
       {/* Hidden Web Audio Media Element */}
       <audio 
@@ -360,10 +365,11 @@ export const MusicModule: React.FC = () => {
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenListenTogether={() => setIsListenTogetherOpen(true)}
+        onOpenYouTubeLink={() => setIsYtLinkOpen(true)}
       />
 
       {/* Main Content Scroll View */}
-      <main className="flex-1 min-w-0 h-screen overflow-y-auto px-4 sm:px-8 py-6 am-scrollbar">
+      <main className="flex-1 min-w-0 h-full overflow-y-auto px-4 sm:px-8 pt-6 pb-40 am-scrollbar">
         
         {/* Extension Detection Banner */}
         <ExtensionBanner />
@@ -409,6 +415,13 @@ export const MusicModule: React.FC = () => {
       <MusicSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+
+      {/* YouTube Music Sync & Playlist Import Modal */}
+      <YouTubeMusicLinkModal
+        isOpen={isYtLinkOpen}
+        onClose={() => setIsYtLinkOpen(false)}
+        onSyncComplete={() => {}}
       />
 
     </div>

@@ -20,7 +20,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
 }) => {
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
-  const setTrack = useMusicPlayerStore(state => state.setTrack);
+  const playTrack = useMusicPlayerStore(state => state.playTrack);
   const togglePlayPause = useMusicPlayerStore(state => state.togglePlayPause);
   const toggleLike = useMusicPlayerStore(state => state.toggleLike);
   const isLiked = useMusicPlayerStore(state => state.isLiked(track.id));
@@ -34,9 +34,13 @@ export const TrackRow: React.FC<TrackRowProps> = ({
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isCurrent) {
-      togglePlayPause();
+      if (playbackStatus === 'playing') {
+        togglePlayPause();
+      } else {
+        playTrack(track, playlistContext);
+      }
     } else {
-      setTrack(track, playlistContext);
+      playTrack(track, playlistContext);
     }
   };
 
