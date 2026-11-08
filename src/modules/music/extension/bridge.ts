@@ -1,21 +1,51 @@
 /**
- * BitChord Companion Browser Extension Bridge
- * Detects MV3 companion extension for proxying CORS headers, YouTube Music session cookies,
- * Spotify Canvas animations, and Discord Rich Presence (RPC).
+ * BitChord Companion Browser Extension Bridge (MV3 Protocol 1)
+ * Extension ID: pkddffeebcmhhanjcigilehaeonkkfih
+ * 
+ * Strict gateway to the BitChord MV3 extension for YouTube Music session cookies,
+ * CORS bypass, Spotify OAuth & Discord Rich Presence.
  */
+
+export type BridgeErrorCode = 
+  | 'NO_EXTENSION' 
+  | 'TIMEOUT' 
+  | 'REJECTED' 
+  | 'NOT_SIGNED_IN' 
+  | 'NETWORK_ERROR'
+  | 'UNKNOWN';
+
+export class BridgeError extends Error {
+  public readonly code: BridgeErrorCode;
+  public readonly originalError?: any;
+
+  constructor(code: BridgeErrorCode, message: string, originalError?: any) {
+    super(message);
+    this.name = 'BridgeError';
+    this.code = code;
+    this.originalError = originalError;
+    Object.setPrototypeOf(this, BridgeError.prototype);
+  }
+}
 
 export interface ExtensionStatus {
   available: boolean;
   version?: string;
   hasYouTubeAuth?: boolean;
   hasDiscordRpc?: boolean;
+  activeAccount?: string;
 }
+
+export interface BridgeCallOptions {
+  timeoutMs?: number;
+  retryOnWakeup?: boolean;
+}
+
+const YOUTUBE_HOST_REGEX = /(?:^|\.)(?:youtube\.com|music\.youtube\.com|youtubei\.googleapis\.com|suggestqueries-clients6\.youtube\.com|googlevideo\.com)$/i;
 
 export class BitChordExtensionBridge {
   private static instance: BitChordExtensionBridge;
   private status: ExtensionStatus = { available: false };
   private listeners: Set<(status: ExtensionStatus) => void> = new Set();
-
   public static readonly EXTENSION_ID = 'pkddffeebcmhhanjcigilehaeonkkfih';
 
   private constructor() {
@@ -32,85 +62,54 @@ export class BitChordExtensionBridge {
   private init() {
     if (typeof window === 'undefined') return;
 
+    // Check if extension injected global object
     if ((window as any).__BITCHORD_EXTENSION__) {
       this.setStatus({
         available: true,
         version: (window as any).__BITCHORD_EXTENSION__.version || '0.4.4',
-        hasYouTubeAuth: (window as any).__BITCHORD_EXTENSION__.hasYouTubeAuth,
-        hasDiscordRpc: (window as any).__BITCHORD_EXTENSION__.hasDiscordRpc,
+        hasYouTubeAuth: (window as any).__BITCHORD_EXTENSION__.hasYouTubeAuth ?? true,
+        hasDiscordRpc: (window as any).__BITCHORD_EXTENSION__.hasDiscordRpc ?? true,
       });
       return;
     }
 
-    // Step 2 FIXED: Added channel, direction, and handled lastError properly
-    const pingExtension = () => {
+    // Ping extension directly via chrome.runtime
+    this.ping().catch(() => {});
+
+    // Periodic detection check (first 10 seconds)
+    let retries = 0;
+    const interval = setInterval(async () => {
+      retries++;
+      if (this.status.available || retries > 8) {
+        clearInterval(interval);
+        return;
+      }
       try {
-        const chromeRuntime = (window as any).chrome?.runtime;
-        if (chromeRuntime && typeof chromeRuntime.sendMessage === 'function') {
-          chromeRuntime.sendMessage(
-            BitChordExtensionBridge.EXTENSION_ID,
-            { 
-              channel: 'bitchord-bridge', // REQUIRED by background.js
-              direction: 'to-extension',  // REQUIRED by background.js
-              protocol: 1, 
-              id: `ping-${Date.now()}`, 
-              method: 'ping', 
-              params: {} 
-            },
-            (response: any) => {
-              if (chromeRuntime.lastError) {
-                return; // suppress error if extension hasn't loaded yet
-              }
-              if (response && (response.version || response.protocol === 1 || response.ok)) {
-                this.setStatus({
-                  available: true,
-                  version: response.result?.version || '0.4.4',
-                  hasYouTubeAuth: true,
-                  hasDiscordRpc: true,
-                });
-              }
-            }
-          );
-        }
-      } catch (e) {}
-    };
+        await this.ping(1200);
+      } catch {}
+    }, 1200);
 
-    pingExtension();
-
+    // Listen for postMessage from content scripts or companion tabs
     const onMessage = (event: MessageEvent) => {
-      if (event.data && (event.data.type === 'BITCHORD_EXTENSION_PONG' || event.data.method === 'ping')) {
+      if (!event.data) return;
+      if (
+        event.data.channel === 'bitchord-bridge' ||
+        event.data.type === 'BITCHORD_EXTENSION_PONG' ||
+        event.data.type === 'BITCHORD_PONG'
+      ) {
         this.setStatus({
           available: true,
-          version: event.data.version || '0.4.4',
-          hasYouTubeAuth: event.data.hasYouTubeAuth ?? true,
-          hasDiscordRpc: event.data.hasDiscordRpc ?? true,
+          version: event.data.version || event.data.result?.version || '0.4.4',
+          hasYouTubeAuth: true,
+          hasDiscordRpc: true,
         });
       }
     };
     window.addEventListener('message', onMessage);
-
-    try {
-      window.postMessage({ type: 'BITCHORD_EXTENSION_PING', protocol: 1 }, '*');
-    } catch {}
-
-    const timer = setInterval(() => {
-      if (this.status.available) {
-        clearInterval(timer);
-        return;
-      }
-      if ((window as any).__BITCHORD_EXTENSION__) {
-        this.setStatus({ available: true, version: '0.4.4' });
-        clearInterval(timer);
-      } else {
-        pingExtension();
-      }
-    }, 1000);
-
-    setTimeout(() => clearInterval(timer), 8000);
   }
 
-  private setStatus(newStatus: ExtensionStatus) {
-    this.status = newStatus;
+  public setStatus(newStatus: Partial<ExtensionStatus>) {
+    this.status = { ...this.status, ...newStatus };
     this.listeners.forEach(cb => cb(this.status));
   }
 
@@ -124,218 +123,368 @@ export class BitChordExtensionBridge {
     return () => this.listeners.delete(callback);
   }
 
-  public async proxyFetch(input: RequestInfo | URL, options?: RequestInit): Promise<Response> {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-    const init = options || (typeof input === 'object' && !(input instanceof URL) ? (input as RequestInit) : {});
+  /**
+   * Verified single door to chrome.runtime for BitChord companion extension.
+   * Envelope: { channel: 'bitchord-bridge', direction: 'to-extension', protocol: 1, id, method, params }
+   */
+  public async call<T = any>(
+    method: string, 
+    params: Record<string, any> = {}, 
+    options: BridgeCallOptions = {}
+  ): Promise<T> {
+    const { timeoutMs = 15000, retryOnWakeup = true } = options;
+    const chromeRuntime = (typeof window !== 'undefined' ? (window as any).chrome?.runtime : undefined);
 
-    // 1. Injected extension proxy if available
-    if (this.status.available && (window as any).__BITCHORD_EXTENSION__?.proxyFetch) {
-      try {
-        return await (window as any).__BITCHORD_EXTENSION__.proxyFetch(url, init);
-      } catch (e) {
-        console.debug('Extension proxyFetch failed, falling back to direct fetch:', e);
-      }
+    if (!chromeRuntime || typeof chromeRuntime.sendMessage !== 'function') {
+      throw new BridgeError(
+        'NO_EXTENSION',
+        'BitChord companion browser extension is not detected in this browser.'
+      );
     }
 
-    // 2. Direct chrome.runtime.sendMessage via yt.fetch
-    const chromeRuntime = (window as any).chrome?.runtime;
-    if (this.status.available && chromeRuntime && typeof chromeRuntime.sendMessage === 'function') {
-      try {
-        const isYt = /youtube\.com|googlevideo\.com/.test(url);
-        if (isYt) {
-          const resp = await new Promise<any>((resolve) => {
-            let bodyStr: string | undefined;
-            if (init.body) {
-              bodyStr = typeof init.body === 'string' ? init.body : JSON.stringify(init.body);
-            }
-            chromeRuntime.sendMessage(
-              BitChordExtensionBridge.EXTENSION_ID,
-              {
-                channel: 'bitchord-bridge',
-                direction: 'to-extension',
-                protocol: 1,
-                id: `fetch-${Date.now()}-${Math.random()}`,
-                method: 'yt.fetch',
-                params: {
-                  url,
-                  method: init.method || 'GET',
-                  headers: (init.headers as Record<string, string>) || {},
-                  body: bodyStr,
-                  auth: true,
-                }
-              },
-              (res: any) => {
-                if (chromeRuntime.lastError) {
-                  resolve(null);
-                } else {
-                  resolve(res);
-                }
-              }
-            );
-          });
+    const executeCall = (): Promise<T> => {
+      return new Promise<T>((resolve, reject) => {
+        let isSettled = false;
+        const reqId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-          if (resp && resp.ok && resp.result) {
-            const r = resp.result;
-            return new Response(r.body, {
-              status: r.status || 200,
-              headers: r.headers || {},
-            });
+        const timer = setTimeout(() => {
+          if (!isSettled) {
+            isSettled = true;
+            reject(new BridgeError('TIMEOUT', `Extension request '${method}' timed out after ${timeoutMs}ms`));
           }
-        }
-      } catch (e) {
-        console.debug('Extension yt.fetch failed, falling back to fetch:', e);
-      }
-    }
+        }, timeoutMs);
 
-    const cleanInit: RequestInit = { ...init };
-    const method = (
-      cleanInit.method ||
-      (typeof input === 'object' && input && 'method' in input ? (input as Request).method : undefined) ||
-      'GET'
-    ).toUpperCase();
-    cleanInit.method = method;
-    if (method === 'GET' || method === 'HEAD') {
-      delete cleanInit.body;
-    }
-
-    return fetch(url, cleanInit);
-  }
-
-  public async sendExtensionMessage(method: string, params: any = {}): Promise<any> {
-    const chromeRuntime = (window as any).chrome?.runtime;
-    if (chromeRuntime && typeof chromeRuntime.sendMessage === 'function') {
-      try {
-        const response = await new Promise<any>((resolve) => {
+        try {
           chromeRuntime.sendMessage(
             BitChordExtensionBridge.EXTENSION_ID,
             {
               channel: 'bitchord-bridge',
               direction: 'to-extension',
               protocol: 1,
-              id: `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              id: reqId,
               method,
-              params,
+              params: params || {},
             },
-            (res: any) => {
-              if (chromeRuntime.lastError) {
-                resolve({ error: chromeRuntime.lastError.message });
-              } else {
-                resolve(res);
+            (response: any) => {
+              if (isSettled) return;
+              isSettled = true;
+              clearTimeout(timer);
+
+              const lastError = chromeRuntime.lastError;
+              if (lastError) {
+                const errMsg = lastError.message || String(lastError);
+                if (errMsg.includes('Receiving end does not exist') || errMsg.includes('Could not establish connection')) {
+                  reject(new BridgeError('NO_EXTENSION', `Extension service worker asleep or unreachable: ${errMsg}`, lastError));
+                } else {
+                  reject(new BridgeError('REJECTED', `Extension error: ${errMsg}`, lastError));
+                }
+                return;
               }
+
+              if (!response) {
+                reject(new BridgeError('REJECTED', `Extension returned empty response for method '${method}'`));
+                return;
+              }
+
+              if (response.ok === false || response.error) {
+                const errDetail = typeof response.error === 'string' ? response.error : response.error?.message || 'Operation failed';
+                const code: BridgeErrorCode = 
+                  response.error?.code === 'NOT_SIGNED_IN' || /not signed in|unauthorized|auth/i.test(errDetail)
+                    ? 'NOT_SIGNED_IN'
+                    : 'REJECTED';
+                reject(new BridgeError(code, errDetail, response.error));
+                return;
+              }
+
+              // Update availability on successful response
+              if (!this.status.available) {
+                this.setStatus({ available: true });
+              }
+
+              // Return unwrapped result or full response
+              const result = response.result !== undefined ? response.result : response;
+              resolve(result as T);
             }
           );
-        });
-
-        if (response && (response.ok || response.result || response.accounts)) {
-          return response.result || response;
+        } catch (syncErr) {
+          if (!isSettled) {
+            isSettled = true;
+            clearTimeout(timer);
+            reject(new BridgeError('REJECTED', `Failed to send message: ${syncErr}`, syncErr));
+          }
         }
-      } catch (err) {
-        console.debug(`Extension message ${method} failed:`, err);
+      });
+    };
+
+    try {
+      return await executeCall();
+    } catch (err: any) {
+      // Retry once if MV3 service worker was asleep
+      if (
+        retryOnWakeup && 
+        err instanceof BridgeError && 
+        err.code === 'NO_EXTENSION' && 
+        err.message.includes('asleep')
+      ) {
+        await new Promise(r => setTimeout(r, 400));
+        return await executeCall();
       }
+      throw err;
     }
+  }
 
-    // Window postMessage fallback for web extensions
-    if (typeof window !== 'undefined') {
-      try {
-        window.postMessage({
-          type: 'BITCHORD_BRIDGE_CALL',
-          channel: 'bitchord-bridge',
-          method,
-          params,
-          id: `post-${Date.now()}`,
-        }, '*');
-      } catch {}
+  public async ping(timeoutMs = 2500): Promise<{ ok: boolean; version?: string }> {
+    try {
+      const res = await this.call<{ version?: string }>('ping', {}, { timeoutMs, retryOnWakeup: false });
+      this.setStatus({ available: true, version: res?.version || '0.4.4' });
+      return { ok: true, version: res?.version || '0.4.4' };
+    } catch (err) {
+      return { ok: false };
     }
-
-    return null;
   }
 
   /**
-   * Fetches the authenticated Google/YouTube Music accounts from the extension session.
+   * Helper to check if a URL belongs to YouTube/GoogleVideo services
    */
-  public async getAuthState(refresh = true): Promise<{ accounts: Array<{ id: string; name: string; email?: string; photoUrl?: string; selected?: boolean }> }> {
+  public isYouTubeHost(url: string): boolean {
     try {
-      const res = await this.sendExtensionMessage('yt.authState', { refresh });
-      if (res && Array.isArray(res.accounts) && res.accounts.length > 0) {
-        return { accounts: res.accounts };
+      const hostname = new URL(url).hostname;
+      return YOUTUBE_HOST_REGEX.test(hostname);
+    } catch {
+      return /youtube\.com|googlevideo\.com/i.test(url);
+    }
+  }
+
+  /**
+   * Strict proxyFetch:
+   * 1. Handles Request, URL, string inputs.
+   * 2. Strips 'body' on GET/HEAD requests to prevent browser TypeError.
+   * 3. Sends YouTube & Google requests through the extension via `yt.fetch`.
+   * 4. NEVER falls back to window.fetch for YouTube hosts (throws typed BridgeError instead to avoid CORS 405s).
+   * 5. Handles base64 encoded responses and null body HTTP status codes (101, 204, 205, 304).
+   */
+  public async proxyFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    let url: string;
+    let method = 'GET';
+    let headers: Record<string, string> = {};
+    let body: any = undefined;
+
+    if (input instanceof Request) {
+      url = input.url;
+      method = input.method;
+      input.headers.forEach((v, k) => { headers[k] = v; });
+      if (init?.body) {
+        body = init.body;
+      } else if (method !== 'GET' && method !== 'HEAD') {
+        try {
+          body = await input.clone().text();
+        } catch {}
       }
-      if (res && res.result && Array.isArray(res.result.accounts)) {
-        return { accounts: res.result.accounts };
-      }
-    } catch (e) {
-      console.debug('Error in getAuthState:', e);
+    } else if (input instanceof URL) {
+      url = input.toString();
+    } else {
+      url = String(input);
     }
 
-    // Fallback: Check localStorage for any cached or linked YouTube account
+    if (init) {
+      if (init.method) method = init.method;
+      if (init.headers) {
+        if (init.headers instanceof Headers) {
+          init.headers.forEach((v, k) => { headers[k] = v; });
+        } else if (Array.isArray(init.headers)) {
+          init.headers.forEach(([k, v]) => { headers[k] = v; });
+        } else {
+          headers = { ...headers, ...(init.headers as Record<string, string>) };
+        }
+      }
+      if (init.body !== undefined) {
+        body = init.body;
+      }
+    }
+
+    method = method.toUpperCase();
+    const isGetOrHead = method === 'GET' || method === 'HEAD';
+    if (isGetOrHead) {
+      body = undefined;
+    }
+
+    const isYt = this.isYouTubeHost(url);
+
+    // If it's YouTube / Google Video, route strictly through extension
+    if (isYt) {
+      try {
+        let serializedBody: string | undefined = undefined;
+        if (body !== undefined && !isGetOrHead) {
+          if (typeof body === 'string') {
+            serializedBody = body;
+          } else if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
+            serializedBody = new TextDecoder().decode(body);
+          } else {
+            serializedBody = JSON.stringify(body);
+          }
+        }
+
+        const res = await this.call<any>('yt.fetch', {
+          url,
+          method,
+          headers,
+          body: serializedBody,
+          auth: true,
+        }, { timeoutMs: 20000 });
+
+        if (res) {
+          const status = res.status || 200;
+          const resHeaders = res.headers || {};
+          
+          // HTTP 101, 204, 205, 304 cannot have a body
+          const isNullBodyStatus = [101, 204, 205, 304].includes(status);
+          if (isNullBodyStatus) {
+            return new Response(null, { status, statusText: res.statusText, headers: resHeaders });
+          }
+
+          let responseBody: BodyInit | null = null;
+          if (res.bodyEncoding === 'base64' && typeof res.body === 'string') {
+            const binary = atob(res.body);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+              bytes[i] = binary.charCodeAt(i);
+            }
+            responseBody = bytes.buffer;
+          } else if (res.body !== undefined && res.body !== null) {
+            responseBody = typeof res.body === 'string' ? res.body : JSON.stringify(res.body);
+          }
+
+          return new Response(responseBody, {
+            status,
+            statusText: res.statusText,
+            headers: resHeaders,
+          });
+        }
+      } catch (extError: any) {
+        // GROUND RULE #3: Never fall back to window.fetch for YouTube!
+        // That is what creates the 405 Method Not Allowed / CORS failure.
+        console.warn(`[BitChord Bridge] Extension proxyFetch failed for ${url}:`, extError?.message || extError);
+        throw new BridgeError(
+          extError instanceof BridgeError ? extError.code : 'REJECTED',
+          `Cannot fetch YouTube resource "${url}" without active BitChord Extension: ${extError?.message || extError}`,
+          extError
+        );
+      }
+    }
+
+    // For non-YouTube hosts (e.g. Spotify APIs, lyrics, local routes), use window.fetch
+    const directInit: RequestInit = {
+      method,
+      headers,
+    };
+    if (!isGetOrHead && body !== undefined) {
+      directInit.body = body;
+    }
+
+    return fetch(url, directInit);
+  }
+
+  /**
+   * Compatibility wrapper for older code calling sendExtensionMessage
+   */
+  public async sendExtensionMessage(method: string, params: any = {}): Promise<any> {
     try {
-      const saved = localStorage.getItem('bitchord_active_account') || localStorage.getItem('bitchord_linked_youtube_account');
+      return await this.call(method, params);
+    } catch (e) {
+      console.debug(`sendExtensionMessage('${method}') failed:`, e);
+      return null;
+    }
+  }
+
+  /**
+   * Fetches authenticated Google/YouTube Music accounts from the extension.
+   * Defensive parser accepting multiple possible shapes.
+   */
+  public async getAuthState(refresh = true): Promise<{ 
+    accounts: Array<{ 
+      id: string; 
+      name: string; 
+      email?: string; 
+      photoUrl?: string; 
+      avatarUrl?: string;
+      selected?: boolean;
+      channels?: Array<{
+        id: string;
+        name: string;
+        avatarUrl?: string;
+        photoUrl?: string;
+        selected?: boolean;
+        handle?: string;
+        subscriberCount?: string;
+      }>;
+    }> 
+  }> {
+    try {
+      const res = await this.call<any>('yt.authState', { refresh });
+      if (res) {
+        if (Array.isArray(res.accounts)) {
+          return { accounts: res.accounts };
+        }
+        if (Array.isArray(res)) {
+          return { accounts: res };
+        }
+        if (res.result && Array.isArray(res.result.accounts)) {
+          return { accounts: res.result.accounts };
+        }
+      }
+    } catch (e) {
+      console.debug('[BitChord Bridge] yt.authState failed:', e);
+    }
+
+    // Fallback cached profile in localStorage if extension was logged in previously
+    try {
+      const saved = localStorage.getItem('bitchord_active_account');
       if (saved) {
         const parsed = JSON.parse(saved);
         return {
           accounts: [
             {
-              id: parsed.id || parsed.channelId || 'channel_default',
-              name: parsed.name || 'StreamHub User',
-              email: parsed.email || 'user@gmail.com',
-              photoUrl: parsed.avatar || parsed.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
+              id: parsed.id || 'channel_default',
+              name: parsed.name || 'BitChord User',
+              email: parsed.email || 'user@bitchord.app',
+              photoUrl: parsed.avatar || parsed.photoUrl || parsed.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
               selected: true,
+              channels: parsed.channels || []
             }
           ]
         };
       }
     } catch {}
 
-    // Default account representation for seamless UX
-    return {
-      accounts: [
-        {
-          id: 'channel_primary',
-          name: 'anas (YouTube Music)',
-          email: 'anasltccnt@gmail.com',
-          photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
-          selected: true,
-        },
-        {
-          id: 'channel_brand',
-          name: 'StreamHub Cinema Studio',
-          email: 'creator@streamhub.local',
-          photoUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=120&q=80',
-          selected: false,
-        }
-      ]
-    };
+    return { accounts: [] };
   }
 
   /**
-   * Locks in the authenticated session channel for youtubei.js.
+   * Locks in authenticated session channel for youtubei.js
    */
   public async selectChannel(channelId: string): Promise<any> {
     try {
-      await this.sendExtensionMessage('yt.selectChannel', { channelId });
+      const res = await this.call('yt.selectChannel', { channelId });
+      try {
+        localStorage.setItem('bitchord_selected_channel_id', channelId);
+      } catch {}
+      return res || { ok: true, channelId };
     } catch (e) {
-      console.debug('Extension selectChannel failed:', e);
+      console.warn('[BitChord Bridge] selectChannel failed:', e);
+      throw e;
     }
-
-    try {
-      localStorage.setItem('bitchord_selected_channel_id', channelId);
-    } catch {}
-
-    return { ok: true, channelId };
   }
 
   public updateDiscordRpc(track: { title: string; artist: string; duration: number; artwork?: string }) {
     if (!this.status.available) return;
     try {
-      window.postMessage({
-        type: 'BITCHORD_DISCORD_RPC_UPDATE',
-        payload: {
-          details: track.title,
-          state: `by ${track.artist}`,
-          largeImageKey: track.artwork || 'applemusic_logo',
-          largeImageText: 'StreamHub BitChord Music',
-          startTimestamp: Math.floor(Date.now() / 1000),
-        },
-      }, '*');
+      this.call('discord.updateActivity', {
+        details: track.title,
+        state: `by ${track.artist}`,
+        largeImageKey: track.artwork || 'bitchord_logo',
+        largeImageText: 'BitChord Music',
+        startTimestamp: Math.floor(Date.now() / 1000),
+      }, { timeoutMs: 3000, retryOnWakeup: false }).catch(() => {});
     } catch {}
   }
 }

@@ -3,11 +3,13 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Search, Home, LayoutGrid, Clock, Mic2, Disc, Music2, 
   UserCheck, Sparkles, Settings, ExternalLink, ChevronsUpDown,
-  Film, Users, Youtube, Radio, LogOut, Check, Music
+  Film, Users, Youtube, Radio, LogOut, Check, Music, Terminal
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { extensionBridge, BitChordExtensionBridge } from '../extension/bridge';
+
+import { useSessionStore } from '../store/useSessionStore';
 
 interface SidebarProps {
   isOpenOnMobile?: boolean;
@@ -28,22 +30,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const queryClient = useQueryClient();
 
   const extensionConnected = useMusicPlayerStore(state => state.extensionConnected);
-  const activeAccount = useMusicPlayerStore(state => state.activeAccount);
-  const setActiveAccount = useMusicPlayerStore(state => state.setActiveAccount);
+  
+  // Connect to unified session store for alt channels & YouTube identity
+  const channels = useSessionStore(state => state.channels);
+  const activeChannel = useSessionStore(state => state.activeChannel);
+  const refreshSession = useSessionStore(state => state.refreshSession);
+  const selectChannel = useSessionStore(state => state.selectChannel);
+  const disconnectSession = useSessionStore(state => state.disconnect);
 
   // Popover state
   const [showAccountPopover, setShowAccountPopover] = useState(false);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
-  const [accountsList, setAccountsList] = useState<any[]>([]);
   const popoverRef = useRef<HTMLDivElement | null>(null);
 
-  // Active channel presentation
-  const [activeUser, setActiveUser] = useState<{ id: string; name: string; avatar: string; handle?: string }>({
-    id: 'channel_primary',
-    name: 'anas',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&q=80',
-    handle: 'YouTube Music',
-  });
+  // Active user representation
+  const activeUser = {
+    id: activeChannel?.id || 'channel_primary',
+    name: activeChannel?.name || 'anas',
+    avatar: activeChannel?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&q=80',
+    handle: activeChannel?.handle || 'YouTube Music',
+  };
 
   // =========================================================================
   // Phase 3: Spotify Playlists Race Condition Fix
@@ -90,35 +96,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     staleTime: 1000 * 60 * 5, 
   });
 
-  // Load saved active account
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('bitchord_active_account');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed?.name) {
-          setActiveUser({
-            id: parsed.id || 'channel_primary',
-            name: parsed.name,
-            avatar: parsed.avatarUrl || parsed.photoUrl || parsed.avatar || activeUser.avatar,
-            handle: parsed.handle || 'YouTube Music',
-          });
-        }
-      }
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    if (activeAccount?.name) {
-      setActiveUser({
-        id: activeAccount.id || 'channel_primary',
-        name: activeAccount.name,
-        avatar: activeAccount.avatarUrl || activeAccount.photoUrl || activeAccount.avatar || activeUser.avatar,
-        handle: activeAccount.handle || 'YouTube Music',
-      });
-    }
-  }, [activeAccount]);
-
   // Click outside to dismiss popover
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -134,9 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     };
   }, [showAccountPopover]);
 
-  // =========================================================================
-  // Phase 2: Fetch Accounts with Nested Channel Mapping on Popover Open
-  // =========================================================================
+  // Handle open popover: refresh session channels from extension
   const handleOpenAccountPopover = async () => {
     const nextState = !showAccountPopover;
     setShowAccountPopover(nextState);
@@ -144,72 +119,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (nextState) {
       setIsLoadingAccounts(true);
       try {
-        const res = await extensionBridge.sendExtensionMessage('yt.authState', { refresh: true });
-        if (res && (res.accounts || res.result?.accounts)) {
-          const rawAccounts = res.accounts || res.result?.accounts || [];
-          setAccountsList(rawAccounts);
-        } else {
-          // Fallback to bridge getAuthState
-          const auth = await extensionBridge.getAuthState(true);
-          setAccountsList(auth.accounts || []);
-        }
+        await refreshSession(true);
       } catch (e) {
-        console.debug('Failed to fetch auth accounts:', e);
+        console.debug('Failed to refresh session:', e);
       } finally {
         setIsLoadingAccounts(false);
       }
     }
   };
 
-  // Nested Channel Mapping: flatten accounts -> channels
-  const allChannels: any[] = accountsList.flatMap((account: any) => {
-    if (account.channels && Array.isArray(account.channels) && account.channels.length > 0) {
-      return account.channels.map((ch: any) => ({
-        ...ch,
-        avatarUrl: ch.avatarUrl || ch.photoUrl || account.photoUrl || account.avatarUrl,
-      }));
-    }
-    return [account];
-  });
-
   // Account Selection Handler
-  const handleAccountSelect = async (channelId: string, channelObj?: any) => {
-    try {
-      await extensionBridge.sendExtensionMessage('yt.selectChannel', { channelId });
-    } catch {}
-
-    const selected = channelObj || allChannels.find(c => c.id === channelId);
-    if (selected) {
-      const newActive = {
-        id: selected.id,
-        name: selected.name,
-        avatar: selected.avatarUrl || selected.photoUrl || activeUser.avatar,
-        handle: selected.handle || 'YouTube Music',
-      };
-      setActiveUser(newActive);
-      setActiveAccount(newActive);
-      try {
-        localStorage.setItem('bitchord_active_account', JSON.stringify(newActive));
-        localStorage.setItem('bitchord_selected_channel_id', channelId);
-      } catch {}
-    }
-
+  const handleAccountSelect = async (channelId: string) => {
+    await selectChannel(channelId);
     // Instantly invalidate queries to auto-sync the new user's library
     queryClient.invalidateQueries();
     setShowAccountPopover(false);
   };
 
   const handleDisconnect = () => {
-    try {
-      localStorage.removeItem('bitchord_active_account');
-      localStorage.removeItem('bitchord_selected_channel_id');
-    } catch {}
-    setActiveUser({
-      id: 'disconnected',
-      name: 'Guest User',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&q=80',
-      handle: 'Not Connected',
-    });
+    disconnectSession();
     queryClient.invalidateQueries();
     setShowAccountPopover(false);
   };
@@ -416,14 +344,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <div className="p-4 text-center text-xs text-[#a3a3a3]">
                     Loading channels...
                   </div>
-                ) : allChannels.length > 0 ? (
-                  allChannels.map((channel: any) => {
-                    const isSelected = activeUser.id === channel.id || activeUser.name === channel.name;
+                ) : channels.length > 0 ? (
+                  channels.map((channel: any) => {
+                    const isSelected = activeUser.id === channel.id;
 
                     return (
                       <div 
                         key={channel.id} 
-                        onClick={() => handleAccountSelect(channel.id, channel)}
+                        onClick={() => handleAccountSelect(channel.id)}
                         className={`flex items-center justify-between gap-3 p-2.5 hover:bg-[#282828] cursor-pointer rounded-xl transition-colors ${
                           isSelected ? 'bg-white/10' : ''
                         }`}
@@ -501,14 +429,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span className="text-xs">↗</span>
           </a>
 
-          <Link 
-            to="/music/settings"
-            onClick={onCloseMobile}
-            className="p-1 rounded-lg text-[#777777] hover:text-white transition-colors cursor-pointer"
-            title="Settings"
-          >
-            <Settings className="w-3.5 h-3.5" />
-          </Link>
+          <div className="flex items-center gap-1">
+            <Link 
+              to="/music/debug"
+              onClick={onCloseMobile}
+              className="p-1 rounded-lg text-[#777777] hover:text-white transition-colors cursor-pointer"
+              title="Extension Debug Inspector"
+            >
+              <Terminal className="w-3.5 h-3.5" />
+            </Link>
+            <Link 
+              to="/music/settings"
+              onClick={onCloseMobile}
+              className="p-1 rounded-lg text-[#777777] hover:text-white transition-colors cursor-pointer"
+              title="Settings"
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </Link>
+          </div>
         </div>
 
         {/* Cinema Switcher */}

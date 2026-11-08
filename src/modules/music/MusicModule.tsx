@@ -26,6 +26,7 @@ import { RadioRoute } from './routes/RadioRoute';
 import { LibraryRoute } from './routes/LibraryRoute';
 import { ReplayRoute } from './routes/ReplayRoute';
 import { SettingsRoute } from './routes/SettingsRoute';
+import { DebugInspectorRoute } from './routes/DebugInspectorRoute';
 
 export const MusicModule: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -395,6 +396,8 @@ export const MusicModule: React.FC = () => {
           <Route path="/radio" element={<RadioRoute />} />
           <Route path="/replay" element={<ReplayRoute />} />
           <Route path="/settings" element={<SettingsRoute />} />
+          <Route path="/debug" element={<DebugInspectorRoute />} />
+          <Route path="/inspector" element={<DebugInspectorRoute />} />
           <Route path="/library/recent" element={<LibraryRoute defaultTab="recent" />} />
           <Route path="/library/songs" element={<LibraryRoute defaultTab="songs" />} />
           <Route path="/library/artists" element={<LibraryRoute defaultTab="artists" />} />
