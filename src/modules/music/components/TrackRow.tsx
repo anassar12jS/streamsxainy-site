@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Play, Pause, Heart, MoreHorizontal, Plus, Disc, Radio } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Play, Pause, Heart, MoreHorizontal, Plus, Disc } from 'lucide-react';
 import { MusicTrack } from '../types';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
@@ -54,11 +55,12 @@ export const TrackRow: React.FC<TrackRowProps> = ({
   return (
     <div
       onClick={handlePlayClick}
-      className={`group flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all cursor-pointer select-none relative ${
+      className={`group flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-colors duration-150 cursor-pointer select-none relative ${
         isCurrent
-          ? 'bg-[#fa243c]/12 text-white'
-          : 'hover:bg-white/5 text-white/80 hover:text-white'
+          ? 'bg-[rgba(255,255,255,0.08)] text-white'
+          : 'hover:bg-[#1a1a1a] text-white/90'
       }`}
+      style={{ fontFamily: "'DM Sans', sans-serif" }}
     >
       {/* Left: Index / Play Button & Title */}
       <div className="flex items-center gap-3.5 min-w-0 flex-1">
@@ -67,13 +69,13 @@ export const TrackRow: React.FC<TrackRowProps> = ({
         <div className="w-6 text-center flex items-center justify-center shrink-0">
           {isPlaying ? (
             <div className="flex items-end justify-center gap-0.5 h-4 w-4">
-              <span className="w-1 bg-[#fa243c] h-3 animate-pulse rounded-full" />
-              <span className="w-1 bg-[#fa243c] h-4 animate-bounce rounded-full" />
-              <span className="w-1 bg-[#fa243c] h-2 animate-pulse rounded-full" />
+              <span className="w-1 bg-white h-3 animate-pulse rounded-full" />
+              <span className="w-1 bg-white h-4 animate-bounce rounded-full" />
+              <span className="w-1 bg-white h-2 animate-pulse rounded-full" />
             </div>
           ) : (
             <>
-              <span className={`text-xs font-mono font-medium group-hover:hidden ${isCurrent ? 'text-[#fa243c] font-bold' : 'text-white/40'}`}>
+              <span className={`text-xs font-medium group-hover:hidden ${isCurrent ? 'text-rose-400 font-bold' : 'text-[#b3b3b3]'}`}>
                 {index !== undefined ? index + 1 : ''}
               </span>
               <button
@@ -81,7 +83,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                 onClick={handlePlayClick}
                 className="hidden group-hover:flex items-center justify-center text-white cursor-pointer"
               >
-                <Play className="w-4 h-4 fill-current text-white" />
+                <Play className="w-3.5 h-3.5 fill-current text-white ml-0.5" />
               </button>
             </>
           )}
@@ -97,10 +99,10 @@ export const TrackRow: React.FC<TrackRowProps> = ({
           </div>
         )}
 
-        {/* Track Title + Artist Info */}
+        {/* Track Title + Artist Link */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h4 className={`text-sm font-semibold truncate ${isCurrent ? 'text-[#fa243c]' : 'text-white'}`}>
+            <h4 className={`text-sm font-semibold truncate ${isCurrent ? 'text-rose-400' : 'text-white'}`}>
               {track.title}
             </h4>
             {track.isExplicit && (
@@ -109,21 +111,35 @@ export const TrackRow: React.FC<TrackRowProps> = ({
               </span>
             )}
             {track.isLive && (
-              <span className="px-1.5 py-0.2 rounded bg-rose-500/20 text-[#fa243c] text-[9px] font-mono font-bold border border-rose-500/30">
+              <span className="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 text-[9px] font-mono font-bold border border-rose-500/30">
                 LIVE
               </span>
             )}
           </div>
-          <p className="text-xs text-white/50 truncate mt-0.5">
-            {track.artist}
+          <p className="text-xs text-[#b3b3b3] truncate mt-0.5">
+            <Link
+              to={`/music/artist/${encodeURIComponent(track.artistId || track.artist)}`}
+              onClick={(e) => e.stopPropagation()}
+              className="hover:text-white hover:underline transition-colors"
+            >
+              {track.artist}
+            </Link>
           </p>
         </div>
       </div>
 
-      {/* Center: Album Name */}
+      {/* Center: Album Link */}
       {showAlbum && (
-        <div className="hidden md:block w-1/4 px-4 truncate text-xs text-white/45">
-          {track.album}
+        <div className="hidden md:block w-1/4 px-4 truncate text-xs text-[#b3b3b3]">
+          {track.album && (
+            <Link
+              to={`/music/album/${encodeURIComponent(track.albumId || track.album)}`}
+              onClick={(e) => e.stopPropagation()}
+              className="hover:text-white hover:underline transition-colors"
+            >
+              {track.album}
+            </Link>
+          )}
         </div>
       )}
 
@@ -136,14 +152,14 @@ export const TrackRow: React.FC<TrackRowProps> = ({
             toggleLike(track.id);
           }}
           className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-            isLiked ? 'text-[#fa243c]' : 'text-white/30 hover:text-white opacity-0 group-hover:opacity-100'
+            isLiked ? 'text-amber-400' : 'text-white/30 hover:text-white opacity-0 group-hover:opacity-100'
           }`}
           title={isLiked ? 'Unlike' : 'Like'}
         >
           <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
         </button>
 
-        <span className="text-xs font-mono text-white/40 w-11 text-right">
+        <span className="text-xs font-mono text-[#b3b3b3] w-11 text-right">
           {track.isLive ? 'LIVE' : formatTime(track.duration)}
         </span>
 
@@ -167,21 +183,23 @@ export const TrackRow: React.FC<TrackRowProps> = ({
               className="absolute right-0 top-full mt-1 w-44 bg-[#1e1e20] border border-white/10 rounded-2xl shadow-2xl z-30 p-1.5 text-xs animate-in fade-in"
             >
               <button
+                type="button"
                 onClick={() => {
                   addToQueue(track, true);
                   setShowMenu(false);
                 }}
-                className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white"
+                className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Play Next</span>
               </button>
               <button
+                type="button"
                 onClick={() => {
                   addToQueue(track, false);
                   setShowMenu(false);
                 }}
-                className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white"
+                className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white cursor-pointer"
               >
                 <Disc className="w-3.5 h-3.5" />
                 <span>Add to Queue</span>

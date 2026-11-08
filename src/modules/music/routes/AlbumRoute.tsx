@@ -1,122 +1,261 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Play, Shuffle, Heart, Disc, Sparkles, Clock, Share2 } from 'lucide-react';
-import { APPLE_MUSIC_BROWSE_SECTIONS } from '../api/innertube';
-import { TrackRow } from '../components/TrackRow';
+import { Play, Shuffle, Disc, Clock, Heart, MoreHorizontal, ArrowLeft } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { getAlbumDetails } from '../api/innertube';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { MusicTrack } from '../types';
 
 export const AlbumRoute: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const playTrack = useMusicPlayerStore(state => state.playTrack);
+  const setTrack = useMusicPlayerStore(state => state.setTrack);
+  const currentTrack = useMusicPlayerStore(state => state.currentTrack);
+  const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
+  const togglePlayPause = useMusicPlayerStore(state => state.togglePlayPause);
+  const likedTrackIds = useMusicPlayerStore(state => state.likedTrackIds);
+  const toggleLike = useMusicPlayerStore(state => state.toggleLike);
 
-  // Look up album in curated collections or mock
-  const albumMeta = APPLE_MUSIC_BROWSE_SECTIONS.featuredAlbums.find(a => a.id === id) || {
-    id: id || 'album-default',
-    title: 'Interstellar (Original Motion Picture Soundtrack)',
-    artist: 'Hans Zimmer',
-    artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/7e/c5/5e/7ec55ee2-ebf8-d988-8f9a-431af1047747/artwork.jpg/600x600bb.jpg',
-    year: '2014',
-    genre: 'Soundtrack',
-    trackCount: 16,
-  };
-
-  const albumTracks: MusicTrack[] = APPLE_MUSIC_BROWSE_SECTIONS.topTracks;
+  const { data: album, isLoading } = useQuery({
+    queryKey: ['music-album', id],
+    queryFn: () => getAlbumDetails(id || ''),
+    enabled: Boolean(id),
+    staleTime: 1000 * 60 * 10,
+  });
 
   const handlePlayAll = (shuffle = false) => {
-    let list = [...albumTracks];
+    if (!album?.tracks || album.tracks.length === 0) return;
+    let list = [...album.tracks];
     if (shuffle) {
       list.sort(() => Math.random() - 0.5);
     }
-    if (list.length > 0) {
-      playTrack(list[0], list);
+    setTrack(list[0], list);
+  };
+
+  const handleTrackClick = (track: MusicTrack) => {
+    if (currentTrack?.id === track.id) {
+      togglePlayPause();
+    } else {
+      setTrack(track, album?.tracks || [track]);
     }
   };
 
+  const formatDuration = (secs: number) => {
+    if (!secs || isNaN(secs)) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
   return (
-    <div className="space-y-8 animate-fade-in pb-16">
+    <div 
+      className="space-y-8 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4"
+      style={{ fontFamily: "'DM Sans', sans-serif" }}
+    >
       
-      {/* ========================================================================= */}
-      {/* 1. ALBUM HEADER LOCKUP                                                    */}
-      {/* ========================================================================= */}
-      <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 sm:gap-8 pt-4 pb-6 border-b border-white/10">
-        
-        {/* Large 1:1 Album Artwork */}
-        <div className="relative w-48 h-48 sm:w-56 sm:h-56 lg:w-64 lg:h-64 rounded-3xl overflow-hidden shadow-2xl border border-white/10 shrink-0 bg-[#161618]">
-          <img 
-            src={albumMeta.artwork} 
-            alt={albumMeta.title} 
-            className="w-full h-full object-cover" 
-          />
-        </div>
+      {/* Back button */}
+      <Link 
+        to="/music" 
+        className="inline-flex items-center gap-1.5 text-xs text-[#b3b3b3] hover:text-white transition-colors pt-1 cursor-pointer"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        <span>Back to Music Home</span>
+      </Link>
 
-        {/* Metadata & Actions */}
-        <div className="flex flex-col items-center sm:items-start text-center sm:text-left min-w-0 space-y-3">
-          <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#fa243c] bg-[#fa243c]/15 px-3 py-1 rounded-full border border-[#fa243c]/30">
-            Album · Apple Music Lossless
-          </span>
+      {/* SKELETON LOADER */}
+      {isLoading ? (
+        <div className="space-y-8 animate-pulse">
+          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 sm:gap-8 pt-2 pb-6 border-b border-white/10">
+            <div className="w-48 h-48 sm:w-56 sm:h-56 lg:w-60 lg:h-60 rounded-xl bg-[#1a1a1a] shrink-0" />
+            <div className="space-y-3 w-full max-w-lg">
+              <div className="w-20 h-4 bg-[#1a1a1a] rounded-full" />
+              <div className="w-3/4 h-8 bg-[#1a1a1a] rounded-lg" />
+              <div className="w-1/2 h-5 bg-[#1a1a1a] rounded-md" />
+              <div className="w-1/3 h-4 bg-[#1a1a1a] rounded-md" />
+              <div className="flex gap-3 pt-2">
+                <div className="w-24 h-10 bg-[#1a1a1a] rounded-full" />
+                <div className="w-24 h-10 bg-[#1a1a1a] rounded-full" />
+              </div>
+            </div>
+          </div>
 
-          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
-            {albumMeta.title}
-          </h1>
-
-          <p className="text-base sm:text-lg text-white/70 font-semibold">
-            {albumMeta.artist}
-          </p>
-
-          <p className="text-xs text-white/40 font-mono">
-            {albumMeta.genre} · {albumMeta.year} · {albumTracks.length} Songs
-          </p>
-
-          {/* Action Buttons: Play & Shuffle */}
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              onClick={() => handlePlayAll(false)}
-              className="px-6 py-2.5 rounded-2xl bg-[#fa243c] hover:bg-[#ff3b50] text-white font-bold text-xs shadow-xl shadow-[#fa243c]/30 flex items-center gap-2 transition-all hover:scale-105 active:scale-95 cursor-pointer"
-            >
-              <Play className="w-4 h-4 fill-current ml-0.5" />
-              <span>Play</span>
-            </button>
-
-            <button
-              onClick={() => handlePlayAll(true)}
-              className="px-5 py-2.5 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs flex items-center gap-2 border border-white/10 transition-all hover:scale-105 active:scale-95 cursor-pointer"
-            >
-              <Shuffle className="w-4 h-4" />
-              <span>Shuffle</span>
-            </button>
+          <div className="space-y-2">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-12 bg-[#141414] rounded-xl" />
+            ))}
           </div>
         </div>
+      ) : album ? (
+        <>
+          {/* ========================================================================= */}
+          {/* 1. ALBUM HEADER LOCKUP                                                    */}
+          {/* ========================================================================= */}
+          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 sm:gap-8 pt-2 pb-8 border-b border-white/10">
+            
+            {/* Aspect Square, Rounded-xl Album Cover */}
+            <div className="relative w-48 h-48 sm:w-56 sm:h-56 lg:w-60 lg:h-60 rounded-xl overflow-hidden shadow-[0_16px_36px_rgba(0,0,0,0.8)] border border-white/10 shrink-0 bg-[#121212]">
+              <img 
+                src={album.artwork} 
+                alt={album.title} 
+                className="w-full h-full object-cover" 
+              />
+            </div>
 
-      </div>
+            {/* Metadata & Actions */}
+            <div className="flex flex-col items-center sm:items-start text-center sm:text-left min-w-0 space-y-3 flex-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-white/50 bg-white/5 px-2.5 py-0.5 rounded-full border border-white/10">
+                Album
+              </span>
 
-      {/* ========================================================================= */}
-      {/* 2. TRACKLIST TABLE                                                        */}
-      {/* ========================================================================= */}
-      <div className="space-y-1 bg-[#141416] p-3 rounded-3xl border border-white/5 shadow-xl">
-        <div className="flex items-center justify-between px-3.5 py-2 text-[11px] font-mono font-bold text-white/40 uppercase tracking-wider border-b border-white/5 mb-1">
-          <span># Title</span>
-          <span className="hidden md:inline">Album</span>
-          <span>Time</span>
+              <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
+                {album.title}
+              </h1>
+
+              {/* Artist link underneath title */}
+              <p className="text-base sm:text-lg">
+                <Link 
+                  to={`/music/artist/${encodeURIComponent(album.artistId || album.artist)}`}
+                  className="font-semibold text-white/90 hover:text-white hover:underline transition-colors"
+                >
+                  {album.artist}
+                </Link>
+              </p>
+
+              <p className="text-xs text-[#b3b3b3] font-normal">
+                {album.genre ? `${album.genre} • ` : ''}{album.year ? `${album.year} • ` : ''}{album.tracks.length} Songs
+              </p>
+
+              {/* Action Buttons: Play & Shuffle */}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => handlePlayAll(false)}
+                  className="px-6 py-2.5 rounded-full bg-white hover:bg-white/90 text-black font-semibold text-xs shadow-lg flex items-center gap-2 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Play className="w-4 h-4 fill-current ml-0.5" />
+                  <span>Play</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handlePlayAll(true)}
+                  className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 text-white font-semibold text-xs flex items-center gap-2 border border-white/10 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Shuffle className="w-4 h-4" />
+                  <span>Shuffle</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          {/* ========================================================================= */}
+          {/* 2. TRACKLIST TABLE                                                        */}
+          {/* ========================================================================= */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between px-3 py-2 text-[11px] font-semibold text-[#b3b3b3] uppercase tracking-wider border-b border-white/10 mb-2">
+              <div className="flex items-center gap-4">
+                <span className="w-6 text-center">#</span>
+                <span>Title</span>
+              </div>
+              <div className="flex items-center gap-8">
+                <span className="hidden md:inline">Artist</span>
+                <Clock className="w-3.5 h-3.5" />
+              </div>
+            </div>
+
+            {album.tracks.map((track, idx) => {
+              const isCurrent = currentTrack?.id === track.id;
+              const isPlaying = isCurrent && playbackStatus === 'playing';
+              const isLiked = likedTrackIds.includes(track.id);
+
+              return (
+                <div
+                  key={track.id || idx}
+                  onClick={() => handleTrackClick(track)}
+                  className={`group flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors duration-150 cursor-pointer select-none ${
+                    isCurrent
+                      ? 'bg-[rgba(255,255,255,0.08)] text-white'
+                      : 'hover:bg-[#1a1a1a] text-white/90'
+                  }`}
+                >
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <span className="w-6 text-center text-xs text-[#b3b3b3] font-medium group-hover:hidden">
+                      {idx + 1}
+                    </span>
+                    <button
+                      type="button"
+                      className="w-6 h-6 items-center justify-center hidden group-hover:flex text-white"
+                      title={isPlaying ? 'Pause' : 'Play'}
+                    >
+                      <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                    </button>
+
+                    <div className="min-w-0 flex-1">
+                      <span className={`text-sm font-semibold truncate block ${
+                        isCurrent ? 'text-rose-400' : 'text-white'
+                      }`}>
+                        {track.title}
+                      </span>
+                      <span className="md:hidden text-xs text-[#b3b3b3] truncate block mt-0.5">
+                        <Link
+                          to={`/music/artist/${encodeURIComponent(track.artistId || track.artist)}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="hover:text-white hover:underline"
+                        >
+                          {track.artist}
+                        </Link>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-6 shrink-0 text-xs text-[#b3b3b3]">
+                    <span className="hidden md:inline min-w-[120px] truncate text-right">
+                      <Link
+                        to={`/music/artist/${encodeURIComponent(track.artistId || track.artist)}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-white hover:underline"
+                      >
+                        {track.artist}
+                      </Link>
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleLike(track.id);
+                      }}
+                      className={`p-1 transition-colors ${
+                        isLiked ? 'text-amber-400' : 'text-white/30 hover:text-white opacity-0 group-hover:opacity-100'
+                      }`}
+                      title={isLiked ? 'Liked' : 'Like'}
+                    >
+                      <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-current' : ''}`} />
+                    </button>
+
+                    <span className="w-10 text-right font-mono text-[11px]">
+                      {formatDuration(track.duration)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Release info footer */}
+          <div className="pt-6 text-xs text-[#b3b3b3] space-y-1">
+            <p>© {album.year || '2024'} • StreamHub BitChord Engine</p>
+          </div>
+        </>
+      ) : (
+        <div className="py-20 text-center text-white/50">
+          <Disc className="w-10 h-10 mx-auto mb-2 text-white/30" />
+          <p className="text-base font-semibold text-white">Album Not Found</p>
+          <p className="text-xs text-[#b3b3b3] mt-1">Unable to locate album data for ID "{id}".</p>
         </div>
-
-        {albumTracks.map((track, idx) => (
-          <TrackRow
-            key={track.id}
-            track={track}
-            index={idx}
-            showArtwork={false}
-            playlistContext={albumTracks}
-          />
-        ))}
-      </div>
-
-      {/* Album Copyright & Release Info */}
-      <div className="pt-6 text-xs text-white/40 space-y-1 font-mono">
-        <p>© {albumMeta.year} WaterTower Music / Apple Music Lossless Publishing</p>
-        <p>Mastered for Apple Music in 24-bit / 192kHz Spatial Audio</p>
-      </div>
+      )}
 
     </div>
   );
 };
+export default AlbumRoute;

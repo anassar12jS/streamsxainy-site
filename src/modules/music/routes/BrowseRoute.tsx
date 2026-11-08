@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   Play, Pause, ChevronRight, ChevronLeft, MoreHorizontal, 
   Plus, Disc, Heart, Sparkles, ExternalLink, Music2, Radio
@@ -179,7 +179,7 @@ export const BrowseRoute: React.FC = () => {
         key={track.id}
         onClick={() => handleTrackClick(track)}
         className={`group relative flex items-center justify-between p-2 rounded-xl transition-colors cursor-pointer select-none ${
-          isCurrent ? 'bg-[#fa243c]/12' : 'hover:bg-[#202022]/80'
+          isCurrent ? 'bg-[rgba(255,255,255,0.08)]' : 'hover:bg-[#1a1a1a]'
         }`}
       >
         <div className="flex items-center gap-3 min-w-0">
@@ -210,8 +210,14 @@ export const BrowseRoute: React.FC = () => {
             }`}>
               {track.title}
             </span>
-            <span className="text-xs text-white/50 truncate mt-0.5">
-              {track.artist}
+            <span className="text-xs text-[#b3b3b3] truncate mt-0.5">
+              <Link
+                to={`/music/artist/${encodeURIComponent(track.artistId || track.artist)}`}
+                onClick={(e) => e.stopPropagation()}
+                className="hover:text-white hover:underline transition-colors"
+              >
+                {track.artist}
+              </Link>
             </span>
           </div>
         </div>
@@ -358,7 +364,7 @@ export const BrowseRoute: React.FC = () => {
                   playTrack(album.tracks[0], album.tracks);
                 }
               }}
-              className="group/card flex-shrink-0 w-[240px] sm:w-[280px] bg-[#1e1e20] hover:bg-[#262629] border border-white/5 rounded-2xl overflow-hidden p-3 transition-all cursor-pointer shadow-lg"
+              className="group/card flex-shrink-0 w-[240px] sm:w-[280px] bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 rounded-2xl overflow-hidden p-3 transition-colors duration-150 cursor-pointer shadow-lg"
             >
               {/* Artwork */}
               <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-[#242426]">
@@ -378,11 +384,23 @@ export const BrowseRoute: React.FC = () => {
 
               {/* Title & Artist */}
               <div className="mt-3 px-1">
-                <h3 className="font-bold text-sm text-white truncate">
+                <h3 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/music/album/${album.id}`);
+                  }}
+                  className="font-semibold text-sm text-white truncate hover:underline cursor-pointer"
+                >
                   {album.title}
                 </h3>
-                <p className="text-xs text-white/50 truncate mt-0.5">
-                  {album.artist}
+                <p className="text-xs text-[#b3b3b3] truncate mt-0.5">
+                  <Link
+                    to={`/music/artist/${encodeURIComponent(album.artist)}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="hover:text-white hover:underline transition-colors"
+                  >
+                    {album.artist}
+                  </Link>
                 </p>
               </div>
             </div>

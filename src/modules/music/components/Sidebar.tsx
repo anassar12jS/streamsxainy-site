@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Search, Home, LayoutGrid, Clock, Mic2, Disc, Music2, 
   UserCheck, Sparkles, Settings, ExternalLink, ChevronsUpDown,
-  Film, CheckCircle2, AlertCircle, Users, Youtube
+  Film, Users, Youtube, Radio
 } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
@@ -27,6 +27,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [searchInput, setSearchInput] = useState('');
   const extensionConnected = useMusicPlayerStore(state => state.extensionConnected);
 
+  const [activeUser, setActiveUser] = useState<{ name: string; avatar: string }>({
+    name: 'anas',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&q=80',
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('bitchord_active_account');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.name) {
+          setActiveUser({
+            name: parsed.name.split(' ')[0] || 'anas',
+            avatar: parsed.photoUrl || parsed.avatar || activeUser.avatar,
+          });
+        }
+      }
+    } catch {}
+  }, []);
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const q = searchInput.trim();
@@ -40,9 +60,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navLinks = [
     { path: '/music/search', label: 'Search', icon: Search },
-    { path: '/music', label: 'Home', icon: Home, highlight: true },
+    { path: '/music', label: 'Home', icon: Home },
     { path: '/music/browse', label: 'New', icon: LayoutGrid },
-    { path: '/music/radio', label: 'Radio', icon: Disc },
+    { path: '/music/radio', label: 'Radio', icon: Radio },
   ];
 
   const libraryLinks = [
@@ -50,7 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { path: '/music/library/artists', label: 'Artists', icon: Mic2 },
     { path: '/music/library/albums', label: 'Albums', icon: Disc },
     { path: '/music/library/songs', label: 'Songs', icon: Music2 },
-    { path: '/music/replay', label: "Replay '25", icon: Sparkles, highlight: true },
+    { path: '/music/replay', label: "Replay '25", icon: Sparkles },
     { path: '/music/library/for-you', label: 'Made for You', icon: UserCheck },
   ];
 
@@ -62,7 +82,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const sidebarContent = (
-    <div className="w-[230px] h-screen bg-[#161616] text-[#e1e1e3] flex flex-col justify-between select-none border-r border-[#242426]">
+    <div 
+      className="w-[230px] h-screen bg-[#121212] text-[#b3b3b3] flex flex-col justify-between select-none border-r border-[#1a1a1a]"
+      style={{ fontFamily: "'DM Sans', sans-serif" }}
+    >
       
       {/* Top Section */}
       <div className="p-4 space-y-5">
@@ -76,7 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <div className="flex items-center justify-center">
               <svg 
-                className="w-6 h-6 text-white group-hover:text-rose-400 transition-colors" 
+                className="w-6 h-6 text-white group-hover:text-white/80 transition-colors" 
                 viewBox="0 0 24 24" 
                 fill="none" 
                 stroke="currentColor" 
@@ -96,19 +119,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Search Input */}
         <form onSubmit={handleSearchSubmit}>
-          <div className="relative flex items-center bg-[#202022] focus-within:bg-[#28282b] border border-transparent focus-within:border-white/20 rounded-xl px-2.5 py-1.5 transition-all">
-            <Search className="w-4 h-4 text-white/50 mr-2 shrink-0 pointer-events-none" />
+          <div className="relative flex items-center bg-[#1a1a1a] focus-within:bg-[#222222] border border-white/5 focus-within:border-white/20 rounded-xl px-2.5 py-1.5 transition-all">
+            <Search className="w-4 h-4 text-[#b3b3b3] mr-2 shrink-0 pointer-events-none" />
             <input
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search..."
-              className="w-full bg-transparent border-0 outline-none text-xs text-white placeholder-white/40 font-medium"
+              className="w-full bg-transparent border-0 outline-none text-xs text-white placeholder-[#777777] font-normal"
             />
           </div>
         </form>
 
-        {/* Main Nav (Search, Home, New) */}
+        {/* Main Nav (Search, Home, New, Radio) */}
         <div className="space-y-0.5">
           {navLinks.map(link => {
             const isCurrent = isCurrentPath(link.path);
@@ -119,15 +142,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 key={link.path}
                 to={link.path}
                 onClick={onCloseMobile}
-                className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors duration-150 cursor-pointer ${
                   isCurrent
-                    ? 'bg-[#242426] text-white font-semibold'
-                    : 'text-white/60 hover:text-white hover:bg-[#202022]/60'
+                    ? 'bg-[rgba(255,255,255,0.1)] text-[#ffffff]'
+                    : 'text-[#b3b3b3] hover:text-[#ffffff] hover:bg-[#1a1a1a]'
                 }`}
               >
                 <Icon 
                   className={`w-4 h-4 shrink-0 ${
-                    isCurrent ? (link.highlight ? 'text-[#fa243c]' : 'text-white') : 'text-white/60'
+                    isCurrent ? 'text-white' : 'text-[#b3b3b3]'
                   }`} 
                 />
                 <span className="truncate">{link.label}</span>
@@ -137,14 +160,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Listen Together Action Button */}
-        <div className="pt-2">
+        <div className="pt-1">
           <button
             type="button"
             onClick={() => {
               if (onOpenListenTogether) onOpenListenTogether();
               if (onCloseMobile) onCloseMobile();
             }}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-purple-900/40 to-indigo-900/40 hover:from-purple-800/50 hover:to-indigo-800/50 border border-purple-500/20 text-purple-200 transition-all cursor-pointer shadow-sm group"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold bg-[#1a1a1a] hover:bg-[#222222] border border-white/5 text-white/90 hover:text-white transition-all cursor-pointer shadow-sm group"
           >
             <div className="flex items-center gap-2.5">
               <Users className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
@@ -157,8 +180,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Library Section */}
-        <div className="space-y-1 pt-2">
-          <p className="px-3 text-[11px] font-semibold text-white/40">
+        <div className="space-y-1 pt-1">
+          <p className="px-3 text-[11px] font-medium text-[#777777] uppercase tracking-wider">
             Library
           </p>
           <div className="space-y-0.5 pt-1">
@@ -171,13 +194,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={link.path}
                   to={link.path}
                   onClick={onCloseMobile}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                  className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors duration-150 cursor-pointer ${
                     isCurrent
-                      ? 'bg-[#242426] text-white font-semibold'
-                      : 'text-white/60 hover:text-white hover:bg-[#202022]/60'
+                      ? 'bg-[rgba(255,255,255,0.1)] text-[#ffffff]'
+                      : 'text-[#b3b3b3] hover:text-[#ffffff] hover:bg-[#1a1a1a]'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 shrink-0 ${link.highlight ? 'text-[#fa243c]' : 'text-white/60'}`} />
+                  <Icon className={`w-4 h-4 shrink-0 ${isCurrent ? 'text-white' : 'text-[#b3b3b3]'}`} />
                   <span className="truncate">{link.label}</span>
                 </Link>
               );
@@ -188,19 +211,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom Section */}
-      <div className="p-3 space-y-2 border-t border-[#242426]/70 bg-[#161616]">
+      <div className="p-3 space-y-2 border-t border-[#1a1a1a] bg-[#121212]">
         
-        {/* Link YouTube Music Button */}
+        {/* YouTube Music Sync Button */}
         <div 
           onClick={onOpenYouTubeLink}
-          className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold bg-red-950/30 hover:bg-red-900/40 border border-red-500/20 text-red-200 transition-colors cursor-pointer group shadow-sm"
-          title="Connect YouTube Music to sync library"
+          className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold bg-[#1a1a1a] hover:bg-[#222222] border border-white/5 text-white transition-colors cursor-pointer group shadow-sm"
+          title="Connect YouTube Music to sync library and switch accounts"
         >
           <div className="flex items-center gap-2.5">
             <Youtube className="w-4 h-4 text-red-500 fill-current group-hover:scale-110 transition-transform" />
             <span>YouTube Music</span>
           </div>
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-red-500/20 text-red-300">
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-white/90">
             Sync
           </span>
         </div>
@@ -212,7 +235,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               window.open('https://chromewebstore.google.com/detail/bitchord-companion/pkddffeebcmhhanjcigilehaeonkkfih', '_blank');
             }
           }}
-          className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium bg-[#1e1e20] hover:bg-[#262629] text-white/80 hover:text-white transition-colors cursor-pointer"
+          className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium bg-[#161616] hover:bg-[#1a1a1a] text-[#b3b3b3] hover:text-white transition-colors cursor-pointer"
           title={extensionConnected ? 'BitChord Extension Active (Full YouTube Engine)' : 'Click to install BitChord Companion Extension'}
         >
           <div className="flex items-center gap-2.5">
@@ -229,19 +252,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* User Account Row */}
         <div 
-          onClick={onOpenSettings}
-          className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#1e1e20] text-xs font-medium text-white/90 cursor-pointer hover:bg-[#262629] transition-colors"
-          title="Account & Settings"
+          onClick={onOpenYouTubeLink || onOpenSettings}
+          className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#161616] text-xs font-medium text-white cursor-pointer hover:bg-[#1a1a1a] transition-colors"
+          title="Switch Account & Sync"
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <img 
-              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&q=80" 
-              alt="anas" 
+              src={activeUser.avatar} 
+              alt={activeUser.name} 
               className="w-6 h-6 rounded-full object-cover ring-1 ring-white/20"
             />
-            <span className="truncate font-semibold text-white">anas</span>
+            <span className="truncate font-semibold text-white">{activeUser.name}</span>
           </div>
-          <ChevronsUpDown className="w-3.5 h-3.5 text-white/40" />
+          <ChevronsUpDown className="w-3.5 h-3.5 text-[#b3b3b3]" />
         </div>
 
         {/* Get Android App & Settings */}
@@ -250,7 +273,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             href="https://github.com/anassar12jS/bitchord"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[11px] font-medium text-white/50 hover:text-white flex items-center gap-1 transition-colors"
+            className="text-[11px] font-medium text-[#777777] hover:text-white flex items-center gap-1 transition-colors"
           >
             <span>Get the Android app</span>
             <span className="text-xs">↗</span>
@@ -259,7 +282,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button 
             type="button"
             onClick={onOpenSettings}
-            className="p-1 rounded-lg text-white/50 hover:text-white transition-colors cursor-pointer"
+            className="p-1 rounded-lg text-[#777777] hover:text-white transition-colors cursor-pointer"
             title="Settings"
           >
             <Settings className="w-3.5 h-3.5" />
@@ -269,7 +292,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Cinema Switcher */}
         <Link
           to="/"
-          className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-wider transition-colors"
+          className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#777777] hover:text-white text-[10px] font-bold uppercase tracking-wider transition-colors"
         >
           <Film className="w-3 h-3 text-purple-400" />
           <span>StreamHub Cinema</span>
@@ -287,7 +310,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {sidebarContent}
       </aside>
 
-      {/* Mobile Drawer */}
+      {/* Mobile Sidebar Overlay Drawer */}
       {isOpenOnMobile && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div 
@@ -302,3 +325,4 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </>
   );
 };
+export default Sidebar;

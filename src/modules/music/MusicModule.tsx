@@ -13,6 +13,7 @@ import { ExtensionBanner } from './components/ExtensionBanner';
 import { ListenTogetherModal } from './components/ListenTogetherModal';
 import { MusicSettingsModal } from './components/MusicSettingsModal';
 import { YouTubeMusicLinkModal } from './components/YouTubeMusicLinkModal';
+import { YouTubeAccountModal } from './components/YouTubeAccountModal';
 import { replayRecorder } from './api/replay';
 
 import { BrowseRoute, BITCHORD_HOME_TRACKS } from './routes/BrowseRoute';
@@ -349,7 +350,10 @@ export const MusicModule: React.FC = () => {
   }, [togglePlayPause, volume]);
 
   return (
-    <div className="h-full w-full flex bg-[#161616] text-[#e1e1e3] relative overflow-hidden font-sans">
+    <div 
+      className="h-full w-full flex bg-[#0a0a0a] text-[#ffffff] relative overflow-hidden"
+      style={{ fontFamily: "'DM Sans', sans-serif" }}
+    >
       
       {/* Hidden Web Audio Media Element */}
       <audio 
@@ -368,8 +372,8 @@ export const MusicModule: React.FC = () => {
         onOpenYouTubeLink={() => setIsYtLinkOpen(true)}
       />
 
-      {/* Main Content Scroll View */}
-      <main className="flex-1 min-w-0 h-full overflow-y-auto px-4 sm:px-8 pt-6 pb-40 am-scrollbar">
+      {/* Main Content Scroll View: Exactly #0a0a0a */}
+      <main className="flex-1 min-w-0 h-full overflow-y-auto px-4 sm:px-8 pt-6 pb-40 am-scrollbar bg-[#0a0a0a]">
         
         {/* Extension Detection Banner */}
         <ExtensionBanner />
@@ -417,11 +421,10 @@ export const MusicModule: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
       />
 
-      {/* YouTube Music Sync & Playlist Import Modal */}
-      <YouTubeMusicLinkModal
+      {/* YouTube Music Sync & Account Switcher Modal */}
+      <YouTubeAccountModal
         isOpen={isYtLinkOpen}
         onClose={() => setIsYtLinkOpen(false)}
-        onSyncComplete={() => {}}
       />
 
     </div>
