@@ -3,18 +3,22 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Search, Home, LayoutGrid, Clock, Mic2, Disc, Music2, 
   UserCheck, Sparkles, Settings, ExternalLink, ChevronsUpDown,
-  Film, CheckCircle2, AlertCircle
+  Film, CheckCircle2, AlertCircle, Users
 } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
 interface SidebarProps {
   isOpenOnMobile?: boolean;
   onCloseMobile?: () => void;
+  onOpenSettings?: () => void;
+  onOpenListenTogether?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   isOpenOnMobile = false,
   onCloseMobile,
+  onOpenSettings,
+  onOpenListenTogether,
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -36,6 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { path: '/music/search', label: 'Search', icon: Search },
     { path: '/music', label: 'Home', icon: Home, highlight: true },
     { path: '/music/browse', label: 'New', icon: LayoutGrid },
+    { path: '/music/radio', label: 'Radio', icon: Disc },
   ];
 
   const libraryLinks = [
@@ -43,6 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { path: '/music/library/artists', label: 'Artists', icon: Mic2 },
     { path: '/music/library/albums', label: 'Albums', icon: Disc },
     { path: '/music/library/songs', label: 'Songs', icon: Music2 },
+    { path: '/music/replay', label: "Replay '25", icon: Sparkles, highlight: true },
     { path: '/music/library/for-you', label: 'Made for You', icon: UserCheck },
   ];
 
@@ -128,6 +134,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </div>
 
+        {/* Listen Together Action Button */}
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenListenTogether) onOpenListenTogether();
+              if (onCloseMobile) onCloseMobile();
+            }}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-purple-900/40 to-indigo-900/40 hover:from-purple-800/50 hover:to-indigo-800/50 border border-purple-500/20 text-purple-200 transition-all cursor-pointer shadow-sm group"
+          >
+            <div className="flex items-center gap-2.5">
+              <Users className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+              <span>Listen Together</span>
+            </div>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">
+              Live
+            </span>
+          </button>
+        </div>
+
         {/* Library Section */}
         <div className="space-y-1 pt-2">
           <p className="px-3 text-[11px] font-semibold text-white/40">
@@ -149,7 +175,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       : 'text-white/60 hover:text-white hover:bg-[#202022]/60'
                   }`}
                 >
-                  <Icon className="w-4 h-4 shrink-0 text-white/60" />
+                  <Icon className={`w-4 h-4 shrink-0 ${link.highlight ? 'text-[#fa243c]' : 'text-white/60'}`} />
                   <span className="truncate">{link.label}</span>
                 </Link>
               );
@@ -185,7 +211,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* User Account Row */}
-        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#1e1e20] text-xs font-medium text-white/90 cursor-pointer hover:bg-[#262629] transition-colors">
+        <div 
+          onClick={onOpenSettings}
+          className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#1e1e20] text-xs font-medium text-white/90 cursor-pointer hover:bg-[#262629] transition-colors"
+          title="Account & Settings"
+        >
           <div className="flex items-center gap-2.5 min-w-0">
             <img 
               src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&q=80" 
@@ -211,6 +241,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <button 
             type="button"
+            onClick={onOpenSettings}
             className="p-1 rounded-lg text-white/50 hover:text-white transition-colors cursor-pointer"
             title="Settings"
           >

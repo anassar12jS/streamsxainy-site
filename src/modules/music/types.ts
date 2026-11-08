@@ -71,4 +71,45 @@ export interface AddonManifest {
   icon?: string;
   author?: string;
   types: ('stream' | 'search' | 'lyrics')[];
+  resources?: string[];
+  settings?: { key: string; default: any; options?: { value: any; label?: string }[] }[];
+  allowDownloads?: boolean;
+  checkValidLossless?: boolean;
+}
+
+export interface PartyMember {
+  id: string;
+  name: string;
+  avatar?: string;
+  isHost?: boolean;
+  joinedAt?: number;
+}
+
+export interface PartyState {
+  code: string;
+  hostId: string;
+  isPlaying: boolean;
+  currentTrack?: MusicTrack;
+  positionMs: number;
+  anchorMs: number;
+  serverTimeMs: number;
+  members: PartyMember[];
+  queue: MusicTrack[];
+}
+
+export interface ReplayStats {
+  year: number;
+  totalMinutesListened: number;
+  totalPlays: number;
+  topTracks: { track: MusicTrack; plays: number; minutes: number }[];
+  topArtists: { name: string; avatar?: string; plays: number; minutes: number }[];
+  topAlbums: { title: string; artist: string; artwork: string; plays: number }[];
+}
+
+export interface UserSettings {
+  enableLossless: boolean;
+  enableDiscordRpc: boolean;
+  enableSpotifyCanvas: boolean;
+  preferredQuality: 'LOSSLESS' | 'HIGH' | 'LOW';
+  lyricProviders: string[];
 }

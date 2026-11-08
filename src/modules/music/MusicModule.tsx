@@ -10,18 +10,26 @@ import { PlayerChrome } from './components/PlayerChrome';
 import { LyricsPanel } from './components/LyricsPanel';
 import { QueueDrawer } from './components/QueueDrawer';
 import { ExtensionBanner } from './components/ExtensionBanner';
+import { ListenTogetherModal } from './components/ListenTogetherModal';
+import { MusicSettingsModal } from './components/MusicSettingsModal';
+import { replayRecorder } from './api/replay';
 
 import { BrowseRoute, BITCHORD_HOME_TRACKS } from './routes/BrowseRoute';
 import { SearchRoute } from './routes/SearchRoute';
 import { AlbumRoute } from './routes/AlbumRoute';
+import { ArtistRoute } from './routes/ArtistRoute';
+import { PlaylistRoute } from './routes/PlaylistRoute';
 import { RadioRoute } from './routes/RadioRoute';
 import { LibraryRoute } from './routes/LibraryRoute';
+import { ReplayRoute } from './routes/ReplayRoute';
 
 export const MusicModule: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const engineRef = useRef<MusicAudioEngine | null>(null);
 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isListenTogetherOpen, setIsListenTogetherOpen] = useState(false);
 
   // Store bindings
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
@@ -58,11 +66,13 @@ export const MusicModule: React.FC = () => {
     const engine = new MusicAudioEngine(audioRef.current, {
       onTimeUpdate: (currentTime, duration) => {
         setTime(currentTime, duration);
+        replayRecorder.onPlayTick();
       },
       onStatusChange: (status) => {
         setPlaybackStatus(status);
       },
       onEnded: () => {
+        replayRecorder.onTrackEnd(true);
         if (useMusicPlayerStore.getState().repeatMode === 'one') {
           engineRef.current?.seek(0);
           engineRef.current?.play().catch(() => {});
@@ -156,6 +166,7 @@ export const MusicModule: React.FC = () => {
     const loadAndPlay = async () => {
       try {
         setPlaybackStatus('loading');
+        replayRecorder.onTrackStart(currentTrack);
 
         // 1. Live radio station with direct stream URL
         if (currentTrack.isLive && currentTrack.audioUrl) {
@@ -292,6 +303,46 @@ export const MusicModule: React.FC = () => {
     }
   };
 
+  // 5. Global Keyboard shortcuts listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          togglePlayPause();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          handleSeek(Math.max(0, useMusicPlayerStore.getState().currentTime - 5));
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          handleSeek(useMusicPlayerStore.getState().currentTime + 5);
+          break;
+        case 'KeyM':
+          e.preventDefault();
+          useMusicPlayerStore.getState().toggleMute();
+          break;
+        case 'KeyL':
+          e.preventDefault();
+          useMusicPlayerStore.getState().toggleLyrics();
+          break;
+        case 'KeyQ':
+          e.preventDefault();
+          useMusicPlayerStore.getState().toggleQueue();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [togglePlayPause, volume]);
+
   return (
     <div className="min-h-screen flex bg-[#161616] text-[#e1e1e3] relative overflow-hidden font-sans">
       
@@ -307,6 +358,8 @@ export const MusicModule: React.FC = () => {
       <Sidebar
         isOpenOnMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenListenTogether={() => setIsListenTogetherOpen(true)}
       />
 
       {/* Main Content Scroll View */}
@@ -321,7 +374,11 @@ export const MusicModule: React.FC = () => {
           <Route path="/browse" element={<BrowseRoute />} />
           <Route path="/search" element={<SearchRoute />} />
           <Route path="/album/:id" element={<AlbumRoute />} />
+          <Route path="/artist/:id" element={<ArtistRoute />} />
+          <Route path="/playlist/:id" element={<PlaylistRoute />} />
           <Route path="/radio" element={<RadioRoute />} />
+          <Route path="/replay" element={<ReplayRoute />} />
+          <Route path="/library/replay" element={<ReplayRoute />} />
           <Route path="/library/*" element={<LibraryRoute />} />
           <Route path="*" element={<Navigate to="/music" replace />} />
         </Routes>
@@ -341,6 +398,18 @@ export const MusicModule: React.FC = () => {
 
       {/* Up Next Slide-over Queue Drawer */}
       <QueueDrawer />
+
+      {/* Listen Together Live Room Modal */}
+      <ListenTogetherModal
+        isOpen={isListenTogetherOpen}
+        onClose={() => setIsListenTogetherOpen(false)}
+      />
+
+      {/* Preferences & Addons Settings Modal */}
+      <MusicSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
 
     </div>
   );
