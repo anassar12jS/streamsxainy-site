@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Shuffle, SkipBack, Play, Pause, SkipForward, Repeat, Repeat1,
   Star, MoreHorizontal, MessageSquareQuote, List, Volume2, VolumeX,
-  Loader2, Menu
+  Loader2, Menu, Plus, Disc, User, Compass, Share2, Check
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
@@ -41,6 +41,24 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
   const toggleLyrics = useMusicPlayerStore(state => state.toggleLyrics);
   const toggleQueue = useMusicPlayerStore(state => state.toggleQueue);
   const toggleLike = useMusicPlayerStore(state => state.toggleLike);
+  const addToQueue = useMusicPlayerStore(state => state.addToQueue);
+
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showMoreMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMoreMenu]);
 
   const isPlaying = playbackStatus === 'playing';
   const isLoading = playbackStatus === 'loading';
@@ -237,7 +255,7 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
           {/* ========================================================================= */}
           {/* 3. RIGHT: Star, More, Lyrics, Queue, Inline Volume Slider                 */}
           {/* ========================================================================= */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0 text-[#98989d]">
+          <div className="relative flex items-center gap-1 sm:gap-2 shrink-0 text-[#98989d]">
             {/* Star Favorite */}
             <button
               type="button"
@@ -253,11 +271,132 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
             {/* Three Dots More */}
             <button
               type="button"
-              className="p-1.5 rounded-full hover:text-white transition-colors cursor-pointer hidden sm:block"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (currentTrack) {
+                  setShowMoreMenu(prev => !prev);
+                }
+              }}
+              disabled={!currentTrack}
+              className={`p-1.5 rounded-full transition-colors cursor-pointer hidden sm:block ${
+                showMoreMenu ? 'text-white bg-white/20' : 'hover:text-white'
+              } ${!currentTrack ? 'opacity-40 cursor-not-allowed' : ''}`}
               title="More options"
+              aria-label="More options"
+              aria-expanded={showMoreMenu}
             >
               <MoreHorizontal className="w-3.5 h-3.5" />
             </button>
+
+            {/* Apple Music Context Menu Popover */}
+            {showMoreMenu && currentTrack && (
+              <div 
+                ref={moreMenuRef}
+                onClick={(e) => e.stopPropagation()}
+                className="absolute bottom-full left-0 sm:left-4 mb-3 w-56 bg-[#1e1e20]/95 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.85)] p-1.5 z-50 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150 select-none"
+              >
+                {/* Mini track header */}
+                <div className="px-2.5 py-2 border-b border-white/10 mb-1 flex items-center gap-2.5">
+                  <img
+                    src={currentTrack.artwork || '/default_cover.png'}
+                    alt={currentTrack.title}
+                    className="w-8 h-8 rounded-lg object-cover shrink-0 shadow-md border border-white/10"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white text-xs font-semibold truncate leading-tight">{currentTrack.title}</p>
+                    <p className="text-white/60 text-[11px] truncate leading-tight mt-0.5">{currentTrack.artist}</p>
+                  </div>
+                </div>
+
+                {/* Queue Controls */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    addToQueue(currentTrack, true);
+                    setShowMoreMenu(false);
+                  }}
+                  className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5 text-white/70" />
+                  <span>Play Next</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    addToQueue(currentTrack, false);
+                    setShowMoreMenu(false);
+                  }}
+                  className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
+                >
+                  <Disc className="w-3.5 h-3.5 text-white/70" />
+                  <span>Add to Queue</span>
+                </button>
+
+                <div className="my-1 border-t border-white/10" />
+
+                {/* Actions */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleLike(currentTrack.id);
+                    setShowMoreMenu(false);
+                  }}
+                  className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
+                >
+                  <Star className={`w-3.5 h-3.5 ${isLiked ? 'text-amber-400 fill-amber-400' : 'text-white/70'}`} />
+                  <span>{isLiked ? 'Remove from Favorites' : 'Favorite'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMoreMenu(false);
+                    openArtist();
+                  }}
+                  className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
+                >
+                  <User className="w-3.5 h-3.5 text-white/70" />
+                  <span className="truncate">Go to Artist</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMoreMenu(false);
+                    openAlbum();
+                  }}
+                  className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
+                >
+                  <Compass className="w-3.5 h-3.5 text-white/70" />
+                  <span className="truncate">Go to Album</span>
+                </button>
+
+                <div className="my-1 border-t border-white/10" />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      navigator.clipboard.writeText(
+                        window.location.origin + `/music?track=${encodeURIComponent(currentTrack.id)}`
+                      );
+                      setCopied(true);
+                      setTimeout(() => {
+                        setCopied(false);
+                        setShowMoreMenu(false);
+                      }, 1000);
+                    } catch {
+                      setShowMoreMenu(false);
+                    }
+                  }}
+                  className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-white/70" />}
+                  <span>{copied ? 'Link Copied!' : 'Share Track'}</span>
+                </button>
+              </div>
+            )}
 
             {/* Synced Lyrics Toggle (Quote / Message) */}
             <button
