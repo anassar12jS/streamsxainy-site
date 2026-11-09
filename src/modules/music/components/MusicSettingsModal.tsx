@@ -69,7 +69,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
             </div>
             <div>
               <h3 className="text-sm font-bold text-white tracking-tight">
-                BitChord Preferences
+                Xainy Music Preferences
               </h3>
               <p className="text-[11px] text-white/50">
                 Audio quality, addons, and companion extension integrations
@@ -149,7 +149,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
               {/* Extension Status */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-white uppercase tracking-wider font-mono">
-                  BitChord Extension Status
+                  Xainy Music Extension Status
                 </label>
                 <div className="p-4 rounded-2xl bg-[#141416] border border-white/10 flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -255,7 +255,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
               <div className="p-4 rounded-2xl bg-[#141416] border border-white/10 flex items-center justify-between">
                 <div>
                   <h4 className="text-xs font-bold text-white">Discord Rich Presence</h4>
-                  <p className="text-[11px] text-white/50">Shows "Listening to BitChord" with track & album artwork</p>
+                  <p className="text-[11px] text-white/50">Shows "Listening to Xainy Music" with track & album artwork</p>
                 </div>
                 <input
                   type="checkbox"

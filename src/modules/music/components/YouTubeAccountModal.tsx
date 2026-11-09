@@ -59,13 +59,13 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
         setStatusMessage({
           type: 'error',
           text: auth.error.code === 'forbidden'
-            ? `The BitChord extension refused this site (${window.location.origin}). Add it to the extension's allowed origins.`
+            ? `The Xainy Music extension refused this site (${window.location.origin}). Add it to the extension's allowed origins.`
             : auth.error.message,
         });
       } else if (!auth.browserSignedIn) {
         setStatusMessage({ type: 'error', text: 'This browser is not signed in to YouTube Music. Sign in at music.youtube.com first.' });
       } else if (!auth.connected) {
-        setStatusMessage({ type: 'error', text: 'YouTube is switched off in the BitChord extension popup.' });
+        setStatusMessage({ type: 'error', text: 'YouTube is switched off in the Xainy Music extension popup.' });
       } else if (!auth.signedIn) {
         setStatusMessage({ type: 'error', text: auth.problem || 'YouTube did not accept the signed-in session.' });
       }

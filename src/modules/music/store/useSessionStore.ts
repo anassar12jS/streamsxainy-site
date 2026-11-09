@@ -59,12 +59,12 @@ export const useSessionStore = create<SessionState>()(
 
         if (auth.error) {
           const msg = auth.error.code === 'forbidden'
-            ? `The BitChord extension refused this site (${window.location.origin}). Add it to the extension's allowed origins.`
+            ? `The Xainy Music extension refused this site (${window.location.origin}). Add it to the extension's allowed origins.`
             : auth.error.message;
           return fail(msg, 'error');
         }
         if (!auth.browserSignedIn) return fail('This browser is not signed in to YouTube Music.');
-        if (!auth.connected) return fail('YouTube is switched off in the BitChord extension popup.');
+        if (!auth.connected) return fail('YouTube is switched off in the Xainy Music extension popup.');
         if (!auth.signedIn || !auth.active) {
           return fail(auth.problem || 'YouTube did not accept the signed-in session.');
         }

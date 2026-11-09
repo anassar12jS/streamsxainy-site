@@ -205,7 +205,7 @@ export async function syncUserYouTubeMusicLibrary(_account?: LinkedYouTubeAccoun
   const auth = await extensionBridge.getAuthState(true);
   if (auth.error) {
     const hint = auth.error.code === 'forbidden'
-      ? `The BitChord extension refused this site's origin (${window.location.origin}). Update the extension's allowed origins and reload it.`
+      ? `The Xainy Music extension refused this site's origin (${window.location.origin}). Update the extension's allowed origins and reload it.`
       : auth.error.message;
     throw new YouTubeSyncError(auth.error.code, hint);
   }
@@ -213,7 +213,7 @@ export async function syncUserYouTubeMusicLibrary(_account?: LinkedYouTubeAccoun
     throw new YouTubeSyncError('not-signed-in', 'This browser is not signed in to YouTube Music. Sign in at music.youtube.com, then try again.');
   }
   if (!auth.connected) {
-    throw new YouTubeSyncError('disabled', 'YouTube is switched off in the BitChord extension popup.');
+    throw new YouTubeSyncError('disabled', 'YouTube is switched off in the Xainy Music extension popup.');
   }
   if (!auth.signedIn || !auth.active) {
     throw new YouTubeSyncError('session-rejected', auth.problem || 'YouTube did not accept the signed-in session.');

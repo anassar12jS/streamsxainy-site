@@ -16,13 +16,13 @@ export const ExtensionBanner: React.FC = () => {
         </div>
         <div className="min-w-0">
           <p className="font-bold text-white tracking-tight flex items-center gap-1.5">
-            <span>BitChord Companion Extension Not Detected</span>
+            <span>Xainy Music Companion Extension Not Detected</span>
             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-white/10 text-white/70 font-normal">
               High-Fidelity Web Mode Active
             </span>
           </p>
           <p className="text-white/50 text-[11px] truncate mt-0.5">
-            Streaming via BitChord web audio pipeline. Install the companion extension to enable private YouTube session cookies & Discord RPC.
+            Streaming via Xainy Music web audio pipeline. Install the companion extension to enable private YouTube session cookies & Discord RPC.
           </p>
         </div>
       </div>

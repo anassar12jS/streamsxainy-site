@@ -40,10 +40,10 @@ export const ReplayRoute: React.FC = () => {
     ctx.arc(540, 400, 350, 0, Math.PI * 2);
     ctx.fill();
 
-    // Top BitChord Replay Logo & Year
+    // Top Xainy Music Replay Logo & Year
     ctx.fillStyle = '#fa243c';
     ctx.font = 'bold 36px "DM Sans", sans-serif';
-    ctx.fillText('BITCHORD REPLAY', 90, 160);
+    ctx.fillText('XAINY MUSIC REPLAY', 90, 160);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '900 120px "DM Sans", sans-serif';
@@ -107,14 +107,14 @@ export const ReplayRoute: React.FC = () => {
     // Footer
     ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
     ctx.font = '500 28px "DM Sans", sans-serif';
-    ctx.fillText('StreamHub BitChord Music · Apple Music Web Experience', 90, 1820);
+    ctx.fillText('Xainy Music · Apple Music Web Experience', 90, 1820);
 
     // Trigger download
     setTimeout(() => {
       const dataUrl = canvas.toDataURL('image/png');
       const a = document.createElement('a');
       a.href = dataUrl;
-      a.download = `BitChord-Replay-${stats.year}.png`;
+      a.download = `Xainy-Music-Replay-${stats.year}.png`;
       a.click();
       setIsExporting(false);
     }, 200);

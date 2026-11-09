@@ -74,7 +74,7 @@ export const SettingsRoute: React.FC = () => {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-white tracking-tight">Settings</h1>
-            <p className="text-xs text-[#a3a3a3] mt-0.5">Manage your BitChord music engine integrations and accounts</p>
+            <p className="text-xs text-[#a3a3a3] mt-0.5">Manage your Xainy Music engine integrations and accounts</p>
           </div>
         </div>
 
@@ -197,7 +197,7 @@ export const SettingsRoute: React.FC = () => {
             </div>
           </div>
 
-          {/* 4. BitChord Companion Extension */}
+          {/* 4. Xainy Music Companion Extension */}
           <div className="p-5 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
             <div className="flex items-center gap-4 min-w-0">
               <div className="w-10 h-10 rounded-xl bg-purple-600/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
@@ -205,7 +205,7 @@ export const SettingsRoute: React.FC = () => {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-sm text-white">BitChord Extension</h3>
+                  <h3 className="font-semibold text-sm text-white">Xainy Music Extension</h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-white/10 text-[#a3a3a3]">
                     v0.4.4
                   </span>

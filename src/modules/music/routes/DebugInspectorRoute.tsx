@@ -129,7 +129,7 @@ export const DebugInspectorRoute: React.FC = () => {
         <div>
           <div className="flex items-center gap-3">
             <Terminal className="w-8 h-8 text-red-500" />
-            <h1 className="text-2xl font-bold tracking-tight">Phase 0: BitChord Extension Debug Inspector</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Phase 0: Xainy Music Extension Debug Inspector</h1>
           </div>
           <p className="text-sm text-[#a3a3a3] mt-1">
             Real-time payload inspection for companion MV3 extension (ID: <code className="bg-[#1f1f1f] px-1.5 py-0.5 rounded text-xs text-white">pkddffeebcmhhanjcigilehaeonkkfih</code>)

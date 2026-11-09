@@ -235,7 +235,7 @@ export const YouTubeMusicLinkModal: React.FC<YouTubeMusicLinkModalProps> = ({
               <span>Import Any YouTube Music Playlist</span>
             </label>
             <p className="text-[11px] text-white/50">
-              Paste a YouTube Music or YouTube playlist link to instantly add all songs to your BitChord Library.
+              Paste a YouTube Music or YouTube playlist link to instantly add all songs to your Xainy Music Library.
             </p>
 
             <form onSubmit={handleImportPlaylist} className="flex gap-2 pt-1">
@@ -263,7 +263,7 @@ export const YouTubeMusicLinkModal: React.FC<YouTubeMusicLinkModalProps> = ({
 
           {/* Extension Note */}
           <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between text-xs text-white/60">
-            <span>BitChord Companion Bridge:</span>
+            <span>Xainy Music Companion Bridge:</span>
             <span className={`font-mono text-[11px] font-bold ${
               extensionConnected ? 'text-emerald-400' : 'text-amber-400'
             }`}>

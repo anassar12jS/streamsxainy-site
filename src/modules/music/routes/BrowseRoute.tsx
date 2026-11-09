@@ -130,7 +130,7 @@ export const BrowseRoute: React.FC = () => {
           <div className="space-y-2">
             <p className="text-sm text-white font-semibold">Couldn't load the YouTube Music home feed</p>
             <p className="text-xs text-[#b3b3b3]">
-              {(error as Error)?.message || 'YouTube returned no shelves.'} Make sure the BitChord extension is installed,
+              {(error as Error)?.message || 'YouTube returned no shelves.'} Make sure the Xainy Music extension is installed,
               allowed for this site, and you're signed in at music.youtube.com.
             </p>
             <button

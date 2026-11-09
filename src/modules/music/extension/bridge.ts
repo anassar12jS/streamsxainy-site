@@ -164,7 +164,7 @@ export class BitChordExtensionBridge {
     if (!chromeRuntime || typeof chromeRuntime.sendMessage !== 'function') {
       throw new BridgeError(
         'NO_EXTENSION',
-        'BitChord companion browser extension is not detected in this browser.'
+        'Xainy Music companion browser extension is not detected in this browser.'
       );
     }
 
@@ -412,10 +412,10 @@ export class BitChordExtensionBridge {
 
         // GROUND RULE #3: Never fall back to window.fetch for YouTube API endpoints!
         // That is what creates the 405 Method Not Allowed / CORS failure.
-        console.warn(`[BitChord Bridge] Extension proxyFetch failed for ${url}:`, errMsg);
+        console.warn(`[Xainy Music Bridge] Extension proxyFetch failed for ${url}:`, errMsg);
         throw new BridgeError(
           extError instanceof BridgeError ? extError.code : 'REJECTED',
-          `Cannot fetch YouTube resource "${url}" without active BitChord Extension: ${errMsg}`,
+          `Cannot fetch YouTube resource "${url}" without active Xainy Music Extension: ${errMsg}`,
           extError
         );
       }

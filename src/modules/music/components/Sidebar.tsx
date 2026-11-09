@@ -221,7 +221,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </svg>
             </div>
             <span className="font-bold text-lg text-white tracking-tight">
-              BitChord
+              Xainy Music
             </span>
           </Link>
         </div>
@@ -451,7 +451,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  <span>Disconnect from BitChord</span>
+                  <span>Disconnect from Xainy Music</span>
                 </button>
               </div>
 
@@ -460,7 +460,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         </div>
 
-        {/* BitChord Extension Status */}
+        {/* Xainy Music Extension Status */}
         <div 
           onClick={() => {
             if (!extensionConnected) {
@@ -468,11 +468,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }
           }}
           className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium bg-[#161616] hover:bg-[#1a1a1a] text-[#a3a3a3] hover:text-white transition-colors cursor-pointer"
-          title={extensionConnected ? 'BitChord Extension Active (Full YouTube Engine)' : 'Click to install BitChord Companion Extension'}
+          title={extensionConnected ? 'Xainy Music Extension Active (Full YouTube Engine)' : 'Click to install Xainy Music Companion Extension'}
         >
           <div className="flex items-center gap-2.5">
             <Sparkles className="w-4 h-4 text-amber-400" />
-            <span className="text-xs">BitChord Extension</span>
+            <span className="text-xs">Xainy Music Extension</span>
           </div>
           <span 
             className={`w-2 h-2 rounded-full ${

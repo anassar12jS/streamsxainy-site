@@ -431,7 +431,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                   <Disc className="w-10 h-10 text-white/20" />
                   <p className="text-base font-semibold text-white">No Synchronized Lyrics</p>
                   <p className="text-xs text-[#98989d] max-w-xs">
-                    This track may be instrumental or lyrics have not yet been indexed in the BitChord repository.
+                    This track may be instrumental or lyrics have not yet been indexed in the Xainy Music repository.
                   </p>
                 </div>
               )}

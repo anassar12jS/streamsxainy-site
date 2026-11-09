@@ -137,7 +137,7 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
             <p className="text-xs text-[#b3b3b3] mt-0.5 font-normal">
               {ytAccount.isLinked 
                 ? `${importedTracks.length} tracks & ${importedPlaylists.length} playlists synced from your YouTube account.`
-                : 'Import liked tracks, private playlists, and subscribed artists directly into BitChord.'}
+                : 'Import liked tracks, private playlists, and subscribed artists directly into Xainy Music.'}
             </p>
           </div>
         </div>

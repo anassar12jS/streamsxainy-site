@@ -181,7 +181,7 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
             <Disc className="w-10 h-10 text-white/20" />
             <p className="text-base font-bold text-white/80">No synchronized lyrics available</p>
             <p className="text-xs text-white/40 max-w-xs">
-              This track may be instrumental or lyrics have not yet been indexed in the BitChord repository.
+              This track may be instrumental or lyrics have not yet been indexed in the Xainy Music repository.
             </p>
           </div>
         )}
@@ -191,7 +191,7 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
       <div className="relative z-10 px-6 py-3 border-t border-white/10 backdrop-blur-xl bg-black/30 flex items-center justify-between text-[11px] font-mono text-white/40">
         <span>Steered Audio Clock: {steeredTime.toFixed(2)}s</span>
         <span className="flex items-center gap-1 text-[#fa243c]">
-          <Sparkles className="w-3 h-3" /> BitChord am-lyrics Engine
+          <Sparkles className="w-3 h-3" /> Xainy Music am-lyrics Engine
         </span>
       </div>
 

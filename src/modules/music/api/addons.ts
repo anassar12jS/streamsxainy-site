@@ -16,11 +16,11 @@ export function getInstalledAddons(): { name: string; url: string; manifest?: Ad
     const raw = localStorage.getItem(STORAGE_KEY_ADDONS);
     return raw ? JSON.parse(raw) : [
       {
-        name: 'BitChord Community Stream Mirror',
+        name: 'Xainy Music Community Stream Mirror',
         url: 'https://bitchord.org/addon',
         manifest: {
           id: 'org.bitchord.default',
-          name: 'BitChord Default Resolver',
+          name: 'Xainy Music Default Resolver',
           version: '1.2.0',
           description: 'High-speed FLAC & AAC DASH / HTTP music audio resolver',
           types: ['stream', 'search', 'lyrics'],
