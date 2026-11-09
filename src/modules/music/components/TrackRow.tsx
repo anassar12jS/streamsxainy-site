@@ -56,29 +56,28 @@ export const TrackRow: React.FC<TrackRowProps> = ({
   return (
     <div
       onClick={handlePlayClick}
-      className={`group flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-colors duration-150 cursor-pointer select-none relative ${
+      className={`group grid grid-cols-12 items-center px-3 sm:px-4 py-2 rounded-[6px] transition-colors duration-150 cursor-pointer select-none relative ${
         isCurrent
-          ? 'bg-[rgba(255,255,255,0.08)] text-white'
-          : 'hover:bg-[#1a1a1a] text-white/90'
+          ? 'bg-white/[0.08] text-white'
+          : 'hover:bg-white/[0.04] text-white/90'
       }`}
       style={{ fontFamily: 'var(--bitchord-font)' }}
     >
-      {/* Left: Index / Play Button & Title */}
-      <div className="flex items-center gap-3.5 min-w-0 flex-1">
-        
-        {/* Track Number / Play / Loading Indicator */}
-        <div className="w-6 text-center flex items-center justify-center shrink-0">
+      {/* 1. Song Column (Cover + Title) */}
+      <div className="col-span-12 sm:col-span-6 md:col-span-5 flex items-center gap-3 min-w-0 pr-2">
+        {/* Play indicator / Index */}
+        <div className="w-5 text-center flex items-center justify-center shrink-0">
           {isLoading ? (
             <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
           ) : isPlaying ? (
-            <div className="flex items-end justify-center gap-0.5 h-4 w-4">
-              <span className="w-1 bg-white h-3 animate-pulse rounded-full" />
-              <span className="w-1 bg-white h-4 animate-bounce rounded-full" />
-              <span className="w-1 bg-white h-2 animate-pulse rounded-full" />
+            <div className="flex items-end justify-center gap-0.5 h-3.5 w-3.5">
+              <span className="w-0.5 bg-white h-2.5 animate-pulse rounded-full" />
+              <span className="w-0.5 bg-white h-3.5 animate-bounce rounded-full" />
+              <span className="w-0.5 bg-white h-2 animate-pulse rounded-full" />
             </div>
           ) : (
             <>
-              <span className={`text-xs font-medium group-hover:hidden ${isCurrent ? 'text-rose-400 font-bold' : 'text-[#b3b3b3]'}`}>
+              <span className={`text-xs font-normal group-hover:hidden ${isCurrent ? 'text-white font-semibold' : 'text-[#777777]'}`}>
                 {index !== undefined ? index + 1 : ''}
               </span>
               <button
@@ -94,7 +93,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
 
         {/* Artwork Thumbnail */}
         {showArtwork && (
-          <div className="relative w-10 h-10 rounded-[6px] overflow-hidden shrink-0 shadow bg-black/40 border border-white/5">
+          <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-[6px] overflow-hidden shrink-0 shadow bg-black/40 border border-white/5">
             <img src={track.artwork} alt="" className="w-full h-full object-cover" />
             {track.isLive && (
               <span className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-1 ring-black" />
@@ -102,48 +101,50 @@ export const TrackRow: React.FC<TrackRowProps> = ({
           </div>
         )}
 
-        {/* Track Title + Artist Link */}
-        <div className="min-w-0 flex-1 text-left">
-          <div className="flex items-center gap-2">
-            <h4 className={`text-sm font-semibold truncate ${isCurrent ? 'text-rose-400' : 'text-white'}`}>
-              {track.title}
-            </h4>
-            {track.isExplicit && (
-              <span className="px-1 py-0.2 rounded bg-white/20 text-[9px] font-mono font-bold text-white/90">
-                E
-              </span>
-            )}
-            {track.isLive && (
-              <span className="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 text-[9px] font-mono font-bold border border-rose-500/30">
-                LIVE
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-[#98989d] truncate mt-0.5 text-left">
-            {track.artistId ? (
-              <Link
-                to={`/music/artist/${track.artistId}`}
-                onClick={(e) => e.stopPropagation()}
-                className="hover:text-white hover:underline transition-colors"
-              >
-                {track.artist}
-              </Link>
-            ) : (
-              <span>{track.artist}</span>
-            )}
-          </p>
+        {/* Track Title */}
+        <div className="min-w-0 flex-1 text-left flex items-center gap-1.5">
+          <h4 className="text-[13px] sm:text-[14px] font-medium text-white truncate text-left">
+            {track.title}
+          </h4>
+          {track.isExplicit && (
+            <span className="px-1 py-0.2 rounded bg-white/20 text-[9px] font-mono font-bold text-white/90 shrink-0">
+              E
+            </span>
+          )}
+          {track.isLive && (
+            <span className="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 text-[9px] font-mono font-bold border border-rose-500/30 shrink-0">
+              LIVE
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Center: Album Link */}
-      {showAlbum && (
-        <div className="hidden md:block w-1/4 px-4 truncate text-xs text-[#b3b3b3]">
+      {/* 2. Artist Column */}
+      <div className="hidden sm:block sm:col-span-3 md:col-span-3 text-left truncate pr-2">
+        <p className="text-[13px] text-[#98989d] hover:text-white truncate font-normal">
+          {track.artistId ? (
+            <Link
+              to={`/music/artist/${track.artistId}`}
+              onClick={(e) => e.stopPropagation()}
+              className="hover:underline transition-colors"
+            >
+              {track.artist}
+            </Link>
+          ) : (
+            <span>{track.artist}</span>
+          )}
+        </p>
+      </div>
+
+      {/* 3. Album Column */}
+      <div className="hidden md:block md:col-span-3 text-left truncate pr-2">
+        <p className="text-[13px] text-[#98989d] hover:text-white truncate font-normal">
           {track.album && (
             track.albumId ? (
               <Link
                 to={`/music/album/${track.albumId}`}
                 onClick={(e) => e.stopPropagation()}
-                className="hover:text-white hover:underline transition-colors"
+                className="hover:underline transition-colors"
               >
                 {track.album}
               </Link>
@@ -151,26 +152,12 @@ export const TrackRow: React.FC<TrackRowProps> = ({
               <span>{track.album}</span>
             )
           )}
-        </div>
-      )}
+        </p>
+      </div>
 
-      {/* Right: Heart + Duration + Actions */}
-      <div className="flex items-center gap-3 shrink-0">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleLike(track.id);
-          }}
-          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-            isLiked ? 'text-amber-400' : 'text-white/30 hover:text-white opacity-0 group-hover:opacity-100'
-          }`}
-          title={isLiked ? 'Unlike' : 'Like'}
-        >
-          <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
-        </button>
-
-        <span className="text-xs font-mono text-[#b3b3b3] w-11 text-right">
+      {/* 4. Duration & Actions Column */}
+      <div className="hidden sm:flex sm:col-span-3 md:col-span-1 items-center justify-end gap-2 text-right">
+        <span className="text-[12px] text-[#98989d] font-normal font-mono">
           {track.isLive ? 'LIVE' : formatTime(track.duration)}
         </span>
 

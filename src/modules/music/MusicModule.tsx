@@ -15,6 +15,7 @@ import { MusicSettingsModal } from './components/MusicSettingsModal';
 import { YouTubeAccountModal } from './components/YouTubeAccountModal';
 import { ImmersivePlayerOverlay } from './components/ImmersivePlayerOverlay';
 import { replayRecorder } from './api/replay';
+import { fetchLyrics } from './api/lyrics';
 
 import { BrowseRoute } from './routes/BrowseRoute';
 import { PlaylistsRoute } from './routes/PlaylistsRoute';
@@ -187,6 +188,16 @@ export const MusicModule: React.FC = () => {
       try {
         setPlaybackStatus('loading');
         replayRecorder.onTrackStart(currentTrack);
+
+        // Pre-fetch lyrics in background so full-screen lyrics are instant
+        if (!currentTrack.isLive && currentTrack.artist && currentTrack.title) {
+          fetchLyrics(currentTrack.artist, currentTrack.title, currentTrack.duration).then(lyrics => {
+            if (!isCancelled && lyrics) {
+              useMusicPlayerStore.getState().setLyrics(lyrics);
+              useMusicPlayerStore.getState().setIsLoadingLyrics(false);
+            }
+          }).catch(() => {});
+        }
 
         // 1. Live radio station with direct stream URL
         if (currentTrack.isLive && currentTrack.audioUrl) {

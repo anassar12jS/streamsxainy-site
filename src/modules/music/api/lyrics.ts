@@ -1,108 +1,123 @@
 import { LyricsData, SyncedLyricLine } from '../types';
 import { extensionBridge } from '../extension/bridge';
 
+function cleanTrackTitle(raw: string): string {
+  if (!raw) return '';
+  return raw
+    .replace(/\s*[\(\[](?:official\s*(?:video|audio|music\s*video|visualizer|lyric\s*video|hd|4k|hq)?|audio|lyrics?|visualizer|remastered|explicit|clean\s*version)[\)\]]/gi, '')
+    .replace(/\s*-\s*official\s*(?:video|audio|music\s*video).*/gi, '')
+    .replace(/\s*[\(\[](?:feat|ft)\.?\s+[^\)\]]+[\)\]]/gi, '')
+    .replace(/\s+(?:feat|ft)\.?\s+.*/gi, '')
+    .trim();
+}
+
+function cleanArtistName(raw: string): string {
+  if (!raw) return '';
+  return raw
+    .split(/,|&|feat\.|ft\.|vs\./i)[0]
+    .trim();
+}
+
+function parseLrc(lrcText: string): SyncedLyricLine[] {
+  const synced: SyncedLyricLine[] = [];
+  if (!lrcText) return synced;
+
+  const lines = lrcText.split('\n');
+  for (const line of lines) {
+    // Matches [mm:ss.xx], [mm:ss.xxx], or [mm:ss]
+    const match = line.match(/^\[(\d+):(\d{2})(?:\.(\d+))?\](.*)$/);
+    if (match) {
+      const minutes = parseInt(match[1], 10);
+      const seconds = parseInt(match[2], 10);
+      let ms = 0;
+      if (match[3]) {
+        const msStr = match[3];
+        if (msStr.length === 2) ms = parseInt(msStr, 10) / 100;
+        else if (msStr.length === 3) ms = parseInt(msStr, 10) / 1000;
+        else ms = parseInt(msStr.slice(0, 3), 10) / 1000;
+      }
+      const time = minutes * 60 + seconds + ms;
+      const text = match[4].trim();
+      if (text) {
+        synced.push({ time, text });
+      }
+    }
+  }
+
+  // Sort by time ascending
+  return synced.sort((a, b) => a.time - b.time);
+}
+
 export async function fetchLyrics(artist: string, title: string, duration?: number): Promise<LyricsData | null> {
   if (!artist || !title) return null;
 
-  const cleanArtist = artist.split('&')[0].split('feat')[0].split('ft.')[0].trim();
-  const cleanTitle = title.split('(')[0].split('-')[0].trim();
+  const cleanedTitle = cleanTrackTitle(title);
+  const cleanedArtist = cleanArtistName(artist);
 
-  // 1. Try LRCLIB API
-  try {
-    let url = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(cleanArtist)}&track_name=${encodeURIComponent(cleanTitle)}`;
-    if (duration && duration > 0) {
-      url += `&duration=${Math.round(duration)}`;
-    }
-
-    const res = await extensionBridge.proxyFetch(url);
-    if (res.ok) {
-      const data = await res.json();
-      const plain = data.plainLyrics || '';
-      const syncedRaw = data.syncedLyrics || '';
-
-      const synced: SyncedLyricLine[] = [];
-      if (syncedRaw) {
-        const lines = syncedRaw.split('\n');
-        for (const line of lines) {
-          const match = line.match(/^\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)$/);
-          if (match) {
-            const minutes = parseInt(match[1], 10);
-            const seconds = parseInt(match[2], 10);
-            const ms = parseInt(match[3], 10) / (match[3].length === 3 ? 1000 : 100);
-            const time = minutes * 60 + seconds + ms;
-            const text = match[4].trim();
-            if (text) synced.push({ time, text });
-          }
-        }
+  // Helper to fetch JSON safely
+  const fetchJson = async (url: string) => {
+    try {
+      const res = await extensionBridge.proxyFetch(url);
+      if (res.ok) {
+        return await res.json();
       }
+    } catch {}
+    return null;
+  };
 
-      // Convert synced array to standard TTML for @uimaxbai/am-lyrics web component
-      const ttml = generateTTMLFromLRC(synced, cleanTitle, cleanArtist);
-
-      return { plain, ttml, synced };
-    }
-  } catch (err) {
-    console.debug('LRCLIB fetch error:', err);
-  }
-
-  // 2. Try lrc.red fallback
+  // 1. LRCLIB: Try exact get without duration constraint (avoids 404 from 2-3s difference)
   try {
-    const lrcRedUrl = `https://lrc.red/api/v1/lyrics?artist=${encodeURIComponent(cleanArtist)}&title=${encodeURIComponent(cleanTitle)}`;
-    const res = await extensionBridge.proxyFetch(lrcRedUrl);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.lyrics) {
-        const synced: SyncedLyricLine[] = [];
-        const lines = String(data.lyrics).split('\n');
-        for (const line of lines) {
-          const match = line.match(/^\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)$/);
-          if (match) {
-            const minutes = parseInt(match[1], 10);
-            const seconds = parseInt(match[2], 10);
-            const ms = parseInt(match[3], 10) / 1000;
-            const time = minutes * 60 + seconds + ms;
-            const text = match[4].trim();
-            if (text) synced.push({ time, text });
-          }
-        }
-        const ttml = generateTTMLFromLRC(synced, cleanTitle, cleanArtist);
-        return { plain: data.lyrics, ttml, synced };
+    const getUrl = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(cleanedArtist || artist)}&track_name=${encodeURIComponent(cleanedTitle || title)}`;
+    const data = await fetchJson(getUrl);
+    if (data && (data.syncedLyrics || data.plainLyrics)) {
+      const synced = parseLrc(data.syncedLyrics || '');
+      const plain = data.plainLyrics || (synced.map(s => s.text).join('\n'));
+      const ttml = generateTTMLFromLRC(synced, cleanedTitle || title, cleanedArtist || artist);
+      return { plain, synced, ttml };
+    }
+  } catch {}
+
+  // 2. LRCLIB: Try search by artist and track name
+  try {
+    const searchUrl = `https://lrclib.net/api/search?track_name=${encodeURIComponent(cleanedTitle || title)}&artist_name=${encodeURIComponent(cleanedArtist || artist)}`;
+    const results = await fetchJson(searchUrl);
+    if (Array.isArray(results) && results.length > 0) {
+      // Prefer an entry with syncedLyrics
+      const best = results.find(r => r.syncedLyrics) || results[0];
+      if (best && (best.syncedLyrics || best.plainLyrics)) {
+        const synced = parseLrc(best.syncedLyrics || '');
+        const plain = best.plainLyrics || (synced.map(s => s.text).join('\n'));
+        const ttml = generateTTMLFromLRC(synced, best.trackName || cleanedTitle, best.artistName || cleanedArtist);
+        return { plain, synced, ttml };
       }
     }
   } catch {}
 
-  // 3. Try lyrics-api.binimum.org fallback
+  // 3. LRCLIB: Broad query search
   try {
-    const binimumUrl = `https://lyrics-api.binimum.org/lyrics?title=${encodeURIComponent(cleanTitle)}&artist=${encodeURIComponent(cleanArtist)}`;
-    const res = await extensionBridge.proxyFetch(binimumUrl);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && (data.syncedLyrics || data.lines || data.plainLyrics)) {
-        const synced: SyncedLyricLine[] = [];
-        if (Array.isArray(data.lines)) {
-          for (const l of data.lines) {
-            if (typeof l.startTimeMs === 'number' && l.words) {
-              synced.push({ time: l.startTimeMs / 1000, text: l.words });
-            }
-          }
-        }
-        const plain = data.plainLyrics || data.lyrics || '';
-        const ttml = generateTTMLFromLRC(synced, cleanTitle, cleanArtist);
-        return { plain, ttml, synced };
+    const qUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(`${cleanedArtist} ${cleanedTitle}`.trim())}`;
+    const results = await fetchJson(qUrl);
+    if (Array.isArray(results) && results.length > 0) {
+      const best = results.find(r => r.syncedLyrics) || results[0];
+      if (best && (best.syncedLyrics || best.plainLyrics)) {
+        const synced = parseLrc(best.syncedLyrics || '');
+        const plain = best.plainLyrics || (synced.map(s => s.text).join('\n'));
+        const ttml = generateTTMLFromLRC(synced, best.trackName || title, best.artistName || artist);
+        return { plain, synced, ttml };
       }
     }
   } catch {}
 
-  // 4. Try lyrics.paxsenix.org fallback
+  // 4. Lyrics.ovh fallback for plain lyrics
   try {
-    const paxUrl = `https://lyrics.paxsenix.org/search?title=${encodeURIComponent(cleanTitle)}&artist=${encodeURIComponent(cleanArtist)}`;
-    const res = await extensionBridge.proxyFetch(paxUrl);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && (data.synced || data.plain)) {
-        const ttml = generateTTMLFromLRC(data.synced || [], cleanTitle, cleanArtist);
-        return { plain: data.plain || '', ttml, synced: data.synced || [] };
-      }
+    const ovhUrl = `https://api.lyrics.ovh/v1/${encodeURIComponent(cleanedArtist || artist)}/${encodeURIComponent(cleanedTitle || title)}`;
+    const data = await fetchJson(ovhUrl);
+    if (data && data.lyrics) {
+      return {
+        plain: data.lyrics,
+        synced: [],
+        ttml: '',
+      };
     }
   } catch {}
 
@@ -142,3 +157,4 @@ ${pTags}
   </body>
 </tt>`;
 }
+

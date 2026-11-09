@@ -89,6 +89,9 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
     };
   }, [currentTrack?.id]);
 
+  // Fallback to store currentTime if steeredTime is not updating
+  const effectiveTime = steeredTime > 0 ? steeredTime : currentTime;
+
   // Smooth auto-scroll active lyric line into center
   useEffect(() => {
     if (immersiveTab === 'lyrics' && activeLineRef.current && lyricsContainerRef.current) {
@@ -97,7 +100,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
         block: 'center',
       });
     }
-  }, [Math.floor(steeredTime), immersiveTab]);
+  }, [Math.floor(effectiveTime), immersiveTab]);
 
   const isOpen = showLyrics;
   if (!isOpen || !currentTrack) return null;
@@ -131,11 +134,11 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
   const isLiked = likedTrackIds.includes(currentTrack.id);
   const isPlaying = playbackStatus === 'playing';
 
-  // Active line calculation
-  const activeLineIdx = activeLyrics?.synced
+  // Active line calculation using effectiveTime
+  const activeLineIdx = activeLyrics?.synced && activeLyrics.synced.length > 0
     ? activeLyrics.synced.findIndex((line, i) => {
         const nextTime = activeLyrics.synced![i + 1]?.time ?? Infinity;
-        return steeredTime >= line.time && steeredTime < nextTime;
+        return effectiveTime >= line.time && effectiveTime < nextTime;
       })
     : -1;
 

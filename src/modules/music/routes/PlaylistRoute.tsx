@@ -81,56 +81,59 @@ export const PlaylistRoute: React.FC = () => {
             </div>
 
             {/* Metadata & Actions */}
-            <div className="flex flex-col items-center sm:items-start text-center sm:text-left min-w-0 space-y-3 flex-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-white/50 bg-white/5 px-2.5 py-0.5 rounded-full border border-white/10">
-                Playlist
-              </span>
-
-              <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
+            <div className="flex flex-col items-center sm:items-start text-center sm:text-left min-w-0 space-y-2 flex-1">
+              <h1 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight">
                 {playlist.title}
               </h1>
 
-              {playlist.subtitle && (
-                <p className="text-sm text-[#b3b3b3] max-w-xl font-normal">
-                  {playlist.subtitle}
-                </p>
-              )}
-
-              <p className="text-xs text-[#b3b3b3]">
-                Curated by <span className="font-semibold text-white/90">{playlist.curator || 'YouTube Music'}</span> • {tracks.length} Songs
+              <p className="text-xs text-[#98989d] font-normal">
+                Playlist • {new Date().getFullYear()} • {playlist.curator || 'Curated'} • {tracks.length} tracks • {Math.round(tracks.reduce((acc, t) => acc + (t.duration || 180), 0) / 60)} minutes
               </p>
 
-              {/* Action Buttons: Play & Shuffle */}
-              <div className="flex items-center gap-3 pt-2">
+              {/* Action Buttons: Shuffle (Circle), Play (Pill), + (Circle) */}
+              <div className="flex items-center gap-3 pt-3">
+                {/* Shuffle Button (Circle) */}
+                <button
+                  type="button"
+                  onClick={() => handlePlayAll(true)}
+                  disabled={tracks.length === 0}
+                  className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-40 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer border border-white/10"
+                  title="Shuffle playlist"
+                >
+                  <Shuffle className="w-4 h-4" />
+                </button>
+
+                {/* Play Button (Pill) */}
                 <button
                   type="button"
                   onClick={() => handlePlayAll(false)}
                   disabled={tracks.length === 0}
-                  className="px-6 py-2.5 rounded-full bg-white hover:bg-white/90 disabled:opacity-40 text-black font-semibold text-xs shadow-lg flex items-center gap-2 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                  className="px-8 py-2.5 rounded-full bg-white hover:bg-white/95 disabled:opacity-40 text-black font-semibold text-sm shadow-xl flex items-center gap-2 hover:scale-105 active:scale-95 transition-all cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-current ml-0.5" />
                   <span>Play</span>
                 </button>
 
+                {/* Add to Library Button (Circle) */}
                 <button
                   type="button"
-                  onClick={() => handlePlayAll(true)}
-                  disabled={tracks.length === 0}
-                  className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/15 disabled:opacity-40 text-white font-semibold text-xs flex items-center gap-2 border border-white/10 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                  className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer border border-white/10"
+                  title="Add to Library"
                 >
-                  <Shuffle className="w-4 h-4" />
-                  <span>Shuffle</span>
+                  <span className="text-lg font-light leading-none">+</span>
                 </button>
               </div>
             </div>
           </div>
 
           {/* 2. Tracklist Table */}
-          <div className="space-y-1">
-            <div className="flex items-center justify-between px-3.5 py-2 text-[11px] font-semibold text-[#b3b3b3] uppercase tracking-wider border-b border-white/10 mb-2">
-              <span># Title</span>
-              <span className="hidden md:inline">Album</span>
-              <span>Time</span>
+          <div className="space-y-0.5">
+            {/* Table Column Headers matching screenshot */}
+            <div className="grid grid-cols-12 px-3 sm:px-4 py-2 text-[12px] font-semibold text-[#98989d] border-b border-white/[0.08] mb-1 select-none">
+              <div className="col-span-12 sm:col-span-6 md:col-span-5 text-left">Song</div>
+              <div className="hidden sm:block sm:col-span-3 md:col-span-3 text-left">Artist</div>
+              <div className="hidden md:block md:col-span-3 text-left">Album</div>
+              <div className="hidden sm:block sm:col-span-3 md:col-span-1 text-right">Time</div>
             </div>
 
             {tracks.length > 0 ? (

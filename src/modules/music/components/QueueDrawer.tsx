@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, Trash2, Play, Music2, Sparkles, Disc } from 'lucide-react';
+import React, { useState } from 'react';
+import { Infinity as InfinityIcon, MoreHorizontal, Play, X, Trash2, ListMusic } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
 export const QueueDrawer: React.FC = () => {
@@ -15,160 +15,180 @@ export const QueueDrawer: React.FC = () => {
   const autoplayRadio = useMusicPlayerStore(state => state.autoplayRadio);
   const setAutoplayRadio = useMusicPlayerStore(state => state.setAutoplayRadio);
 
+  const [showMenu, setShowMenu] = useState(false);
+
   // Guard: Never render duplicate slide-out drawer when full-screen immersive overlay is active
   if (!showQueue || showLyrics) return null;
 
   const upNextTracks = queue.slice(queueIndex + 1);
 
+  const formatDuration = (secs: number) => {
+    if (!secs || isNaN(secs) || secs <= 0) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const playingFrom = currentTrack?.album 
+    ? currentTrack.album 
+    : 'Library';
+
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[380px] bg-[#161618] border-l border-white/10 shadow-2xl flex flex-col justify-between animate-in slide-in-from-right duration-250 select-none">
-      
-      {/* Top Header */}
-      <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#1a1a1c]">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-bold text-white tracking-tight">
-            Playing Next
+    <aside 
+      className="fixed lg:relative inset-y-0 right-0 z-40 w-[300px] sm:w-[320px] shrink-0 h-full bg-[#141416]/98 lg:bg-[#141416] border-l border-white/[0.08] flex flex-col justify-between animate-in slide-in-from-right duration-200 select-none shadow-2xl lg:shadow-none"
+      style={{ fontFamily: 'var(--bitchord-font)' }}
+    >
+      {/* ======================================================================= */}
+      {/* 1. TOP HEADER: Up Next | Infinity (Autoplay) | ... Menu                */}
+      {/* ======================================================================= */}
+      <div className="px-5 pt-5 pb-3 shrink-0">
+        <div className="flex items-center justify-between">
+          <h3 className="text-[17px] font-bold text-white tracking-tight">
+            Up Next
           </h3>
-          <span className="text-[10px] font-mono font-bold text-white/50 bg-white/10 px-2 py-0.5 rounded-full">
-            {queue.length} Tracks
-          </span>
-        </div>
 
-        <div className="flex items-center gap-1">
-          {queue.length > 1 && (
+          <div className="flex items-center gap-1.5 relative">
+            {/* Autoplay Infinity Toggle (Red in Apple Music when enabled) */}
             <button
-              onClick={clearQueue}
-              className="px-2.5 py-1 text-xs text-white/50 hover:text-red-400 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
-              title="Clear up next"
+              type="button"
+              onClick={() => setAutoplayRadio(!autoplayRadio)}
+              className={`p-1 rounded-md transition-colors cursor-pointer ${
+                autoplayRadio 
+                  ? 'text-[#fa243c] hover:text-[#ff3b50]' 
+                  : 'text-[#666666] hover:text-white'
+              }`}
+              title={autoplayRadio ? 'Autoplay is on' : 'Turn on autoplay'}
             >
-              Clear
+              <InfinityIcon className="w-4 h-4 stroke-[2.5]" />
             </button>
-          )}
-          <button
-            onClick={() => setShowQueue(false)}
-            className="p-1.5 text-white/50 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-            title="Close queue"
-          >
-            <X className="w-4 h-4" />
-          </button>
+
+            {/* Three Dots More Options */}
+            <button
+              type="button"
+              onClick={() => setShowMenu(!showMenu)}
+              className="p-1 text-[#98989d] hover:text-white rounded-md transition-colors cursor-pointer"
+              title="More options"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+
+            {/* Options Dropdown Menu */}
+            {showMenu && (
+              <div 
+                className="absolute right-0 top-full mt-1 w-44 bg-[#202024] border border-white/10 rounded-xl shadow-2xl p-1 z-50 text-xs animate-in fade-in zoom-in-95"
+                onMouseLeave={() => setShowMenu(false)}
+              >
+                {upNextTracks.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearQueue();
+                      setShowMenu(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-white/90 hover:text-rose-400 flex items-center gap-2 cursor-pointer transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear Up Next</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQueue(false);
+                    setShowMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-white/70 hover:text-white flex items-center gap-2 cursor-pointer transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Close Panel</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Subtitle: Playing from [context] */}
+        <p className="text-[12px] text-[#98989d] truncate mt-0.5 font-normal">
+          Playing from {playingFrom}
+        </p>
       </div>
 
-      {/* Autoplay similar songs (YouTube Music radio) */}
-      <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-3 bg-[#151517]">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold text-white">Autoplay similar songs</p>
-          <p className="text-[11px] text-white/50">Keeps music going when your queue ends.</p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={autoplayRadio}
-          onClick={() => setAutoplayRadio(!autoplayRadio)}
-          className={`relative w-10 h-6 rounded-full transition-colors shrink-0 cursor-pointer ${autoplayRadio ? 'bg-emerald-500' : 'bg-white/15'}`}
-        >
-          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${autoplayRadio ? 'translate-x-4' : ''}`} />
-        </button>
-      </div>
+      {/* ======================================================================= */}
+      {/* 2. TRACK LIST: Clean, Compact Borderless Rows with Square Art           */}
+      {/* ======================================================================= */}
+      <div 
+        className="flex-1 overflow-y-auto px-3 py-1 space-y-0.5 am-scrollbar"
+        style={{ paddingBottom: '90px' }}
+      >
+        {upNextTracks.length === 0 ? (
+          <div className="py-16 text-center text-[#777777] px-4 space-y-2">
+            <ListMusic className="w-8 h-8 text-[#555555] mx-auto mb-1" />
+            <p className="text-xs font-semibold text-white/80">Queue is empty</p>
+            <p className="text-[11px] text-[#888888]">
+              {autoplayRadio 
+                ? 'Similar tracks will load automatically as this song finishes.' 
+                : 'Turn on autoplay or click a playlist to add tracks.'}
+            </p>
+          </div>
+        ) : (
+          upNextTracks.map((track, i) => {
+            const actualQueueIdx = queueIndex + 1 + i;
+            return (
+              <div
+                key={`${track.id}-${actualQueueIdx}`}
+                onClick={() => setTrack(track)}
+                className="group flex items-center justify-between px-2 py-1.5 rounded-[6px] hover:bg-white/[0.07] transition-colors cursor-pointer select-none"
+              >
+                {/* Artwork + Title/Artist */}
+                <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
+                  <div className="relative w-[38px] h-[38px] rounded-[6px] overflow-hidden bg-[#242426] shrink-0 border border-white/5">
+                    <img 
+                      src={track.artwork} 
+                      alt="" 
+                      className="w-full h-full object-cover" 
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <Play className="w-3.5 h-3.5 fill-white text-white ml-0.5" />
+                    </div>
+                  </div>
 
-      {/* Queue Body */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 am-scrollbar">
-        
-        {/* Currently Playing Card */}
-        {currentTrack && (
-          <div className="space-y-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#fa243c] font-mono">
-              Now Playing
-            </span>
-            <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-[#fa243c]/10 border border-[#fa243c]/30">
-              <img 
-                src={currentTrack.artwork} 
-                alt="" 
-                className="w-12 h-12 rounded-xl object-cover shrink-0 shadow border border-white/10" 
-              />
-              <div className="min-w-0 flex-1">
-                <h4 className="text-xs font-bold text-white truncate">
-                  {currentTrack.title}
-                </h4>
-                <p className="text-[11px] text-white/60 truncate mt-0.5">
-                  {currentTrack.artist}
-                </p>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#fa243c] animate-ping" />
-                  <span className="text-[10px] font-mono font-semibold text-[#fa243c]">
-                    Playing #{queueIndex + 1}
+                  <div className="min-w-0 flex-1 text-left">
+                    <h5 className="text-[13px] font-semibold text-white truncate text-left leading-tight group-hover:text-white">
+                      {track.title}
+                    </h5>
+                    <p className="text-[11px] text-[#98989d] truncate text-left leading-tight mt-0.5 font-normal">
+                      {track.artist}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Duration & Hover Delete */}
+                <div className="shrink-0 flex items-center justify-end min-w-[36px]">
+                  <span className="text-[11px] text-[#98989d] font-normal group-hover:hidden">
+                    {formatDuration(track.duration)}
                   </span>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeFromQueue(actualQueueIdx);
+                    }}
+                    className="hidden group-hover:flex p-1 text-[#98989d] hover:text-white transition-colors cursor-pointer"
+                    title="Remove from Up Next"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
-            </div>
-          </div>
+            );
+          })
         )}
-
-        {/* Up Next List */}
-        <div className="space-y-2 pt-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-white/40 font-mono">
-            Up Next ({upNextTracks.length})
-          </span>
-
-          {upNextTracks.length === 0 ? (
-            <div className="py-12 text-center text-white/40 border border-dashed border-white/10 rounded-2xl p-6">
-              <Disc className="w-8 h-8 text-white/20 mx-auto mb-2 animate-spin" />
-              <p className="text-xs font-semibold text-white/70">End of queue</p>
-              <p className="text-[11px] text-white/40 mt-0.5">
-                Add songs or play an album to populate your queue.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {upNextTracks.map((track, i) => {
-                const actualQueueIdx = queueIndex + 1 + i;
-                return (
-                  <div
-                    key={`${track.id}-${actualQueueIdx}`}
-                    onClick={() => setTrack(track)}
-                    className="group flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/5 transition-all cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <img 
-                        src={track.artwork} 
-                        alt="" 
-                        className="w-9 h-9 rounded-lg object-cover shrink-0 shadow-sm border border-white/5" 
-                      />
-                      <div className="min-w-0 flex-1">
-                        <h5 className="text-xs font-semibold text-white/90 group-hover:text-white truncate">
-                          {track.title}
-                        </h5>
-                        <p className="text-[11px] text-white/50 truncate">
-                          {track.artist}
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeFromQueue(actualQueueIdx);
-                      }}
-                      className="p-1.5 text-white/30 hover:text-red-400 rounded-lg hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                      title="Remove from queue"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
       </div>
 
-      {/* Footer Info */}
-      <div className="p-3 border-t border-white/10 text-[10px] text-white/40 text-center bg-[#121214]">
-        BitChord Seamless Queue Timeline
-      </div>
-
-    </div>
+    </aside>
   );
 };
+
+export default QueueDrawer;
+
