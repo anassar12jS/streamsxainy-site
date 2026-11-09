@@ -85,6 +85,7 @@ export interface MusicPlayerState {
   repeatMode: RepeatMode;
   showLyrics: boolean;
   showQueue: boolean;
+  immersiveTab: 'lyrics' | 'queue';
   audioQuality: 'auto' | 'high' | 'lossless';
   extensionConnected: boolean;
   likedTrackIds: string[];
@@ -114,6 +115,7 @@ export interface MusicPlayerState {
   toggleLyrics: () => void;
   setShowQueue: (show: boolean) => void;
   toggleQueue: () => void;
+  setImmersiveTab: (tab: 'lyrics' | 'queue') => void;
   toggleLike: (trackId: string) => void;
   isLiked: (trackId: string) => boolean;
   addToQueue: (track: MusicTrack, playNext?: boolean) => void;
@@ -144,6 +146,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   repeatMode: 'off',
   showLyrics: false,
   showQueue: false,
+  immersiveTab: 'lyrics',
   audioQuality: 'lossless',
   extensionConnected: false,
   likedTrackIds: loadStoredLikes(),
@@ -301,16 +304,32 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
     });
   },
 
-  setShowLyrics: (show) => set({ showLyrics: show, showQueue: show ? false : get().showQueue }),
+  setImmersiveTab: (tab) => set({ immersiveTab: tab }),
+
+  setShowLyrics: (show) => set({ showLyrics: show, showQueue: false }),
   toggleLyrics: () => {
     const next = !get().showLyrics;
-    set({ showLyrics: next, showQueue: next ? false : get().showQueue });
+    set({ showLyrics: next, showQueue: false });
   },
 
-  setShowQueue: (show) => set({ showQueue: show, showLyrics: show ? false : get().showLyrics }),
+  setShowQueue: (show) => {
+    const state = get();
+    if (state.showLyrics) {
+      set({ immersiveTab: show ? 'queue' : 'lyrics', showQueue: false });
+    } else {
+      set({ showQueue: show });
+    }
+  },
   toggleQueue: () => {
-    const next = !get().showQueue;
-    set({ showQueue: next, showLyrics: next ? false : get().showLyrics });
+    const state = get();
+    if (state.showLyrics) {
+      set({ 
+        immersiveTab: state.immersiveTab === 'queue' ? 'lyrics' : 'queue',
+        showQueue: false 
+      });
+    } else {
+      set({ showQueue: !state.showQueue });
+    }
   },
 
   toggleLike: (trackId) => {

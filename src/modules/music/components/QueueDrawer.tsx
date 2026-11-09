@@ -4,6 +4,7 @@ import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
 export const QueueDrawer: React.FC = () => {
   const showQueue = useMusicPlayerStore(state => state.showQueue);
+  const showLyrics = useMusicPlayerStore(state => state.showLyrics);
   const setShowQueue = useMusicPlayerStore(state => state.setShowQueue);
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const queue = useMusicPlayerStore(state => state.queue);
@@ -14,7 +15,8 @@ export const QueueDrawer: React.FC = () => {
   const autoplayRadio = useMusicPlayerStore(state => state.autoplayRadio);
   const setAutoplayRadio = useMusicPlayerStore(state => state.setAutoplayRadio);
 
-  if (!showQueue) return null;
+  // Guard: Never render duplicate slide-out drawer when full-screen immersive overlay is active
+  if (!showQueue || showLyrics) return null;
 
   const upNextTracks = queue.slice(queueIndex + 1);
 

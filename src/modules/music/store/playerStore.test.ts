@@ -85,3 +85,38 @@ test('MusicPlayerStore: toggleLike persists and checks like status', () => {
   store.toggleLike('test-1');
   assert.equal(useMusicPlayerStore.getState().isLiked('test-1'), false);
 });
+
+test('MusicPlayerStore: queue and immersive tabs do not duplicate', () => {
+  const store = useMusicPlayerStore.getState();
+
+  // Initially both closed
+  store.setShowLyrics(false);
+  assert.equal(useMusicPlayerStore.getState().showLyrics, false);
+  assert.equal(useMusicPlayerStore.getState().showQueue, false);
+
+  // In browse mode: toggleQueue opens drawer
+  store.toggleQueue();
+  assert.equal(useMusicPlayerStore.getState().showQueue, true);
+
+  // Opening immersive player closes standard drawer
+  store.setShowLyrics(true);
+  assert.equal(useMusicPlayerStore.getState().showLyrics, true);
+  assert.equal(useMusicPlayerStore.getState().showQueue, false);
+  assert.equal(useMusicPlayerStore.getState().immersiveTab, 'lyrics');
+
+  // When immersive player is open, toggleQueue switches immersiveTab instead of opening drawer
+  store.toggleQueue();
+  assert.equal(useMusicPlayerStore.getState().showLyrics, true);
+  assert.equal(useMusicPlayerStore.getState().showQueue, false);
+  assert.equal(useMusicPlayerStore.getState().immersiveTab, 'queue');
+
+  // Toggle back switches back to lyrics
+  store.toggleQueue();
+  assert.equal(useMusicPlayerStore.getState().immersiveTab, 'lyrics');
+  assert.equal(useMusicPlayerStore.getState().showQueue, false);
+
+  // Closing immersive player
+  store.setShowLyrics(false);
+  assert.equal(useMusicPlayerStore.getState().showLyrics, false);
+});
+

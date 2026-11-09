@@ -19,9 +19,9 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
   onSeek,
 }) => {
   const showLyrics = useMusicPlayerStore(state => state.showLyrics);
-  const showQueue = useMusicPlayerStore(state => state.showQueue);
   const setShowLyrics = useMusicPlayerStore(state => state.setShowLyrics);
-  const setShowQueue = useMusicPlayerStore(state => state.setShowQueue);
+  const immersiveTab = useMusicPlayerStore(state => state.immersiveTab);
+  const setImmersiveTab = useMusicPlayerStore(state => state.setImmersiveTab);
 
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
@@ -52,21 +52,11 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
   const isLoadingLyrics = useMusicPlayerStore(state => state.isLoadingLyrics);
   const setIsLoadingLyrics = useMusicPlayerStore(state => state.setIsLoadingLyrics);
 
-  const [activeTab, setActiveTab] = useState<'lyrics' | 'queue'>('lyrics');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [steeredTime, setSteeredTime] = useState(0);
 
   const activeLineRef = useRef<HTMLDivElement | null>(null);
   const lyricsContainerRef = useRef<HTMLDivElement | null>(null);
-
-  // Synchronize active tab based on which button opened the overlay
-  useEffect(() => {
-    if (showQueue && !showLyrics) {
-      setActiveTab('queue');
-    } else if (showLyrics && !showQueue) {
-      setActiveTab('lyrics');
-    }
-  }, [showLyrics, showQueue]);
 
   // Steered audio clock for sub-frame lyric sync
   useEffect(() => {
@@ -102,20 +92,19 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
 
   // Smooth auto-scroll active lyric line into center
   useEffect(() => {
-    if (activeTab === 'lyrics' && activeLineRef.current && lyricsContainerRef.current) {
+    if (immersiveTab === 'lyrics' && activeLineRef.current && lyricsContainerRef.current) {
       activeLineRef.current.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
       });
     }
-  }, [Math.floor(steeredTime), activeTab]);
+  }, [Math.floor(steeredTime), immersiveTab]);
 
-  const isOpen = showLyrics || showQueue;
+  const isOpen = showLyrics;
   if (!isOpen || !currentTrack) return null;
 
   const handleClose = () => {
     setShowLyrics(false);
-    setShowQueue(false);
   };
 
   const toggleNativeFullscreen = () => {
@@ -187,9 +176,9 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
         <div className="flex items-center gap-1 bg-[#121212] p-1 rounded-full border border-white/10 shadow-lg">
           <button
             type="button"
-            onClick={() => setActiveTab('lyrics')}
+            onClick={() => setImmersiveTab('lyrics')}
             className={`px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-              activeTab === 'lyrics' 
+              immersiveTab === 'lyrics' 
                 ? 'bg-white text-black shadow' 
                 : 'text-[#b3b3b3] hover:text-white'
             }`}
@@ -199,9 +188,9 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('queue')}
+            onClick={() => setImmersiveTab('queue')}
             className={`px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-              activeTab === 'queue' 
+              immersiveTab === 'queue' 
                 ? 'bg-white text-black shadow' 
                 : 'text-[#b3b3b3] hover:text-white'
             }`}
@@ -227,15 +216,15 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
       {/* Left Panel: Now Playing (Artwork, Meta, Scrubber, Transport Controls)     */}
       {/* Right Panel: Synchronized Lyrics OR Up Next Queue List                    */}
       {/* ========================================================================= */}
-      <div className="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 px-6 sm:px-12 py-8 overflow-hidden max-w-7xl mx-auto w-full">
+      <div className="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 px-4 sm:px-8 lg:px-12 py-3 sm:py-5 min-h-0 overflow-y-auto lg:overflow-hidden max-w-7xl mx-auto w-full">
         
         {/* ======================================================================= */}
         {/* LEFT PANEL: NOW PLAYING                                                 */}
         {/* ======================================================================= */}
-        <div className="lg:col-span-5 flex flex-col justify-center items-center lg:items-start space-y-6 max-w-md mx-auto w-full">
+        <div className="lg:col-span-5 flex flex-col justify-between items-center lg:items-start max-w-md mx-auto w-full h-full min-h-0 py-1 sm:py-2 gap-3 sm:gap-4 overflow-hidden">
           
-          {/* Large crisp album artwork with shadow */}
-          <div className="relative aspect-square w-64 sm:w-80 lg:w-96 rounded-2xl overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.85)] border border-white/10 shrink-0 bg-[#161616]">
+          {/* Responsive album artwork: scales dynamically to viewport height so controls are never pushed down */}
+          <div className="relative aspect-square w-auto max-h-[34vh] sm:max-h-[38vh] lg:max-h-[min(340px,40vh)] min-h-[140px] max-w-full rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.85)] border border-white/10 shrink min-w-0 bg-[#161616] mx-auto lg:mx-0">
             <img 
               src={currentTrack.artwork} 
               alt={currentTrack.title} 
@@ -243,144 +232,147 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
             />
           </div>
 
-          {/* Title, explicit badge, artist, album */}
-          <div className="w-full text-center lg:text-left space-y-1.5">
-            <div className="flex items-center justify-center lg:justify-start gap-2">
-              <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white tracking-tight truncate">
-                {currentTrack.title}
-              </h2>
-              {currentTrack.isExplicit && (
-                <span className="px-1.5 py-0.5 rounded bg-white/20 text-[10px] font-mono font-bold text-white">
-                  E
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => toggleLike(currentTrack.id)}
-                className={`p-1 transition-colors cursor-pointer ml-1 ${
-                  isLiked ? 'text-amber-400' : 'text-white/40 hover:text-white'
-                }`}
-              >
-                <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-              </button>
+          {/* Permanently anchored controls block: info, scrubber, transport buttons, volume */}
+          <div className="w-full shrink-0 space-y-2.5 sm:space-y-3.5">
+            {/* Title, explicit badge, artist, album */}
+            <div className="w-full text-center lg:text-left space-y-1">
+              <div className="flex items-center justify-center lg:justify-start gap-2">
+                <h2 className="text-lg sm:text-2xl lg:text-3xl font-bold text-white tracking-tight truncate">
+                  {currentTrack.title}
+                </h2>
+                {currentTrack.isExplicit && (
+                  <span className="px-1.5 py-0.5 rounded bg-white/20 text-[10px] font-mono font-bold text-white shrink-0">
+                    E
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => toggleLike(currentTrack.id)}
+                  className={`p-1 transition-colors cursor-pointer ml-1 shrink-0 ${
+                    isLiked ? 'text-amber-400' : 'text-white/40 hover:text-white'
+                  }`}
+                >
+                  <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+                </button>
+              </div>
+
+              <p className="text-sm sm:text-base lg:text-lg text-white/90 font-medium truncate">
+                {currentTrack.artist}
+              </p>
+              <p className="text-xs text-[#b3b3b3] font-normal truncate">
+                {currentTrack.album || 'Single'}
+              </p>
             </div>
 
-            <p className="text-base sm:text-lg text-white/90 font-medium">
-              {currentTrack.artist}
-            </p>
-            <p className="text-xs text-[#b3b3b3] font-normal">
-              {currentTrack.album || 'Single'}
-            </p>
-          </div>
+            {/* Thick Scrubber Timeline (Current Time / Duration) */}
+            <div className="w-full space-y-1">
+              <div className="relative group w-full py-1">
+                <input
+                  type="range"
+                  min={0}
+                  max={duration || 100}
+                  step={0.5}
+                  value={currentTime}
+                  onChange={handleScrubberChange}
+                  className="w-full h-1.5 sm:h-2 bg-white/20 rounded-full appearance-none cursor-pointer outline-none transition-all accent-white hover:h-2.5"
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs text-[#b3b3b3] font-mono">
+                <span>{formatTime(currentTime)}</span>
+                <span>{formatTime(duration)}</span>
+              </div>
+            </div>
 
-          {/* Thick Scrubber Timeline (Current Time / Duration) */}
-          <div className="w-full space-y-2">
-            <div className="relative group w-full py-1">
+            {/* Large Transport Controls */}
+            <div className="w-full flex items-center justify-between sm:justify-around py-0.5">
+              
+              {/* Shuffle */}
+              <button
+                type="button"
+                onClick={toggleShuffle}
+                className={`p-2 transition-colors cursor-pointer ${
+                  shuffle ? 'text-white' : 'text-white/40 hover:text-white'
+                }`}
+                title="Shuffle"
+              >
+                <Shuffle className="w-4 sm:w-5 h-4 sm:h-5" />
+              </button>
+
+              {/* Previous Track */}
+              <button
+                type="button"
+                onClick={prevTrack}
+                className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                title="Previous Track"
+              >
+                <SkipBack className="w-6 sm:w-7 h-6 sm:h-7 fill-current" />
+              </button>
+
+              {/* Play / Pause (Large Circle Button) */}
+              <button
+                type="button"
+                onClick={togglePlayPause}
+                className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-white text-black flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                title={isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? (
+                  <Pause className="w-6 sm:w-8 h-6 sm:h-8 fill-current" />
+                ) : (
+                  <Play className="w-6 sm:w-8 h-6 sm:h-8 fill-current ml-0.5 sm:ml-1" />
+                )}
+              </button>
+
+              {/* Next Track */}
+              <button
+                type="button"
+                onClick={nextTrack}
+                className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                title="Next Track"
+              >
+                <SkipForward className="w-6 sm:w-7 h-6 sm:h-7 fill-current" />
+              </button>
+
+              {/* Repeat Mode */}
+              <button
+                type="button"
+                onClick={cycleRepeat}
+                className={`p-2 transition-colors cursor-pointer relative ${
+                  repeatMode !== 'off' ? 'text-white' : 'text-white/40 hover:text-white'
+                }`}
+                title={`Repeat: ${repeatMode}`}
+              >
+                <Repeat className="w-4 sm:w-5 h-4 sm:h-5" />
+                {repeatMode === 'one' && (
+                  <span className="absolute top-1 right-1 text-[9px] font-bold">1</span>
+                )}
+              </button>
+
+            </div>
+
+            {/* Volume Control */}
+            <div className="w-full flex items-center gap-3">
+              <button
+                type="button"
+                onClick={toggleMute}
+                className="p-1 text-white/60 hover:text-white transition-colors cursor-pointer"
+                title={isMuted ? 'Unmute' : 'Mute'}
+              >
+                {isMuted || volume === 0 ? (
+                  <VolumeX className="w-4 h-4 text-red-400" />
+                ) : (
+                  <Volume2 className="w-4 h-4" />
+                )}
+              </button>
               <input
                 type="range"
                 min={0}
-                max={duration || 100}
-                step={0.5}
-                value={currentTime}
-                onChange={handleScrubberChange}
-                className="w-full h-2 bg-white/20 rounded-full appearance-none cursor-pointer outline-none transition-all accent-white hover:h-2.5"
+                max={1}
+                step={0.01}
+                value={isMuted ? 0 : volume}
+                onChange={(e) => setVolume(parseFloat(e.target.value))}
+                className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer outline-none accent-white"
               />
             </div>
-            <div className="flex items-center justify-between text-xs text-[#b3b3b3] font-mono">
-              <span>{formatTime(currentTime)}</span>
-              <span>{formatTime(duration)}</span>
-            </div>
-          </div>
-
-          {/* Large Transport Controls */}
-          <div className="w-full flex items-center justify-between sm:justify-around pt-2">
-            
-            {/* Shuffle */}
-            <button
-              type="button"
-              onClick={toggleShuffle}
-              className={`p-2 transition-colors cursor-pointer ${
-                shuffle ? 'text-white' : 'text-white/40 hover:text-white'
-              }`}
-              title="Shuffle"
-            >
-              <Shuffle className="w-5 h-5" />
-            </button>
-
-            {/* Previous Track */}
-            <button
-              type="button"
-              onClick={prevTrack}
-              className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
-              title="Previous Track"
-            >
-              <SkipBack className="w-7 h-7 fill-current" />
-            </button>
-
-            {/* Play / Pause (Large Circle Button) */}
-            <button
-              type="button"
-              onClick={togglePlayPause}
-              className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-transform cursor-pointer"
-              title={isPlaying ? 'Pause' : 'Play'}
-            >
-              {isPlaying ? (
-                <Pause className="w-8 h-8 fill-current" />
-              ) : (
-                <Play className="w-8 h-8 fill-current ml-1" />
-              )}
-            </button>
-
-            {/* Next Track */}
-            <button
-              type="button"
-              onClick={nextTrack}
-              className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
-              title="Next Track"
-            >
-              <SkipForward className="w-7 h-7 fill-current" />
-            </button>
-
-            {/* Repeat Mode */}
-            <button
-              type="button"
-              onClick={cycleRepeat}
-              className={`p-2 transition-colors cursor-pointer relative ${
-                repeatMode !== 'off' ? 'text-white' : 'text-white/40 hover:text-white'
-              }`}
-              title={`Repeat: ${repeatMode}`}
-            >
-              <Repeat className="w-5 h-5" />
-              {repeatMode === 'one' && (
-                <span className="absolute top-1 right-1 text-[9px] font-bold">1</span>
-              )}
-            </button>
-
-          </div>
-
-          {/* Volume Control */}
-          <div className="w-full flex items-center gap-3 pt-1">
-            <button
-              type="button"
-              onClick={toggleMute}
-              className="p-1.5 text-white/60 hover:text-white transition-colors cursor-pointer"
-              title={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted || volume === 0 ? (
-                <VolumeX className="w-4 h-4 text-red-400" />
-              ) : (
-                <Volume2 className="w-4 h-4" />
-              )}
-            </button>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={isMuted ? 0 : volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
-              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer outline-none accent-white"
-            />
           </div>
 
         </div>
@@ -388,10 +380,10 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
         {/* ======================================================================= */}
         {/* RIGHT PANEL: LYRICS OR QUEUE                                            */}
         {/* ======================================================================= */}
-        <div className="lg:col-span-7 flex flex-col h-full overflow-hidden border-t lg:border-t-0 lg:border-l border-white/10 pl-0 lg:pl-10 pt-6 lg:pt-0">
+        <div className="lg:col-span-7 flex flex-col h-full min-h-0 overflow-hidden border-t lg:border-t-0 lg:border-l border-white/10 pl-0 lg:pl-10 pt-4 lg:pt-0">
           
           {/* TAB 1: SYNCHRONIZED LYRICS */}
-          {activeTab === 'lyrics' && (
+          {immersiveTab === 'lyrics' && (
             <div 
               ref={lyricsContainerRef}
               className="flex-1 overflow-y-auto pr-2 am-scrollbar space-y-8 py-8"
@@ -439,7 +431,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
           )}
 
           {/* TAB 2: UP NEXT QUEUE */}
-          {activeTab === 'queue' && (
+          {immersiveTab === 'queue' && (
             <div className="flex-1 flex flex-col h-full overflow-hidden">
               <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
                 <span className="text-xs font-semibold text-[#b3b3b3] uppercase tracking-wider">
