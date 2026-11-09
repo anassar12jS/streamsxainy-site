@@ -173,7 +173,7 @@ export const SearchRoute: React.FC = () => {
   return (
     <div 
       className="space-y-10 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4"
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
+      style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       
       {/* ========================================================================= */}
@@ -415,25 +415,25 @@ export const SearchRoute: React.FC = () => {
                   <div
                     key={alb.id}
                     onClick={() => navigate(`/music/album/${alb.id}`)}
-                    className="group flex-shrink-0 w-[180px] sm:w-[200px] bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 rounded-2xl p-3 transition-colors duration-150 cursor-pointer shadow-lg"
+                    className="group flex-shrink-0 w-[170px] sm:w-[190px] bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 rounded-[10px] p-2.5 transition-colors duration-150 cursor-pointer shadow-md text-left"
                   >
-                    <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-[#242426] mb-3">
+                    <div className="relative aspect-square w-full rounded-[8px] overflow-hidden bg-[#242426] mb-2 border border-white/5">
                       <img 
                         src={alb.artwork} 
                         alt={alb.title} 
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                       />
                       <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-xl">
-                          <Play className="w-5 h-5 fill-current ml-0.5" />
+                        <div className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-xl">
+                          <Play className="w-4 h-4 fill-current ml-0.5" />
                         </div>
                       </div>
                     </div>
 
-                    <h4 className="font-semibold text-xs sm:text-sm text-white truncate group-hover:underline">
+                    <h4 className="font-semibold text-xs sm:text-sm text-white truncate text-left group-hover:underline">
                       {alb.title}
                     </h4>
-                    <p className="text-xs text-[#b3b3b3] truncate mt-0.5">
+                    <p className="text-xs text-[#98989d] truncate mt-0.5 text-left font-normal">
                       {(alb as any).artistId ? (
                         <Link
                           to={`/music/artist/${(alb as any).artistId}`}
@@ -446,7 +446,7 @@ export const SearchRoute: React.FC = () => {
                         <span>{alb.artist}</span>
                       )}
                     </p>
-                    <p className="text-[11px] text-[#777777] mt-0.5">
+                    <p className="text-[11px] text-[#666666] mt-0.5 text-left">
                       {alb.year || 'Album'}
                     </p>
                   </div>

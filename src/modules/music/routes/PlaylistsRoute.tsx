@@ -32,7 +32,7 @@ export const PlaylistsRoute: React.FC = () => {
   const playlists = [...(data ?? []), ...imported];
 
   return (
-    <div className="space-y-8 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+    <div className="space-y-8 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4" style={{ fontFamily: 'var(--bitchord-font)' }}>
       <div className="flex items-end justify-between gap-4">
         <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">All Playlists</h1>
         <button
@@ -74,9 +74,9 @@ export const PlaylistsRoute: React.FC = () => {
             <div
               key={pl.id}
               onClick={() => navigate(`/music/playlist/${pl.id}`)}
-              className="group cursor-pointer"
+              className="group cursor-pointer text-left"
             >
-              <div className="relative aspect-square rounded-xl overflow-hidden bg-[#1e1e1e] mb-2.5 shadow-lg group-hover:scale-[1.02] transition-transform duration-200">
+              <div className="relative aspect-square rounded-[8px] overflow-hidden bg-[#1e1e1e] mb-2 shadow-md group-hover:scale-[1.02] transition-transform duration-200 border border-white/5">
                 {pl.id === 'LM' ? (
                   <div className="w-full h-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center">
                     <ThumbsUp className="w-1/3 h-1/3 text-white fill-white" />
@@ -89,8 +89,8 @@ export const PlaylistsRoute: React.FC = () => {
                   </div>
                 )}
               </div>
-              <h4 className="text-sm font-semibold text-white truncate group-hover:underline">{pl.title}</h4>
-              <p className="text-xs text-[#b3b3b3] truncate mt-0.5">{pl.subtitle}</p>
+              <h4 className="text-sm font-semibold text-white truncate text-left group-hover:underline">{pl.title}</h4>
+              <p className="text-xs text-[#98989d] truncate mt-0.5 text-left">{pl.subtitle}</p>
             </div>
           ))}
         </div>

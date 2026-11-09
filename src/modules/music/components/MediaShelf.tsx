@@ -83,27 +83,28 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
       <div 
         ref={scrollRef}
         className="flex items-start gap-4 overflow-x-auto pb-4 pt-1 am-scrollbar scroll-smooth"
+        style={{ fontFamily: 'var(--bitchord-font)' }}
       >
         {items.map((item) => (
           <div
             key={item.id}
             onClick={item.onClick}
-            className="w-40 sm:w-48 shrink-0 group relative cursor-pointer"
+            className="w-40 sm:w-48 shrink-0 group relative cursor-pointer text-left"
           >
-            {/* Artwork Container */}
+            {/* Artwork Container: Apple Music perfectly square with 6-8px border radius */}
             <div className={`relative w-full ${
               aspectRatio === 'video' ? 'aspect-video' : 'aspect-square'
-            } rounded-2xl overflow-hidden bg-[#18181b] border border-white/10 shadow-lg mb-2.5 transition-all duration-300 group-hover:scale-[1.02] group-hover:shadow-2xl`}>
+            } rounded-[8px] overflow-hidden bg-[#18181b] border border-white/10 shadow-md mb-2 transition-all duration-200 group-hover:scale-[1.02] group-hover:shadow-xl`}>
               <img 
                 src={item.artwork} 
                 alt={item.title} 
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
               />
               <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity" />
 
               {/* Badge */}
               {item.badge && (
-                <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-[10px] font-bold text-white font-mono">
+                <div className="absolute top-2 left-2 px-2 py-0.5 rounded-[4px] bg-black/70 backdrop-blur-md border border-white/15 text-[10px] font-semibold text-white font-mono">
                   {item.badge}
                 </div>
               )}
@@ -112,18 +113,18 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
               <button
                 type="button"
                 onClick={(e) => handlePlayItem(e, item)}
-                className="absolute bottom-3 right-3 w-10 h-10 rounded-full bg-[#fa243c] hover:bg-[#ff3b50] text-white flex items-center justify-center shadow-2xl opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer"
+                className="absolute bottom-2.5 right-2.5 w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-2xl opacity-0 group-hover:opacity-100 transform translate-y-1 group-hover:translate-y-0 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
                 title="Play"
               >
-                <Play className="w-4 h-4 fill-current ml-0.5 text-white" />
+                <Play className="w-4 h-4 fill-current ml-0.5 text-black" />
               </button>
             </div>
 
-            {/* Title & Subtitle */}
-            <h4 className="text-sm font-bold text-white truncate group-hover:text-[#fa243c] transition-colors">
+            {/* Title & Subtitle: Left-aligned in solid white, with smaller muted grey artist names below */}
+            <h4 className="text-sm font-semibold text-white truncate text-left group-hover:underline">
               {item.title}
             </h4>
-            <p className="text-xs text-white/50 truncate mt-0.5">
+            <p className="text-xs text-[#98989d] truncate mt-0.5 text-left font-normal">
               {item.subtitle}
             </p>
           </div>

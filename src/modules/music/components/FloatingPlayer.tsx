@@ -42,13 +42,18 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
   const toggleQueue = useMusicPlayerStore(state => state.toggleQueue);
   const toggleLike = useMusicPlayerStore(state => state.toggleLike);
 
-  const [isVolumeHovered, setIsVolumeHovered] = useState(false);
-
   const isPlaying = playbackStatus === 'playing';
   const isLoading = playbackStatus === 'loading';
   const isLiked = currentTrack ? likedTrackIds.includes(currentTrack.id) : false;
 
   const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
+
+  const formatTime = (secs: number) => {
+    if (isNaN(secs) || secs <= 0) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   const handleScrubberClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!duration || duration <= 0) return;
@@ -58,8 +63,6 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
     onSeek(ratio * duration);
   };
 
-  // Open the current song's artist / album page. Uses the ids on the track; if a track
-  // predates id parsing, looks them up first (never guesses).
   const openArtist = async () => {
     if (!currentTrack || resolving) return;
     setResolving('artist');
@@ -96,25 +99,18 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
         </button>
       </div>
 
-      {/* BitChord Floating Player Pill */}
+      {/* BitChord Apple Music Authentic Floating Player Pill */}
       <div 
-        className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-[840px] w-[95vw] sm:w-auto"
-        style={{ fontFamily: "'DM Sans', sans-serif" }}
+        className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-[860px] w-[96vw] sm:w-auto"
+        style={{ fontFamily: 'var(--bitchord-font)' }}
       >
         <div 
-          className="bitchord-floating-pill rounded-full px-4 sm:px-6 py-2.5 shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex items-center justify-between gap-3 sm:gap-6 select-none transition-all"
-          style={{
-            background: 'rgba(40, 40, 40, 0.6)',
-            backdropFilter: 'blur(24px)',
-            WebkitBackdropFilter: 'blur(24px)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-          }}
+          className="bitchord-floating-pill rounded-full px-4 sm:px-5 py-2 flex items-center justify-between gap-3 sm:gap-5 select-none transition-all shadow-[0_20px_50px_rgba(0,0,0,0.85)] border border-white/15"
         >
-          
           {/* ========================================================================= */}
           {/* 1. LEFT: Transport Controls                                               */}
           {/* ========================================================================= */}
-          <div className="flex items-center gap-1 sm:gap-2.5 shrink-0 text-[#a3a3a3]">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0 text-[#98989d]">
             {/* Shuffle */}
             <button
               type="button"
@@ -146,13 +142,17 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
               title={isLoading ? 'Loading song...' : isPlaying ? 'Pause' : 'Play'}
             >
               {isLoading ? (
-                <div className="w-6 h-6 flex items-center justify-center">
+                <div className="w-7 h-7 flex items-center justify-center">
                   <Loader2 className="w-5 h-5 text-white animate-spin" />
                 </div>
               ) : isPlaying ? (
-                <Pause className="w-5 h-5 fill-current" />
+                <div className="w-7 h-7 flex items-center justify-center">
+                  <Pause className="w-5 h-5 fill-current" />
+                </div>
               ) : (
-                <Play className="w-5 h-5 fill-current ml-0.5" />
+                <div className="w-7 h-7 flex items-center justify-center">
+                  <Play className="w-5 h-5 fill-current ml-0.5" />
+                </div>
               )}
             </button>
 
@@ -184,24 +184,24 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
           </div>
 
           {/* ========================================================================= */}
-          {/* 2. CENTER: Artwork + Track Info + Subtle Edge Progress Line               */}
+          {/* 2. CENTER: Artwork (~6px radius) + Title/Artist + Scrubber               */}
           {/* ========================================================================= */}
           <div className="flex items-center gap-3 min-w-0 flex-1 sm:flex-initial">
             {currentTrack ? (
-              <div className="relative flex items-center gap-3 min-w-0 pb-1.5">
+              <div className="relative flex items-center gap-3 min-w-0 pb-1">
                 <img 
                   src={currentTrack.artwork} 
                   alt="" 
                   onClick={openAlbum}
-                  className="w-10 h-10 rounded-md object-cover shrink-0 shadow-md border border-white/10 cursor-pointer hover:opacity-80 transition-opacity" 
+                  className="w-10 h-10 rounded-[6px] object-cover shrink-0 shadow-md border border-white/10 cursor-pointer hover:opacity-85 transition-opacity" 
                 />
                 
-                <div className="min-w-0 flex flex-col justify-center items-start">
+                <div className="min-w-0 flex flex-col justify-center items-start pr-1">
                   <button
                     type="button"
                     onClick={openAlbum}
                     title="Go to album"
-                    className="text-xs font-semibold text-white truncate max-w-[130px] sm:max-w-[180px] hover:underline text-left cursor-pointer"
+                    className="text-[13px] font-semibold text-white truncate max-w-[130px] sm:max-w-[190px] hover:underline text-left cursor-pointer"
                   >
                     {currentTrack.title}
                   </button>
@@ -209,16 +209,16 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                     type="button"
                     onClick={openArtist}
                     title="Go to artist"
-                    className="text-[11px] text-[#a3a3a3] hover:text-white hover:underline truncate max-w-[130px] sm:max-w-[180px] text-left cursor-pointer"
+                    className="text-[11px] text-[#98989d] hover:text-white hover:underline truncate max-w-[130px] sm:max-w-[190px] text-left cursor-pointer"
                   >
                     {resolving ? 'Opening…' : currentTrack.artist}
                   </button>
                 </div>
 
-                {/* Subtle thin progress line pinned to absolute bottom edge of track container */}
+                {/* Micro Scrubber */}
                 <div 
                   onClick={handleScrubberClick}
-                  className="absolute bottom-0 left-0 right-0 h-[2px] hover:h-[4px] bg-white/15 rounded-full cursor-pointer transition-all overflow-hidden"
+                  className="absolute bottom-0 left-0 right-0 h-[2.5px] hover:h-[4.5px] bg-white/15 rounded-full cursor-pointer transition-all overflow-hidden"
                   title="Seek"
                 >
                   <div 
@@ -228,17 +228,16 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-2 text-xs text-[#a3a3a3] px-2">
+              <div className="flex items-center gap-2 text-xs text-[#98989d] px-2">
                 <span>Select a song to play</span>
               </div>
             )}
           </div>
 
           {/* ========================================================================= */}
-          {/* 3. RIGHT: Star, More, Lyrics, Queue, Volume                               */}
+          {/* 3. RIGHT: Star, More, Lyrics, Queue, Inline Volume Slider                 */}
           {/* ========================================================================= */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0 text-[#a3a3a3]">
-            
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0 text-[#98989d]">
             {/* Star Favorite */}
             <button
               type="button"
@@ -248,16 +247,16 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
               }`}
               title={isLiked ? 'Starred' : 'Add to favorites'}
             >
-              <Star className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
+              <Star className={`w-3.5 h-3.5 ${isLiked ? 'fill-current' : ''}`} />
             </button>
 
             {/* Three Dots More */}
             <button
               type="button"
-              className="p-1.5 rounded-full hover:text-white transition-colors cursor-pointer"
+              className="p-1.5 rounded-full hover:text-white transition-colors cursor-pointer hidden sm:block"
               title="More options"
             >
-              <MoreHorizontal className="w-4 h-4" />
+              <MoreHorizontal className="w-3.5 h-3.5" />
             </button>
 
             {/* Synced Lyrics Toggle (Quote / Message) */}
@@ -265,7 +264,7 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
               type="button"
               onClick={toggleLyrics}
               className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-                showLyrics ? 'text-white bg-white/10' : 'hover:text-white'
+                showLyrics ? 'text-white bg-white/15' : 'hover:text-white'
               }`}
               title="Lyrics"
             >
@@ -277,47 +276,37 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
               type="button"
               onClick={toggleQueue}
               className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-                showQueue ? 'text-white bg-white/10' : 'hover:text-white'
+                showQueue ? 'text-white bg-white/15' : 'hover:text-white'
               }`}
               title="Queue"
             >
               <List className="w-4 h-4" />
             </button>
 
-            {/* Volume Control */}
-            <div 
-              className="relative flex items-center"
-              onMouseEnter={() => setIsVolumeHovered(true)}
-              onMouseLeave={() => setIsVolumeHovered(false)}
-            >
+            {/* Inline Volume Control (Apple Music Desktop Style) */}
+            <div className="flex items-center gap-1.5 pl-1">
               <button
                 type="button"
                 onClick={toggleMute}
-                className="p-1.5 rounded-full hover:text-white transition-colors cursor-pointer"
+                className="p-1 rounded-full hover:text-white transition-colors cursor-pointer"
                 title={isMuted ? 'Unmute' : 'Mute'}
               >
                 {isMuted || volume === 0 ? (
-                  <VolumeX className="w-4 h-4 text-red-400" />
+                  <VolumeX className="w-3.5 h-3.5 text-rose-400" />
                 ) : (
-                  <Volume2 className="w-4 h-4" />
+                  <Volume2 className="w-3.5 h-3.5" />
                 )}
               </button>
-
-              {/* Volume Slider flyout */}
-              {isVolumeHovered && (
-                <div className="absolute right-0 bottom-full mb-3 p-2 bg-[#1c1c1e] border border-white/10 rounded-2xl shadow-xl flex items-center animate-in fade-in zoom-in-95 duration-150">
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={isMuted ? 0 : volume}
-                    onChange={(e) => setVolume(Number(e.target.value))}
-                    className="w-20 h-1 accent-white cursor-pointer"
-                    aria-label="Volume"
-                  />
-                </div>
-              )}
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={isMuted ? 0 : volume}
+                onChange={(e) => setVolume(Number(e.target.value))}
+                className="w-16 sm:w-20 h-1 bg-white/20 accent-white rounded-full appearance-none cursor-pointer hidden sm:block"
+                aria-label="Volume"
+              />
             </div>
 
           </div>
@@ -329,3 +318,4 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
 };
 
 export default FloatingPlayer;
+

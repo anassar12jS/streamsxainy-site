@@ -193,7 +193,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const sidebarContent = (
     <div 
       className="w-[230px] h-screen bg-[#121212] text-[#a3a3a3] flex flex-col justify-between select-none border-r border-[#1a1a1a]"
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
+      style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       
       {/* Top Section */}

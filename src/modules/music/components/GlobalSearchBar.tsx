@@ -83,7 +83,7 @@ export const GlobalSearchBar: React.FC = () => {
     <div 
       ref={containerRef} 
       className="relative w-full max-w-xl mx-auto mb-6 select-none"
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
+      style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       {/* Search Bar: Wide, pill-shaped (border-radius: 9999px), bg-[#1a1a1a] */}
       <div className="relative flex items-center bg-[#1a1a1a] focus-within:bg-[#202020] border border-white/10 focus-within:border-white/30 rounded-full px-4 py-2.5 shadow-lg transition-all">

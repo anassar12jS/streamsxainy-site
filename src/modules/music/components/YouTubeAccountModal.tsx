@@ -121,7 +121,7 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in select-none">
       <div 
         className="w-full max-w-md bg-[#121212] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
-        style={{ fontFamily: "'DM Sans', sans-serif" }}
+        style={{ fontFamily: 'var(--bitchord-font)' }}
       >
         
         {/* Header */}

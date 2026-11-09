@@ -59,7 +59,7 @@ export const SettingsRoute: React.FC = () => {
   return (
     <div 
       className="max-w-3xl mx-auto py-8 px-4 space-y-8 animate-fade-in pb-32"
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
+      style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       
       {/* Header */}

@@ -32,7 +32,7 @@ export const PlaylistRoute: React.FC = () => {
   return (
     <div 
       className="space-y-8 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4"
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
+      style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       {/* Back button */}
       <Link 

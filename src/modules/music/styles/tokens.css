@@ -1,20 +1,21 @@
-/* BitChord Authentic Design Tokens & CSS Custom Properties */
+/* BitChord Authentic Apple Music Design Tokens & CSS Custom Properties */
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..900;1,9..40,300..900&display=swap');
 
 :root {
-  --bitchord-font: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --bitchord-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
   --bitchord-bg-main: #0f0f0f;
   --bitchord-bg-sidebar: #121212;
   --bitchord-bg-surface: #121212;
   --bitchord-bg-card: #181818;
   --bitchord-bg-card-hover: #242424;
-  --bitchord-bg-pill: rgba(40, 40, 40, 0.6);
+  --bitchord-bg-pill: rgba(32, 32, 34, 0.78);
   --bitchord-border: rgba(255, 255, 255, 0.08);
   --bitchord-border-strong: rgba(255, 255, 255, 0.15);
   --bitchord-text-primary: #ffffff;
-  --bitchord-text-secondary: #a3a3a3;
+  --bitchord-text-secondary: #98989d;
   --bitchord-text-muted: #666666;
   --bitchord-accent-red: #fa243c;
+  --bitchord-card-radius: 8px;
 }
 
 body, html, #root {
@@ -54,26 +55,28 @@ body, html, #root {
 
 /* Seamless Frosted Glass Floating Player Pill */
 .bitchord-floating-pill {
-  background: rgba(40, 40, 40, 0.6) !important;
-  backdrop-filter: blur(24px) !important;
-  -webkit-backdrop-filter: blur(24px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: rgba(34, 34, 36, 0.82) !important;
+  backdrop-filter: blur(32px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
 }
 
 /* Slim Micro Scrubber */
 .bitchord-micro-scrubber {
-  height: 2px;
-  background: rgba(255, 255, 255, 0.15);
+  height: 3px;
+  background: rgba(255, 255, 255, 0.18);
   border-radius: 9999px;
   cursor: pointer;
   position: relative;
   transition: height 0.15s ease;
 }
 .bitchord-micro-scrubber:hover {
-  height: 4px;
+  height: 5px;
 }
 .bitchord-micro-scrubber-fill {
   background: #ffffff;
   border-radius: 9999px;
   height: 100%;
 }
+

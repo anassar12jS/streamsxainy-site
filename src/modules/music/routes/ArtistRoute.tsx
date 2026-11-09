@@ -63,7 +63,7 @@ export const ArtistRoute: React.FC = () => {
   return (
     <div 
       className="space-y-10 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4"
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
+      style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       
       {/* Back button */}
@@ -275,30 +275,30 @@ export const ArtistRoute: React.FC = () => {
                 Albums & Discography
               </h2>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 text-left">
                 {artist.albums.map((alb) => (
                   <Link
                     key={alb.id}
                     to={`/music/album/${alb.id}`}
-                    className="group block p-3 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer transition-colors duration-150 shadow-md"
+                    className="group block p-2.5 rounded-[10px] bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer transition-colors duration-150 shadow-md text-left"
                   >
-                    <div className="relative aspect-square rounded-xl overflow-hidden mb-3 bg-[#1e1e1e]">
+                    <div className="relative aspect-square rounded-[8px] overflow-hidden mb-2 bg-[#1e1e1e] border border-white/5">
                       <img 
                         src={alb.artwork || artist.avatar} 
                         alt={alb.title} 
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                       />
                       <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-xl">
-                          <Play className="w-5 h-5 fill-current ml-0.5" />
+                        <div className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-xl">
+                          <Play className="w-4 h-4 fill-current ml-0.5" />
                         </div>
                       </div>
                     </div>
 
-                    <h4 className="font-semibold text-xs sm:text-sm text-white truncate group-hover:underline">
+                    <h4 className="font-semibold text-xs sm:text-sm text-white truncate text-left group-hover:underline">
                       {alb.title}
                     </h4>
-                    <p className="text-[11px] text-[#b3b3b3] truncate mt-0.5">
+                    <p className="text-[11px] text-[#98989d] truncate mt-0.5 text-left font-normal">
                       {alb.year || 'Album'}
                     </p>
                   </Link>
@@ -311,18 +311,18 @@ export const ArtistRoute: React.FC = () => {
           {artist.singles && artist.singles.length > 0 && (
             <div className="space-y-4 pt-2">
               <h2 className="text-xl font-bold text-white tracking-tight">Singles & EPs</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 text-left">
                 {artist.singles.map(alb => (
                   <Link
                     key={alb.id}
                     to={`/music/album/${alb.id}`}
-                    className="group block p-3 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 transition-colors duration-150 shadow-md"
+                    className="group block p-2.5 rounded-[10px] bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 transition-colors duration-150 shadow-md text-left"
                   >
-                    <div className="relative aspect-square rounded-xl overflow-hidden mb-3 bg-[#1e1e1e]">
+                    <div className="relative aspect-square rounded-[8px] overflow-hidden mb-2 bg-[#1e1e1e] border border-white/5">
                       <img src={alb.artwork || artist.avatar} alt={alb.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                     </div>
-                    <h4 className="font-semibold text-xs sm:text-sm text-white truncate group-hover:underline">{alb.title}</h4>
-                    <p className="text-[11px] text-[#b3b3b3] truncate mt-0.5">{[alb.genre, alb.year].filter(Boolean).join(' • ')}</p>
+                    <h4 className="font-semibold text-xs sm:text-sm text-white truncate text-left group-hover:underline">{alb.title}</h4>
+                    <p className="text-[11px] text-[#98989d] truncate mt-0.5 text-left font-normal">{[alb.genre, alb.year].filter(Boolean).join(' • ')}</p>
                   </Link>
                 ))}
               </div>

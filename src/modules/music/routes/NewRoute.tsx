@@ -44,7 +44,7 @@ export const NewRoute: React.FC = () => {
   // No invented "featured" release: show loading / the real error / an honest empty state.
   if (!featured) {
     return (
-      <div className="space-y-6 pb-32 pt-2 px-1 sm:px-4 max-w-7xl mx-auto text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+      <div className="space-y-6 pb-32 pt-2 px-1 sm:px-4 max-w-7xl mx-auto text-white" style={{ fontFamily: 'var(--bitchord-font)' }}>
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">New</h1>
         {isLoading ? (
           <p className="text-sm text-[#b3b3b3] flex items-center gap-2 py-10 justify-center">
@@ -68,7 +68,7 @@ export const NewRoute: React.FC = () => {
   return (
     <div 
       className="space-y-10 animate-fade-in pb-32 pt-2 px-1 sm:px-4 max-w-7xl mx-auto text-white"
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
+      style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       {/* 1. Header */}
       <div className="flex items-center justify-between">
@@ -180,9 +180,9 @@ export const NewRoute: React.FC = () => {
               <div
                 key={album.id}
                 onClick={() => navigate(`/music/album/${album.id}`)}
-                className="w-44 sm:w-48 shrink-0 group p-3 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer transition-colors shadow-md select-none"
+                className="w-40 sm:w-44 shrink-0 group p-2.5 rounded-[10px] bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer transition-colors shadow-md select-none text-left"
               >
-                <div className="relative aspect-square rounded-xl overflow-hidden mb-3 bg-[#1e1e1e]">
+                <div className="relative aspect-square rounded-[8px] overflow-hidden mb-2 bg-[#1e1e1e] border border-white/5">
                   <img 
                     src={album.artwork} 
                     alt={album.title} 
@@ -192,19 +192,19 @@ export const NewRoute: React.FC = () => {
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                   />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-xl">
-                      <Play className="w-5 h-5 fill-current ml-0.5" />
+                    <div className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-xl">
+                      <Play className="w-4 h-4 fill-current ml-0.5" />
                     </div>
                   </div>
                 </div>
 
-                <h4 className="font-semibold text-xs sm:text-sm text-white truncate group-hover:underline">
+                <h4 className="font-semibold text-xs sm:text-sm text-white truncate text-left group-hover:underline">
                   {album.title}
                 </h4>
-                <p className="text-[11px] text-[#a3a3a3] truncate mt-0.5">
+                <p className="text-[11px] text-[#98989d] truncate mt-0.5 text-left font-normal">
                   {album.artist}
                 </p>
-                <span className="text-[10px] text-white/50 block mt-0.5">
+                <span className="text-[10px] text-[#666666] block mt-0.5 text-left">
                   {album.year || 'Album'}
                 </span>
               </div>

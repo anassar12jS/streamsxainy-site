@@ -114,7 +114,7 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
   return (
     <div 
       className="space-y-8 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4"
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
+      style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       
       {/* 1. YouTube Music Account Link Card */}
@@ -351,15 +351,15 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
                 <div
                   key={alb.id}
                   onClick={() => navigate(`/music/album/${alb.id}`)}
-                  className="group p-3 rounded-2xl bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer transition-colors duration-150 shadow-lg"
+                  className="group p-2.5 rounded-[10px] bg-[#141414] hover:bg-[#1a1a1a] border border-white/5 cursor-pointer transition-colors duration-150 shadow-md text-left"
                 >
-                  <div className="relative aspect-square rounded-md overflow-hidden mb-3 bg-[#1e1e1e]">
+                  <div className="relative aspect-square rounded-[8px] overflow-hidden mb-2 bg-[#1e1e1e] border border-white/5">
                     {alb.artwork && (
                       <img src={alb.artwork} alt={alb.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                     )}
                   </div>
-                  <h4 className="font-semibold text-xs sm:text-sm text-white truncate group-hover:underline">{alb.title}</h4>
-                  <p className="text-xs text-[#b3b3b3] truncate mt-1 font-normal">
+                  <h4 className="font-semibold text-xs sm:text-sm text-white truncate text-left group-hover:underline">{alb.title}</h4>
+                  <p className="text-xs text-[#98989d] truncate mt-0.5 text-left font-normal">
                     {alb.genre} •{' '}
                     {alb.artistId ? (
                       <Link

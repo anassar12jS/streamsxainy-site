@@ -391,7 +391,7 @@ export const MusicModule: React.FC = () => {
   return (
     <div 
       className="h-full w-full flex bg-[#0f0f0f] text-[#ffffff] relative overflow-hidden"
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
+      style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       
       {/* Hidden Web Audio Media Element */}

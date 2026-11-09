@@ -61,7 +61,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
           ? 'bg-[rgba(255,255,255,0.08)] text-white'
           : 'hover:bg-[#1a1a1a] text-white/90'
       }`}
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
+      style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       {/* Left: Index / Play Button & Title */}
       <div className="flex items-center gap-3.5 min-w-0 flex-1">
@@ -94,7 +94,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
 
         {/* Artwork Thumbnail */}
         {showArtwork && (
-          <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0 shadow bg-black/40 border border-white/5">
+          <div className="relative w-10 h-10 rounded-[6px] overflow-hidden shrink-0 shadow bg-black/40 border border-white/5">
             <img src={track.artwork} alt="" className="w-full h-full object-cover" />
             {track.isLive && (
               <span className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-1 ring-black" />
@@ -103,7 +103,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
         )}
 
         {/* Track Title + Artist Link */}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 text-left">
           <div className="flex items-center gap-2">
             <h4 className={`text-sm font-semibold truncate ${isCurrent ? 'text-rose-400' : 'text-white'}`}>
               {track.title}
@@ -119,7 +119,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
               </span>
             )}
           </div>
-          <p className="text-xs text-[#b3b3b3] truncate mt-0.5">
+          <p className="text-xs text-[#98989d] truncate mt-0.5 text-left">
             {track.artistId ? (
               <Link
                 to={`/music/artist/${track.artistId}`}
