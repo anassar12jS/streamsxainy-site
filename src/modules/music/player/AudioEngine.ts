@@ -7,7 +7,11 @@ export interface AudioEngineCallbacks {
   onTimeUpdate?: (currentTime: number, duration?: number) => void;
   onStatusChange?: (status: 'idle' | 'loading' | 'playing' | 'paused' | 'error') => void;
   onEnded?: () => void;
+  /** YouTube refused / failed to play the loaded video (code = YT iframe error: 2,5,100,101,150) */
+  onYouTubeError?: (code: number | undefined) => void;
 }
+
+export type YouTubeStartResult = 'playing' | 'blocked' | 'error' | 'superseded';
 
 let isYtScriptLoaded = false;
 let ytApiReadyPromise: Promise<void> | null = null;
@@ -65,7 +69,12 @@ export class MusicAudioEngine {
   public activeMode: 'html5' | 'youtube' = 'html5';
   private ytPlayer: any = null;
   private isYtReady: boolean = false;
-  private pendingVideoId: string | null = null;
+  /** Resolves true once the hidden YouTube player is ready (false if it never became ready) */
+  private ytReadyPromise: Promise<boolean>;
+  private resolveYtReady!: (ready: boolean) => void;
+  /** Settles the in-flight playYouTube() call when YouTube reports the real outcome */
+  private startWaiter: ((r: YouTubeStartResult) => void) | null = null;
+  private loadToken = 0;
   private ytTimer: any = null;
   private callbacks: AudioEngineCallbacks | null = null;
   private currentVolume: number = 1;
@@ -76,6 +85,7 @@ export class MusicAudioEngine {
     this.audioElement.crossOrigin = 'anonymous';
     this.callbacks = callbacks || null;
     this.steeredClock = new SteeredClock(this.audioElement);
+    this.ytReadyPromise = new Promise<boolean>(resolve => { this.resolveYtReady = resolve; });
 
     this.initAudioContext();
     this.initShaka();
@@ -174,19 +184,16 @@ export class MusicAudioEngine {
             this.isYtReady = true;
             this.setVolume(this.currentVolume);
             this.setMuted(this.currentMuted);
-            if (this.pendingVideoId) {
-              const vid = this.pendingVideoId;
-              this.pendingVideoId = null;
-              this.playYouTube(vid);
-            }
+            this.resolveYtReady(true);
           },
           onStateChange: (event: any) => {
             if (this.activeMode !== 'youtube') return;
             const state = event.data;
-            // 1: PLAYING, 2: PAUSED, 3: BUFFERING, 0: ENDED
+            // -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued
             if (state === 1) {
               this.callbacks?.onStatusChange?.('playing');
               this.startYouTubeTimer();
+              this.settleStart('playing');
             } else if (state === 2) {
               this.callbacks?.onStatusChange?.('paused');
               this.stopYouTubeTimer();
@@ -200,14 +207,24 @@ export class MusicAudioEngine {
           onError: (err: any) => {
             console.warn('YouTube Player playback error:', err);
             if (this.activeMode === 'youtube') {
-              this.callbacks?.onStatusChange?.('error');
+              this.callbacks?.onYouTubeError?.(typeof err?.data === 'number' ? err.data : undefined);
+              this.settleStart('error');
             }
           },
         },
       });
     } catch (e) {
       console.warn('YouTube Iframe Player initialization error:', e);
+      this.resolveYtReady(false);
     }
+    // Never leave playYouTube() waiting forever if the iframe API is blocked
+    setTimeout(() => this.resolveYtReady(this.isYtReady), 10000);
+  }
+
+  private settleStart(result: YouTubeStartResult) {
+    const w = this.startWaiter;
+    this.startWaiter = null;
+    w?.(result);
   }
 
   public async resumeAudioContext() {
@@ -219,48 +236,63 @@ export class MusicAudioEngine {
   }
 
   /**
-   * Plays full-length YouTube song via the YouTube audio engine.
+   * Plays a full-length song through the hidden YouTube player.
+   *
+   * Resolves with what YouTube ACTUALLY did, not what we hoped for:
+   *  - 'playing'    playback really started
+   *  - 'blocked'    the browser/YouTube didn't start it (autoplay policy); a user press will
+   *  - 'error'      YouTube refused the video (e.g. embedding disabled) -> caller should fall back
+   *  - 'superseded' a newer track was requested meanwhile
    */
-  public async playYouTube(videoId: string): Promise<void> {
+  public async playYouTube(videoId: string): Promise<YouTubeStartResult> {
     this.activeMode = 'youtube';
+    const token = ++this.loadToken;
+    this.settleStart('superseded'); // release a previous waiter
 
-    // Pause HTML5 audio
+    // Stop the HTML5 element
     this.audioElement.pause();
     this.audioElement.removeAttribute('src');
 
-    if (!this.ytPlayer || !this.isYtReady) {
-      this.pendingVideoId = videoId;
-      this.callbacks?.onStatusChange?.('loading');
-
-      // Wait up to 4s for YouTube iframe API & player readiness
-      await new Promise<void>((resolve) => {
-        const check = setInterval(() => {
-          if (this.ytPlayer && this.isYtReady) {
-            clearInterval(check);
-            resolve();
-          }
-        }, 60);
-        setTimeout(() => {
-          clearInterval(check);
-          resolve();
-        }, 4000);
-      });
+    this.callbacks?.onStatusChange?.('loading');
+    const ready = await this.ytReadyPromise;
+    if (token !== this.loadToken) return 'superseded';
+    if (!ready || !this.ytPlayer) {
+      this.callbacks?.onStatusChange?.('error');
+      return 'error';
     }
 
-    if (this.ytPlayer && this.isYtReady) {
+    return new Promise<YouTubeStartResult>((resolve) => {
+      let nudge: any;
+      let watchdog: any;
+      this.startWaiter = (result) => {
+        clearTimeout(nudge);
+        clearTimeout(watchdog);
+        resolve(result);
+      };
+
       try {
-        this.pendingVideoId = null;
-        this.ytPlayer.loadVideoById({
-          videoId,
-          startSeconds: 0,
-        });
-        this.ytPlayer.playVideo();
-        this.startYouTubeTimer();
+        // loadVideoById already autoplays. 'tiny' keeps the (unused) video stream minimal so
+        // the audio starts sooner.
+        this.ytPlayer.loadVideoById({ videoId, startSeconds: 0, suggestedQuality: 'tiny' });
+        this.ytPlayer.setPlaybackQuality?.('tiny');
       } catch (err) {
         console.warn('Error loading video in YouTube player:', err);
         this.callbacks?.onStatusChange?.('error');
+        this.settleStart('error');
+        return;
       }
-    }
+
+      // If it hasn't started shortly, nudge it once...
+      nudge = setTimeout(() => {
+        if (token === this.loadToken && this.startWaiter) {
+          try { this.ytPlayer.playVideo(); } catch {}
+        }
+      }, 1500);
+      // ...and if it still doesn't, report 'blocked' so the UI shows a play button instead of lying.
+      watchdog = setTimeout(() => {
+        if (token === this.loadToken && this.startWaiter) this.settleStart('blocked');
+      }, 6000);
+    });
   }
 
   private startYouTubeTimer() {
@@ -339,6 +371,12 @@ export class MusicAudioEngine {
     return this.audioElement.play();
   }
 
+  public setMediaSessionState(state: 'playing' | 'paused' | 'none') {
+    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+      try { navigator.mediaSession.playbackState = state; } catch {}
+    }
+  }
+
   public pause(): void {
     if (this.activeMode === 'youtube' && this.ytPlayer && typeof this.ytPlayer.pauseVideo === 'function') {
       try {
@@ -411,7 +449,7 @@ export class MusicAudioEngine {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: track.title,
         artist: track.artist,
-        album: track.album || 'Apple Music',
+        album: track.album || '',
         artwork: [
           { src: track.artwork, sizes: '96x96', type: 'image/jpeg' },
           { src: track.artwork, sizes: '256x256', type: 'image/jpeg' },

@@ -40,6 +40,10 @@ export interface Artist {
   topTracks: MusicTrack[];
   albums: Album[];
   singles: Album[];
+  /** Playlist id of the artist's full song list (behind the Songs shelf's "Show all") */
+  songsPlaylistId?: string;
+  /** "Fans might also like" */
+  related?: { id: string; name: string; avatar: string; subtitle: string }[];
 }
 
 export interface Playlist {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSong, parseAlbumHeader, parseAlbumCard, parseShelf, parsePlaylistCard, thumbOf, hiRes } from './ytmParse';
+import { parsePanelVideo, parseSong, parseAlbumHeader, parseAlbumCard, parseShelf, parsePlaylistCard, thumbOf, hiRes } from './ytmParse';
 
 // Fixtures are shaped like the youtubei.js 18.x classes (field names from its .d.ts files).
 const T = (text: string, endpoint?: any, runs?: any[]) => ({ text, endpoint, runs });
@@ -91,4 +91,19 @@ test('home shelf keeps openable items and drops nav buttons / empty shelves', ()
 test('image helpers', () => {
   assert.equal(hiRes('https://i.ytimg.com/vi/a/sddefault.jpg?sqp=1'), 'https://i.ytimg.com/vi/a/sddefault.jpg?sqp=1');
   assert.equal(thumbOf([{ url: 'a', width: 10 }, { url: 'b', width: 99 }]), 'b');
+});
+
+test('up-next rows: direct and wrapped (primary) both parse, with artist ids', () => {
+  const row = {
+    video_id: 'vidA', title: T('Cherry Wine'), author: 'Hozier',
+    artists: [{ name: 'Hozier', channel_id: 'UChozier' }],
+    album: { id: 'MPREb_h', name: 'Hozier' }, duration: { seconds: 238 },
+    thumbnail: [{ url: 'https://lh3.googleusercontent.com/h=w60-h60', width: 60 }, { url: 'https://lh3.googleusercontent.com/h=w226-h226', width: 226 }],
+  };
+  const direct = parsePanelVideo(row)!;
+  assert.deepEqual([direct.id, direct.artist, direct.artistId, direct.albumId, direct.duration], ['vidA', 'Hozier', 'UChozier', 'MPREb_h', 238]);
+  assert.equal(direct.youtubeId, 'vidA');
+  const wrapped = parsePanelVideo({ primary: row })!;
+  assert.equal(wrapped.id, 'vidA');
+  assert.equal(parsePanelVideo({ nothing: true }), null); // e.g. AutomixPreviewVideo
 });

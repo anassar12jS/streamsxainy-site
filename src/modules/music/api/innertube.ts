@@ -1,7 +1,8 @@
 import { Innertube, UniversalCache } from 'youtubei.js';
 import { MusicTrack, Album, Artist, Playlist } from '../types';
 import { extensionBridge } from '../extension/bridge';
-import { txt, thumbOf, parseSong, parseAlbumCard, parsePlaylistCard, parseCard, parseShelf, parseAlbumHeader, type HomeShelf, type HomeItem } from './ytmParse';
+import { YTNodes } from 'youtubei.js';
+import { txt, thumbOf, parsePanelVideo, parseSong, parseAlbumCard, parseArtistCard, parsePlaylistCard, parseCard, parseShelf, parseAlbumHeader, type HomeShelf, type HomeItem } from './ytmParse';
 
 let ytInstance: Innertube | null = null;
 let isInitializing = false;
@@ -20,49 +21,49 @@ export async function getInnertube(channelId?: string): Promise<Innertube> {
   return getInnertubeForChannel(channelId);
 }
 
+const videoIdCache = new Map<string, string>();
+
 /**
- * Resolves the YouTube video ID for a track.
+ * Resolves the YouTube video ID for a track that doesn't carry one (e.g. old imports).
+ * Prefers YouTube Music's own song search (official audio, embeddable) over generic video search.
  */
 export async function resolveVideoId(
   trackOrId: string | MusicTrack | { title: string; artist: string; youtubeId?: string }
 ): Promise<string | null> {
-  const track = typeof trackOrId === 'string' 
-    ? { title: '', artist: '', youtubeId: trackOrId } 
+  const track = typeof trackOrId === 'string'
+    ? { title: '', artist: '', youtubeId: trackOrId }
     : trackOrId;
 
   if (track.youtubeId) return track.youtubeId;
   if (!track.title && !track.artist) return null;
 
-  let videoId: string | undefined;
+  const key = `${track.title}|${track.artist}`.toLowerCase();
+  const cached = videoIdCache.get(key);
+  if (cached) return cached;
 
-  // 1. General search with audio keyword (fastest and most accurate)
+  let videoId: string | undefined;
+  const yt: any = await getInnertube();
+
+  // 1. YouTube Music song search (most accurate)
   try {
-    const yt = await getInnertube();
-    const query = `${track.title} ${track.artist} audio`.trim();
-    const generalSearch = await yt.search(query, { type: 'video' });
-    videoId = (generalSearch as any).videos?.[0]?.id || (generalSearch as any).results?.[0]?.id;
+    const res: any = await yt.music.search(`${track.title} ${track.artist}`.trim(), { type: 'song' });
+    const rows: any[] = res?.songs?.contents ?? res?.contents?.[0]?.contents ?? res?.results ?? [];
+    videoId = rows.map(r => parseSong(r)).find(Boolean)?.id;
   } catch (err) {
-    console.debug('yt.search failed:', err);
+    console.debug('yt.music.search failed:', err);
   }
 
-  // 2. yt.music.search
+  // 2. Generic video search
   if (!videoId) {
     try {
-      const yt = await getInnertube();
-      const query = `${track.title} ${track.artist}`.trim();
-      const searchResults = await yt.music.search(query, { type: 'song' });
-      const firstResult = 
-        (searchResults as any).results?.[0] ||
-        (searchResults as any).contents?.[0]?.contents?.[0] ||
-        (searchResults as any).contents?.[0] ||
-        (searchResults as any).songs?.contents?.[0];
-      videoId = firstResult?.id;
+      const generalSearch: any = await yt.search(`${track.title} ${track.artist} audio`.trim(), { type: 'video' });
+      videoId = generalSearch?.videos?.[0]?.id || generalSearch?.results?.[0]?.id;
     } catch (err) {
-      console.debug('yt.music.search failed:', err);
+      console.debug('yt.search failed:', err);
     }
   }
 
-  // 3. Fallback search via public Piped/Invidious mirrors
+  // 3. Public mirrors
   if (!videoId) {
     try {
       const query = `${track.title} ${track.artist}`.trim();
@@ -78,24 +79,36 @@ export async function resolveVideoId(
             const data = await res.json();
             const items = Array.isArray(data) ? data : data.items || [];
             const first = items?.[0];
-            if (first?.url) {
-              const match = first.url.match(/v=([a-zA-Z0-9_-]{11})/);
-              if (match?.[1]) {
-                videoId = match[1];
-                break;
-              }
-            }
-            if (first?.videoId) {
-              videoId = first.videoId;
-              break;
-            }
+            const match = first?.url?.match(/v=([a-zA-Z0-9_-]{11})/);
+            if (match?.[1]) { videoId = match[1]; break; }
+            if (first?.videoId) { videoId = first.videoId; break; }
           }
         } catch {}
       }
     } catch {}
   }
 
+  if (videoId) videoIdCache.set(key, videoId);
   return videoId || null;
+}
+
+/**
+ * Another upload of the same song, for when YouTube refuses to embed the first one
+ * (error 101/150: the uploader disabled embedding, common for official music videos).
+ */
+export async function resolveAlternateVideoId(
+  track: { title: string; artist: string },
+  excludeId: string
+): Promise<string | null> {
+  try {
+    const yt: any = await getInnertube();
+    const res: any = await yt.music.search(`${track.title} ${track.artist}`.trim(), { type: 'song' });
+    const rows: any[] = res?.songs?.contents ?? res?.contents?.[0]?.contents ?? res?.results ?? [];
+    const alt = rows.map(r => parseSong(r)).find(t => t && t.id !== excludeId);
+    return alt?.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -542,6 +555,15 @@ export async function getAlbumDetails(albumId: string): Promise<Album | null> {
   };
 }
 
+const artistCache = new Map<string, { at: number; res: any }>();
+async function fetchArtistPage(yt: any, id: string): Promise<any> {
+  const hit = artistCache.get(id);
+  if (hit && Date.now() - hit.at < 2 * 60 * 1000) return hit.res;
+  const res = await yt.music.getArtist(id);
+  artistCache.set(id, { at: Date.now(), res });
+  return res;
+}
+
 /**
  * Artist page via yt.music.getArtist. Artist ids are channel ids (UC...).
  */
@@ -550,7 +572,7 @@ export async function getArtistDetails(artistId: string): Promise<Artist | null>
   if (!id) return null;
 
   const yt: any = await getInnertube();
-  const res: any = await yt.music.getArtist(id);
+  const res: any = await fetchArtistPage(yt, id);
   const h: any = res?.header;
   const name = txt(h?.title);
   if (!name) return null;
@@ -559,8 +581,10 @@ export async function getArtistDetails(artistId: string): Promise<Artist | null>
   const ctx = { artist: name, artistId: id, artwork: avatar };
 
   let topTracks: MusicTrack[] = [];
+  let songsPlaylistId: string | undefined;
   const albums: Album[] = [];
   const singles: Album[] = [];
+  const related: NonNullable<Artist['related']> = [];
 
   for (const section of res.sections ?? []) {
     const isCarousel = section?.header !== undefined; // MusicCarouselShelf has .header, MusicShelf has .title
@@ -568,14 +592,22 @@ export async function getArtistDetails(artistId: string): Promise<Artist | null>
     const contents: any[] = section.contents ?? [];
 
     if (!isCarousel) {
-      // MusicShelf of songs ("Songs" / "Top songs")
+      // MusicShelf of songs ("Songs" / "Top songs"); its endpoint leads to the full list
       if (topTracks.length === 0) {
         topTracks = contents.map(r => parseSong(r, ctx)).filter(Boolean) as MusicTrack[];
+        const browseId: string | undefined = section.endpoint?.payload?.browseId;
+        if (browseId) songsPlaylistId = browseId.replace(/^VL/, '');
       }
       continue;
     }
 
-    if (/single|\bep\b/.test(title)) {
+    // Artist cards in any carousel = "Fans might also like"
+    if (contents.length && contents.every(c => c?.item_type === 'artist')) {
+      contents.forEach(c => {
+        const a = parseArtistCard(c);
+        if (a && a.id !== id) related.push({ id: a.id, name: a.name, avatar: a.artwork, subtitle: a.subtitle });
+      });
+    } else if (/single|\bep\b/.test(title)) {
       contents.forEach(c => { const a = parseAlbumCard(c); if (a) singles.push({ ...a, artist: a.artist || name, artistId: a.artistId || id }); });
     } else if (/album|discograph/.test(title)) {
       contents.forEach(c => { const a = parseAlbumCard(c); if (a) albums.push({ ...a, artist: a.artist || name, artistId: a.artistId || id }); });
@@ -592,7 +624,33 @@ export async function getArtistDetails(artistId: string): Promise<Artist | null>
     topTracks,
     albums,
     singles,
+    songsPlaylistId,
+    related,
   };
+}
+
+/**
+ * Every song by an artist (the full list behind "Show all"). Pass the playlist id from
+ * getArtistDetails; returns [] when the artist has no separate song list.
+ */
+export async function getArtistAllSongs(
+  artistId: string,
+  songsPlaylistId?: string
+): Promise<MusicTrack[]> {
+  if (!songsPlaylistId) return [];
+  const yt: any = await getInnertube();
+  let name = '';
+  try {
+    const res: any = await fetchArtistPage(yt, artistId);
+    name = txt(res?.header?.title);
+  } catch {}
+  const { tracks } = await loadPlaylistPages(yt, songsPlaylistId);
+  // Rows in this list carry their own artists/albums; fill gaps with the artist's identity.
+  return tracks.map(t => ({
+    ...t,
+    artist: t.artist === 'Unknown Artist' && name ? name : t.artist,
+    artistId: t.artistId || artistId,
+  }));
 }
 
 /** Loads every page of a playlist's tracks (bounded). */
@@ -637,17 +695,46 @@ export async function getPlaylistDetails(playlistId: string): Promise<Playlist |
 }
 
 /**
- * Reads one filter of the library landing page ("Playlists" | "Albums" | "Artists" | "Songs")
- * and returns the raw items, following continuations.
+ * Library pages by browse id (the same ones the YouTube Music web app uses):
+ *   playlists FEmusic_liked_playlists, albums FEmusic_liked_albums, artists FEmusic_library_corpus_artists
  */
-async function readLibraryItems(chip: RegExp, maxPages = 10): Promise<any[]> {
+const LIBRARY_BROWSE = {
+  playlists: 'FEmusic_liked_playlists',
+  albums: 'FEmusic_liked_albums',
+  artists: 'FEmusic_library_corpus_artists',
+} as const;
+
+async function readLibraryBrowse(browseId: string, maxPages = 10): Promise<any[]> {
+  const yt: any = await getInnertube();
+  const grab = (memo: any) => [
+    ...(memo?.getType?.(YTNodes.MusicTwoRowItem) ?? []),
+    ...(memo?.getType?.(YTNodes.MusicResponsiveListItem) ?? []),
+  ];
+
+  let res: any = await yt.actions.execute('/browse', { browseId, client: 'YTMUSIC', parse: true });
+  const items = grab(res.contents_memo);
+
+  // Follow the grid / shelf continuation if the library is long
+  let token: string | null =
+    res.contents_memo?.getType?.(YTNodes.Grid)?.[0]?.continuation ??
+    res.contents_memo?.getType?.(YTNodes.MusicShelf)?.[0]?.continuation ??
+    null;
+  for (let i = 0; i < maxPages && token; i++) {
+    res = await yt.actions.execute('/browse', { continuation: token, client: 'YTMUSIC', parse: true });
+    const cc: any = res.continuation_contents;
+    items.push(...(cc?.items ?? cc?.contents ?? []));
+    token = cc?.continuation ?? null;
+  }
+  return items;
+}
+
+/** Older route: the library landing page + its filter chips. Used only as a fallback. */
+async function readLibraryViaChips(chip: RegExp, maxPages = 10): Promise<any[]> {
   const yt: any = await getInnertube();
   let library: any = await yt.music.getLibrary();
 
   const label = (library.filters as string[] | undefined)?.find(f => chip.test(f));
-  if (!label) {
-    throw new Error('Your YouTube Music library has no matching section. Is the account signed in?');
-  }
+  if (!label) throw new Error('library landing page had no matching filter chip');
   library = await library.applyFilter(label);
 
   const items: any[] = [];
@@ -663,11 +750,36 @@ async function readLibraryItems(chip: RegExp, maxPages = 10): Promise<any[]> {
   return items;
 }
 
+/** Reads a library section, trying the direct page first and the chip route second. */
+async function readLibraryItems(kind: keyof typeof LIBRARY_BROWSE): Promise<any[]> {
+  const errors: string[] = [];
+  try {
+    const items = await readLibraryBrowse(LIBRARY_BROWSE[kind]);
+    if (items.length) return items;
+    errors.push(`${LIBRARY_BROWSE[kind]}: page was empty`);
+  } catch (e: any) {
+    errors.push(`${LIBRARY_BROWSE[kind]}: ${e?.message || e}`);
+    console.warn(`[library] direct browse of ${kind} failed:`, e);
+  }
+  try {
+    const items = await readLibraryViaChips(new RegExp(kind.slice(0, -1), 'i'));
+    if (items.length) return items;
+    errors.push('chip route: no items');
+  } catch (e: any) {
+    errors.push(`chip route: ${e?.message || e}`);
+    console.warn(`[library] chip route for ${kind} failed:`, e);
+  }
+  // Both routes came back empty/failed: report why instead of showing nothing.
+  const onlyEmpty = errors.every(m => /empty|no items/.test(m));
+  if (onlyEmpty) return [];
+  throw new Error(`Couldn't read your ${kind} (${errors.join(' | ')})`);
+}
+
 /**
  * The signed-in account's library playlists (cards only, no tracks), preceded by Liked Music.
  */
 export async function getLibraryPlaylists(): Promise<Playlist[]> {
-  const raw = await readLibraryItems(/playlist/i);
+  const raw = await readLibraryItems('playlists');
   const found = new Map<string, Playlist>();
   for (const it of raw) {
     if (it?.item_type !== 'playlist') continue;
@@ -688,7 +800,7 @@ export async function getLibraryPlaylists(): Promise<Playlist[]> {
 
 /** Albums or artists saved in the account's library. */
 export async function getLibrarySection(kind: 'Albums' | 'Artists'): Promise<HomeItem[]> {
-  const raw = await readLibraryItems(new RegExp(kind, 'i'));
+  const raw = await readLibraryItems(kind === 'Albums' ? 'albums' : 'artists');
   const seen = new Set<string>();
   const out: HomeItem[] = [];
   for (const it of raw) {
@@ -698,6 +810,22 @@ export async function getLibrarySection(kind: 'Albums' | 'Artists'): Promise<Hom
     if (!key || seen.has(`${card.kind}:${key}`)) continue;
     seen.add(`${card.kind}:${key}`);
     out.push(card);
+  }
+  return out;
+}
+
+/**
+ * Songs YouTube Music would play next after `videoId` (its radio / "Up next" list).
+ * Used for endless playback and "Start radio". The seed itself is excluded.
+ */
+export async function getRadioTracks(videoId: string, limit = 25): Promise<MusicTrack[]> {
+  const yt: any = await getInnertube();
+  const panel: any = await yt.music.getUpNext(videoId, true);
+  const out: MusicTrack[] = [];
+  for (const row of panel?.contents ?? []) {
+    const t = parsePanelVideo(row);
+    if (t && t.id !== videoId) out.push(t);
+    if (out.length >= limit) break;
   }
   return out;
 }

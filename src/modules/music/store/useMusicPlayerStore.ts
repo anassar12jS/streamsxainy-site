@@ -7,6 +7,43 @@ export type PlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'error'
 const STORAGE_LIKES = 'bitchord_music_likes';
 const STORAGE_RECENT = 'bitchord_music_recent';
 const STORAGE_VOLUME = 'bitchord_music_volume';
+const STORAGE_SESSION = 'bitchord_music_session_v1';
+const STORAGE_AUTOPLAY = 'bitchord_music_autoplay_radio';
+
+interface StoredSession { currentTrack: MusicTrack | null; queue: MusicTrack[]; queueIndex: number; }
+
+/** Last track + queue, so a reload resumes where you were (paused, not auto-playing). */
+const loadStoredSession = (): StoredSession => {
+  try {
+    const raw = localStorage.getItem(STORAGE_SESSION);
+    if (raw) {
+      const v = JSON.parse(raw) as StoredSession;
+      if (v?.currentTrack && Array.isArray(v.queue)) return v;
+    }
+  } catch {}
+  return { currentTrack: null, queue: [], queueIndex: 0 };
+};
+
+const saveSession = (currentTrack: MusicTrack | null, queue: MusicTrack[], queueIndex: number) => {
+  try {
+    // keep the window around the current song; the full queue can be huge
+    const start = Math.max(0, queueIndex - 5);
+    const slice = queue.slice(start, start + 100);
+    localStorage.setItem(
+      STORAGE_SESSION,
+      JSON.stringify({ currentTrack, queue: slice, queueIndex: queueIndex - start })
+    );
+  } catch {}
+};
+
+const loadStoredAutoplay = (): boolean => {
+  try {
+    return localStorage.getItem(STORAGE_AUTOPLAY) !== '0';
+  } catch {
+    return true;
+  }
+};
+
 
 const loadStoredLikes = (): string[] => {
   try {
@@ -56,6 +93,8 @@ export interface MusicPlayerState {
   isLoadingLyrics: boolean;
   trackPlayNonce: number;
   activeAccount: any | null;
+  /** When the queue runs out, keep playing similar songs (YouTube Music radio) */
+  autoplayRadio: boolean;
 
   // Actions
   setActiveAccount: (account: any) => void;
@@ -78,6 +117,9 @@ export interface MusicPlayerState {
   toggleLike: (trackId: string) => void;
   isLiked: (trackId: string) => boolean;
   addToQueue: (track: MusicTrack, playNext?: boolean) => void;
+  /** Appends tracks not already queued; returns how many were added */
+  appendToQueue: (tracks: MusicTrack[]) => number;
+  setAutoplayRadio: (on: boolean) => void;
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
   setPlaybackStatus: (status: PlaybackStatus) => void;
@@ -87,15 +129,17 @@ export interface MusicPlayerState {
   setExtensionConnected: (connected: boolean) => void;
 }
 
+const initialSession = loadStoredSession();
+
 export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
-  currentTrack: null,
+  currentTrack: initialSession.currentTrack,
   playbackStatus: 'idle',
   currentTime: 0,
-  duration: 0,
+  duration: initialSession.currentTrack?.duration || 0,
   volume: loadStoredVolume(),
   isMuted: false,
-  queue: [],
-  queueIndex: 0,
+  queue: initialSession.queue,
+  queueIndex: initialSession.queueIndex,
   shuffle: false,
   repeatMode: 'off',
   showLyrics: false,
@@ -108,6 +152,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   isLoadingLyrics: false,
   trackPlayNonce: 0,
   activeAccount: null,
+  autoplayRadio: loadStoredAutoplay(),
 
   setActiveAccount: (account: any) => {
     try {
@@ -146,6 +191,8 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
     try {
       localStorage.setItem(STORAGE_RECENT, JSON.stringify(updatedRecent));
     } catch {}
+
+    saveSession(track, updatedQueue, newIndex);
 
     set({
       currentTrack: track,
@@ -292,6 +339,22 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
       }
       return { queue: [...state.queue, track] };
     });
+  },
+
+  appendToQueue: (tracks) => {
+    const { queue, currentTrack, queueIndex } = get();
+    const have = new Set(queue.map(t => t.id));
+    const fresh = tracks.filter(t => !have.has(t.id));
+    if (!fresh.length) return 0;
+    const next = [...queue, ...fresh];
+    set({ queue: next });
+    saveSession(currentTrack, next, queueIndex);
+    return fresh.length;
+  },
+
+  setAutoplayRadio: (on) => {
+    try { localStorage.setItem(STORAGE_AUTOPLAY, on ? '1' : '0'); } catch {}
+    set({ autoplayRadio: on });
   },
 
   removeFromQueue: (index) => {

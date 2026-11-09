@@ -11,6 +11,8 @@ export const QueueDrawer: React.FC = () => {
   const setTrack = useMusicPlayerStore(state => state.setTrack);
   const removeFromQueue = useMusicPlayerStore(state => state.removeFromQueue);
   const clearQueue = useMusicPlayerStore(state => state.clearQueue);
+  const autoplayRadio = useMusicPlayerStore(state => state.autoplayRadio);
+  const setAutoplayRadio = useMusicPlayerStore(state => state.setAutoplayRadio);
 
   if (!showQueue) return null;
 
@@ -48,6 +50,23 @@ export const QueueDrawer: React.FC = () => {
             <X className="w-4 h-4" />
           </button>
         </div>
+      </div>
+
+      {/* Autoplay similar songs (YouTube Music radio) */}
+      <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-3 bg-[#151517]">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-white">Autoplay similar songs</p>
+          <p className="text-[11px] text-white/50">Keeps music going when your queue ends.</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={autoplayRadio}
+          onClick={() => setAutoplayRadio(!autoplayRadio)}
+          className={`relative w-10 h-6 rounded-full transition-colors shrink-0 cursor-pointer ${autoplayRadio ? 'bg-emerald-500' : 'bg-white/15'}`}
+        >
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${autoplayRadio ? 'translate-x-4' : ''}`} />
+        </button>
       </div>
 
       {/* Queue Body */}

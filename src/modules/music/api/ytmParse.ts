@@ -287,3 +287,32 @@ export function parseAlbumHeader(header: any, background?: any): ParsedAlbumHead
   const artwork = thumbOf(header?.thumbnail ?? header?.thumbnails ?? background, 1200);
   return { title, artist, artistId, year, artwork, kind: kind[0].toUpperCase() + kind.slice(1).toLowerCase() };
 }
+
+// ---------------------------------------------------------------------------
+// "Up next" / radio rows (PlaylistPanelVideo)
+// ---------------------------------------------------------------------------
+
+/**
+ * PlaylistPanelVideo (or its wrapper's `primary`) -> MusicTrack.
+ * Fields per youtubei.js: video_id, title (Text), artists[{name, channel_id}],
+ * album{id,name}, duration{seconds}, thumbnail (Thumbnail[]).
+ */
+export function parsePanelVideo(row: any): MusicTrack | null {
+  const item = row?.video_id ? row : row?.primary?.video_id ? row.primary : null;
+  if (!item) return null;
+  const title = txt(item.title);
+  if (!title) return null;
+  const people: any[] = item.artists ?? [];
+  return {
+    id: item.video_id,
+    title,
+    artist: people.map(p => p?.name).filter(Boolean).join(', ') || item.author || 'Unknown Artist',
+    artistId: people.find(p => p?.channel_id)?.channel_id,
+    album: item.album?.name || '',
+    albumId: item.album?.id,
+    artwork: thumbOf(item.thumbnail),
+    duration: item.duration?.seconds ?? 0,
+    youtubeId: item.video_id,
+    source: 'innertube',
+  };
+}

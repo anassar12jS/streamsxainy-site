@@ -3,7 +3,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import './styles/tokens.css';
 import { useMusicPlayerStore } from './store/useMusicPlayerStore';
 import { MusicAudioEngine } from './player/AudioEngine';
-import { resolveStreamUrl, resolveVideoId } from './api/innertube';
+import { resolveStreamUrl, resolveVideoId, resolveAlternateVideoId, getRadioTracks } from './api/innertube';
+import type { MusicTrack } from './types';
 import { extensionBridge } from './extension/bridge';
 import { Sidebar } from './components/Sidebar';
 import { PlayerChrome } from './components/PlayerChrome';
@@ -11,7 +12,6 @@ import { QueueDrawer } from './components/QueueDrawer';
 import { ExtensionBanner } from './components/ExtensionBanner';
 import { ListenTogetherModal } from './components/ListenTogetherModal';
 import { MusicSettingsModal } from './components/MusicSettingsModal';
-import { YouTubeMusicLinkModal } from './components/YouTubeMusicLinkModal';
 import { YouTubeAccountModal } from './components/YouTubeAccountModal';
 import { ImmersivePlayerOverlay } from './components/ImmersivePlayerOverlay';
 import { replayRecorder } from './api/replay';
@@ -41,20 +41,42 @@ export const MusicModule: React.FC = () => {
   // Store bindings
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
-  const currentTime = useMusicPlayerStore(state => state.currentTime);
   const volume = useMusicPlayerStore(state => state.volume);
   const isMuted = useMusicPlayerStore(state => state.isMuted);
-  const repeatMode = useMusicPlayerStore(state => state.repeatMode);
   const trackPlayNonce = useMusicPlayerStore(state => state.trackPlayNonce);
   
-  const setTrack = useMusicPlayerStore(state => state.setTrack);
-  const playTrack = useMusicPlayerStore(state => state.playTrack);
   const setTime = useMusicPlayerStore(state => state.setTime);
   const setPlaybackStatus = useMusicPlayerStore(state => state.setPlaybackStatus);
   const nextTrack = useMusicPlayerStore(state => state.nextTrack);
   const prevTrack = useMusicPlayerStore(state => state.prevTrack);
   const togglePlayPause = useMusicPlayerStore(state => state.togglePlayPause);
   const setExtensionConnected = useMusicPlayerStore(state => state.setExtensionConnected);
+
+  // --- Endless playback: when the queue runs low, queue songs YouTube Music thinks fit next ---
+  const radioSeeds = useRef<Set<string>>(new Set());
+
+  const extendQueueWithRadio = async (track: MusicTrack | null): Promise<number> => {
+    const seed = track?.youtubeId;
+    if (!seed || track?.isLive || !useMusicPlayerStore.getState().autoplayRadio) return 0;
+    if (radioSeeds.current.has(seed)) return 0; // already asked for this song's radio
+    radioSeeds.current.add(seed);
+    try {
+      const more = await getRadioTracks(seed);
+      return useMusicPlayerStore.getState().appendToQueue(more);
+    } catch (e) {
+      console.debug('[radio] could not load similar songs:', e);
+      return 0;
+    }
+  };
+
+  /** Next song; if the queue is exhausted, first pull in similar songs so music keeps going. */
+  const advance = async () => {
+    const st = useMusicPlayerStore.getState();
+    if (st.queueIndex >= st.queue.length - 1 && st.repeatMode !== 'all' && !st.shuffle) {
+      await extendQueueWithRadio(st.currentTrack);
+    }
+    useMusicPlayerStore.getState().nextTrack();
+  };
 
   // 1. Initialize Audio Engine with HTMLAudioElement and callbacks
   useEffect(() => {
@@ -74,7 +96,7 @@ export const MusicModule: React.FC = () => {
           engineRef.current?.seek(0);
           engineRef.current?.play().catch(() => {});
         } else {
-          useMusicPlayerStore.getState().nextTrack();
+          void advance();
         }
       },
     });
@@ -117,7 +139,7 @@ export const MusicModule: React.FC = () => {
           audio.currentTime = 0;
           audio.play().catch(() => {});
         } else {
-          useMusicPlayerStore.getState().nextTrack();
+          void advance();
         }
       }
     };
@@ -193,31 +215,45 @@ export const MusicModule: React.FC = () => {
             console.debug('Failed to resolve videoId:', e);
           }
         }
+        if (isCancelled) return;
 
-        // 3. Play the full song via YouTube audio engine (never cuts off at 30 seconds!)
-        if (videoId && engineRef.current) {
-          await engineRef.current.playYouTube(videoId);
-          if (!isCancelled) {
-            setPlaybackStatus('playing');
+        // 3. Play the full song via the YouTube player. playYouTube reports what really happened.
+        const afterStart = () => {
+          engineRef.current?.syncMediaSession(currentTrack, togglePlayPause, togglePlayPause, nextTrack, prevTrack);
+          extensionBridge.updateDiscordRpc({
+            title: currentTrack.title,
+            artist: currentTrack.artist,
+            duration: currentTrack.duration,
+            artwork: currentTrack.artwork,
+          });
+        };
 
-            // Sync MediaSession
-            engineRef.current.syncMediaSession(
-              currentTrack,
-              togglePlayPause,
-              togglePlayPause,
-              nextTrack,
-              prevTrack
-            );
-
-            // Update Discord RPC if extension is present
-            extensionBridge.updateDiscordRpc({
-              title: currentTrack.title,
-              artist: currentTrack.artist,
-              duration: currentTrack.duration,
-              artwork: currentTrack.artwork,
-            });
+        const tryYouTube = async (id: string): Promise<boolean> => {
+          if (!engineRef.current) return false;
+          const result = await engineRef.current.playYouTube(id);
+          if (isCancelled || result === 'superseded') return true; // a newer track owns the player now
+          if (result === 'playing') {
+            afterStart();
+            return true;
           }
-          return;
+          if (result === 'blocked') {
+            // The browser held autoplay back. Be honest in the UI: show a play button, one press starts it.
+            setPlaybackStatus('paused');
+            afterStart();
+            return true;
+          }
+          console.warn(`YouTube would not play ${id}; trying another source`);
+          return false;
+        };
+
+        if (videoId && (await tryYouTube(videoId))) return;
+        if (isCancelled) return;
+
+        // YouTube refused that upload (often "embedding disabled"): try another upload of the song
+        if (videoId) {
+          const altId = await resolveAlternateVideoId(currentTrack, videoId);
+          if (isCancelled) return;
+          if (altId && (await tryYouTube(altId))) return;
         }
 
         // 4. Fallback to direct stream URL if available
@@ -281,10 +317,19 @@ export const MusicModule: React.FC = () => {
 
     if (playbackStatus === 'playing') {
       engineRef.current.play().catch(() => {});
+      engineRef.current.setMediaSessionState('playing');
     } else if (playbackStatus === 'paused') {
       engineRef.current.pause();
+      engineRef.current.setMediaSessionState('paused');
     }
   }, [playbackStatus]);
+
+  // Keep similar songs queued ahead of time so the next song starts without a gap
+  useEffect(() => {
+    if (!currentTrack || currentTrack.isLive) return;
+    const { queue, queueIndex } = useMusicPlayerStore.getState();
+    if (queue.length - queueIndex <= 3) void extendQueueWithRadio(currentTrack);
+  }, [currentTrack?.id]);
 
   // 4. Volume & Mute sync
   useEffect(() => {
@@ -316,11 +361,13 @@ export const MusicModule: React.FC = () => {
           break;
         case 'ArrowLeft':
           e.preventDefault();
-          handleSeek(Math.max(0, useMusicPlayerStore.getState().currentTime - 5));
+          if (e.shiftKey) useMusicPlayerStore.getState().prevTrack();
+          else handleSeek(Math.max(0, useMusicPlayerStore.getState().currentTime - 5));
           break;
         case 'ArrowRight':
           e.preventDefault();
-          handleSeek(useMusicPlayerStore.getState().currentTime + 5);
+          if (e.shiftKey) void advance();
+          else handleSeek(useMusicPlayerStore.getState().currentTime + 5);
           break;
         case 'KeyM':
           e.preventDefault();
@@ -339,7 +386,7 @@ export const MusicModule: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlayPause, currentTrack, currentTime, volume]);
+  }, [togglePlayPause, volume]);
 
   return (
     <div 
