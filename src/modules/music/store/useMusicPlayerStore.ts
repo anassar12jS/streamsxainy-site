@@ -306,10 +306,10 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
 
   setImmersiveTab: (tab) => set({ immersiveTab: tab }),
 
-  setShowLyrics: (show) => set({ showLyrics: show, showQueue: false }),
+  setShowLyrics: (show) => set({ showLyrics: show, showQueue: false, ...(show ? { immersiveTab: 'lyrics' } : {}) }),
   toggleLyrics: () => {
     const next = !get().showLyrics;
-    set({ showLyrics: next, showQueue: false });
+    set({ showLyrics: next, showQueue: false, ...(next ? { immersiveTab: 'lyrics' } : {}) });
   },
 
   setShowQueue: (show) => {

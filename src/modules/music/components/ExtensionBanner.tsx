@@ -11,7 +11,7 @@ export const ExtensionBanner: React.FC = () => {
   return (
     <div className="mx-6 mt-4 p-3 rounded-2xl bg-[#1c1c1e] border border-white/10 flex items-center justify-between gap-4 text-xs shadow-xl animate-fade-in">
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-8 h-8 rounded-xl bg-[#fa243c]/15 text-[#fa243c] flex items-center justify-center shrink-0">
+        <div className="w-8 h-8 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0">
           <Sparkles className="w-4 h-4" />
         </div>
         <div className="min-w-0">

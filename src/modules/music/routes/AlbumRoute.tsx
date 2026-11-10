@@ -200,7 +200,7 @@ export const AlbumRoute: React.FC = () => {
 
                     <div className="min-w-0 flex-1">
                       <span className={`text-sm font-semibold truncate block ${
-                        isCurrent ? 'text-rose-400' : 'text-white'
+                        isCurrent ? 'text-white font-bold' : 'text-white/90'
                       }`}>
                         {track.title}
                       </span>

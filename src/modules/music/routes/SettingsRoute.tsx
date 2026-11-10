@@ -101,7 +101,7 @@ export const SettingsRoute: React.FC = () => {
           {/* 1. YouTube Music */}
           <div className="p-5 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
             <div className="flex items-center gap-4 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-red-600/10 border border-red-500/20 flex items-center justify-center text-red-500 shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white shrink-0">
                 <Youtube className="w-5 h-5 fill-current" />
               </div>
               <div className="min-w-0">
@@ -155,7 +155,7 @@ export const SettingsRoute: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleDisconnectSpotify}
-                  className="px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold border border-red-500/20 transition-all cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/15 transition-all cursor-pointer"
                 >
                   Disconnect
                 </button>

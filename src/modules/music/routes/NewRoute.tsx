@@ -103,8 +103,8 @@ export const NewRoute: React.FC = () => {
           </div>
 
           <div className="space-y-2 max-w-lg">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-400 bg-rose-500/10 px-2.5 py-0.5 rounded-full border border-rose-500/20 inline-flex items-center gap-1">
-              <Sparkles className="w-3 h-3" /> Featured New Album
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-white/90 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/20 inline-flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-white" /> Featured New Album
             </span>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
               {featured.title}
@@ -135,7 +135,7 @@ export const NewRoute: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-              <Disc className="w-5 h-5 text-rose-400" />
+              <Disc className="w-5 h-5 text-white/80" />
               <span>New Releases & Albums</span>
             </h3>
             <p className="text-xs text-[#a3a3a3] mt-0.5">

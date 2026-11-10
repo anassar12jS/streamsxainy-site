@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { 
-  ChevronDown, Maximize2, Minimize2, Play, Pause, SkipBack, SkipForward, 
-  Shuffle, Repeat, Volume2, VolumeX, Mic2, ListMusic, Heart, 
-  Disc, Trash2
+  X, Play, Pause, SkipBack, SkipForward, 
+  Shuffle, Repeat, Volume2, VolumeX, MessageSquareQuote, ListMusic, 
+  Star, MoreHorizontal, Maximize2, Minimize2, Trash2, Disc
 } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { fetchLyrics } from '../api/lyrics';
@@ -89,10 +89,10 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
     };
   }, [currentTrack?.id]);
 
-  // Fallback to store currentTime if steeredTime is not updating
+  // Effective playback time
   const effectiveTime = steeredTime > 0 ? steeredTime : currentTime;
 
-  // Smooth auto-scroll active lyric line into center
+  // Auto-scroll active lyric into center smoothly without jitter
   useEffect(() => {
     if (immersiveTab === 'lyrics' && activeLineRef.current && lyricsContainerRef.current) {
       activeLineRef.current.scrollIntoView({
@@ -126,6 +126,13 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
+  const formatRemainingTime = (secs: number) => {
+    if (isNaN(secs) || secs <= 0) return '-0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `-${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
   const handleScrubberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
     onSeek(val);
@@ -133,8 +140,9 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
 
   const isLiked = likedTrackIds.includes(currentTrack.id);
   const isPlaying = playbackStatus === 'playing';
+  const remainingTime = Math.max(0, (duration || 0) - currentTime);
 
-  // Active line calculation using effectiveTime
+  // Active line calculation
   const activeLineIdx = activeLyrics?.synced && activeLyrics.synced.length > 0
     ? activeLyrics.synced.findIndex((line, i) => {
         const nextTime = activeLyrics.synced![i + 1]?.time ?? Infinity;
@@ -142,99 +150,50 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
       })
     : -1;
 
-  // Up next tracks from current queue
+  // Up next tracks
   const upNextTracks = queue.slice(queueIndex + 1);
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex flex-col bg-[#050505] text-white select-none overflow-hidden animate-fade-in"
-      style={{ fontFamily: 'var(--bitchord-font)' }}
+      className="fixed inset-0 z-50 flex flex-col bg-[#07080b] text-white select-none overflow-hidden animate-fade-in font-sans"
+      style={{ fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}
     >
-      
       {/* ========================================================================= */}
-      {/* AMBIENT BACKGROUND: Heavily blurred dynamically mimicking album colors    */}
+      {/* 1. ATMOSPHERIC AMBIENT BACKGROUND: Deep, soft, monochromatic with artwork */}
+      {/* Zero neon, zero red or harsh gradients. Pure Apple Music dark aesthetic   */}
       {/* ========================================================================= */}
       <div 
-        className="absolute inset-0 bg-cover bg-center filter blur-[100px] opacity-45 scale-125 pointer-events-none transition-all duration-1000"
+        className="absolute inset-0 bg-cover bg-center filter blur-[140px] opacity-20 scale-125 pointer-events-none transition-all duration-1000"
         style={{ backgroundImage: `url(${currentTrack.artwork})` }}
       />
-      <div 
-        className="absolute inset-0 opacity-40 filter blur-[90px] pointer-events-none mix-blend-screen"
-        style={{
-          background: 'radial-gradient(circle at 25% 30%, rgba(250, 36, 60, 0.45) 0%, transparent 55%), radial-gradient(circle at 75% 70%, rgba(147, 51, 234, 0.35) 0%, transparent 55%), radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.25) 0%, transparent 60%)'
-        }}
-      />
-      <div className="absolute inset-0 bg-black/55 pointer-events-none" />
+      <div className="absolute inset-0 bg-[#07080b]/85 pointer-events-none" />
 
       {/* ========================================================================= */}
-      {/* 1. TOP HEADER: Minimize (Chevron), Mode Switcher, Fullscreen Toggle       */}
+      {/* 2. TOP-LEFT CLOSE BUTTON: Minimalist ✕ like in image_64b5cefb.png        */}
       {/* ========================================================================= */}
-      <header className="relative z-20 px-6 sm:px-10 py-4 flex items-center justify-between border-b border-white/10 backdrop-blur-md bg-black/20 shrink-0">
-        
-        {/* Minimize Button */}
-        <button
-          type="button"
-          onClick={handleClose}
-          className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg"
-          title="Minimize player"
-        >
-          <ChevronDown className="w-5 h-5" />
-        </button>
-
-        {/* Center Mode Switcher: Lyrics vs Queue */}
-        <div className="flex items-center gap-1 bg-[#161618]/90 p-1 rounded-full border border-white/15 shadow-xl backdrop-blur-xl">
-          <button
-            type="button"
-            onClick={() => setImmersiveTab('lyrics')}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-              immersiveTab === 'lyrics' 
-                ? 'bg-white text-black shadow-md' 
-                : 'text-[#98989d] hover:text-white'
-            }`}
-          >
-            <Mic2 className="w-3.5 h-3.5" />
-            <span>Lyrics</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setImmersiveTab('queue')}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-              immersiveTab === 'queue' 
-                ? 'bg-white text-black shadow-md' 
-                : 'text-[#98989d] hover:text-white'
-            }`}
-          >
-            <ListMusic className="w-3.5 h-3.5" />
-            <span>Up Next ({upNextTracks.length})</span>
-          </button>
-        </div>
-
-        {/* Fullscreen Expand Icon */}
-        <button
-          type="button"
-          onClick={toggleNativeFullscreen}
-          className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-lg"
-          title={isFullscreen ? 'Exit Fullscreen' : 'Enter Native Fullscreen'}
-        >
-          {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-        </button>
-      </header>
+      <button
+        type="button"
+        onClick={handleClose}
+        className="absolute top-6 left-6 z-40 p-2 text-white/50 hover:text-white transition-colors cursor-pointer group"
+        title="Close fullscreen player"
+      >
+        <X className="w-5 h-5 group-hover:scale-110 transition-transform" />
+      </button>
 
       {/* ========================================================================= */}
-      {/* 2. MAIN 2-PANEL BODY                                                      */}
-      {/* Left Column: Vertical Stack (Art -> Title/Artist -> Scrubber -> Transport -> Volume) */}
-      {/* Right Column: Synced Blurred Lyrics OR Up Next Queue List                 */}
+      {/* 3. MAIN SPLIT VIEWPORT                                                    */}
+      {/* Left: Artwork + Title + Scrubber + Deck + Volume                         */}
+      {/* Right: Crisp, sharp Lyrics (no glow!) or Apple Up-Next panel             */}
       {/* ========================================================================= */}
-      <div className="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-12 px-6 sm:px-10 lg:px-16 py-3 sm:py-6 min-h-0 overflow-y-auto lg:overflow-hidden max-w-7xl mx-auto w-full">
+      <main className="relative z-20 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 px-8 sm:px-12 lg:px-20 py-8 lg:py-12 min-h-0 overflow-hidden max-w-[1600px] mx-auto w-full">
         
         {/* ======================================================================= */}
-        {/* LEFT COLUMN: NOW PLAYING                                                */}
-        {/* Vertical Stack: Large Square Art -> Title/Artist -> Scrubber -> Transport -> Volume */}
+        {/* LEFT COLUMN: PLAYER HERO & CONTROLS STACK                              */}
         {/* ======================================================================= */}
-        <div className="lg:col-span-5 flex flex-col justify-between items-center lg:items-start max-w-md mx-auto w-full h-full min-h-0 py-1 sm:py-2 gap-3 sm:gap-4 overflow-hidden">
+        <div className="lg:col-span-5 flex flex-col justify-center items-center lg:items-start max-w-[440px] mx-auto w-full h-full min-h-0">
           
-          {/* 1. Large square album art with dynamic vertical responsive scaling */}
-          <div className="relative aspect-square w-auto max-h-[36vh] sm:max-h-[40vh] lg:max-h-[min(360px,42vh)] min-h-[140px] max-w-full rounded-[14px] sm:rounded-[18px] overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.85)] border border-white/10 shrink min-w-0 bg-[#161616] mx-auto lg:mx-0">
+          {/* Album Artwork with smooth rounded corners & subtle shadow */}
+          <div className="relative aspect-square w-full max-w-[420px] rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.85)] border border-white/5 bg-[#121316] shrink-0">
             <img 
               src={currentTrack.artwork} 
               alt={currentTrack.title} 
@@ -242,40 +201,53 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
             />
           </div>
 
-          {/* Permanently anchored controls block: Title/Artist -> Scrubber -> Transport -> Volume */}
-          <div className="w-full shrink-0 space-y-3 sm:space-y-4">
+          {/* Player controls & metadata stack */}
+          <div className="w-full mt-6 space-y-4">
             
-            {/* 2. Track Title & Artist */}
-            <div className="w-full text-center lg:text-left space-y-1">
-              <div className="flex items-center justify-center lg:justify-start gap-2">
-                <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-white tracking-tight truncate">
+            {/* Title Row with Explicit Badge + Star + More */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <h1 className="text-white font-bold text-base sm:text-lg lg:text-[19px] tracking-tight truncate">
                   {currentTrack.title}
-                </h2>
+                </h1>
                 {currentTrack.isExplicit && (
-                  <span className="px-1.5 py-0.5 rounded bg-white/20 text-[10px] font-mono font-bold text-white shrink-0">
+                  <span className="px-1.5 py-0.5 rounded-[4px] bg-white/20 text-[9px] font-mono font-bold text-white shrink-0 tracking-wider">
                     E
                   </span>
                 )}
+              </div>
+
+              {/* Action Buttons: Star + More */}
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => toggleLike(currentTrack.id)}
-                  className={`p-1 transition-colors cursor-pointer ml-1 shrink-0 ${
-                    isLiked ? 'text-amber-400' : 'text-white/40 hover:text-white'
+                  className={`p-1.5 transition-colors cursor-pointer rounded-full hover:bg-white/10 ${
+                    isLiked ? 'text-white' : 'text-white/50 hover:text-white'
                   }`}
-                  title={isLiked ? 'Unlike' : 'Like'}
+                  title={isLiked ? 'Favorite' : 'Add to Favorites'}
                 >
-                  <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+                  <Star className={`w-4 h-4 ${isLiked ? 'fill-white text-white' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImmersiveTab(immersiveTab === 'lyrics' ? 'queue' : 'lyrics')}
+                  className="p-1.5 text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+                  title="More Options"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
                 </button>
               </div>
-
-              <p className="text-sm sm:text-base text-[#98989d] font-medium truncate">
-                {currentTrack.artist} {currentTrack.album ? `— ${currentTrack.album}` : ''}
-              </p>
             </div>
 
-            {/* 3. Scrubber / Progress Bar */}
-            <div className="w-full space-y-1">
-              <div className="relative group w-full py-1">
+            {/* Subtitle: Artist — Album */}
+            <p className="text-[13px] sm:text-sm text-[#8e8e93] font-normal truncate -mt-2">
+              {currentTrack.artist} {currentTrack.album ? `— ${currentTrack.album}` : ''}
+            </p>
+
+            {/* Scrubber Timeline */}
+            <div className="w-full pt-1">
+              <div className="relative group w-full flex items-center">
                 <input
                   type="range"
                   min={0}
@@ -283,17 +255,17 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                   step={0.5}
                   value={currentTime}
                   onChange={handleScrubberChange}
-                  className="w-full h-1.5 sm:h-2 bg-white/20 rounded-full appearance-none cursor-pointer outline-none transition-all accent-white hover:h-2.5"
+                  className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer outline-none accent-white transition-all hover:h-1.5"
                 />
               </div>
-              <div className="flex items-center justify-between text-xs text-[#98989d] font-mono">
+              <div className="flex items-center justify-between text-[11px] text-[#8e8e93] font-mono mt-1.5 select-none">
                 <span>{formatTime(currentTime)}</span>
-                <span>{formatTime(duration)}</span>
+                <span>{formatRemainingTime(remainingTime)}</span>
               </div>
             </div>
 
-            {/* 4. Playback Controls */}
-            <div className="w-full flex items-center justify-between sm:justify-around py-0.5">
+            {/* Apple Music Minimalist Transport Controls (Direct solid white glyphs, matching image_64b5cefb.png) */}
+            <div className="w-full flex items-center justify-between px-2 pt-1 select-none">
               {/* Shuffle */}
               <button
                 type="button"
@@ -303,44 +275,44 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                 }`}
                 title="Shuffle"
               >
-                <Shuffle className="w-4 sm:w-5 h-4 sm:h-5" />
+                <Shuffle className="w-4 h-4" />
               </button>
 
-              {/* Previous Track */}
+              {/* Previous Track: Solid white double triangle */}
               <button
                 type="button"
                 onClick={prevTrack}
-                className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                className="p-2 text-white hover:opacity-80 active:scale-95 transition-all cursor-pointer"
                 title="Previous Track"
               >
-                <SkipBack className="w-6 sm:w-7 h-6 sm:h-7 fill-current" />
+                <SkipBack className="w-6 h-6 fill-white text-white" />
               </button>
 
-              {/* Play / Pause (Large Circle Button) */}
+              {/* Play / Pause: Solid white glyph, no heavy circular pill */}
               <button
                 type="button"
                 onClick={togglePlayPause}
-                className="w-13 h-13 sm:w-16 sm:h-16 rounded-full bg-white text-black flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                className="p-2 text-white hover:scale-105 active:scale-95 transition-transform cursor-pointer"
                 title={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
-                  <Pause className="w-6 sm:w-8 h-6 sm:h-8 fill-current" />
+                  <Pause className="w-7 h-7 sm:w-8 sm:h-8 fill-white text-white" />
                 ) : (
-                  <Play className="w-6 sm:w-8 h-6 sm:h-8 fill-current ml-0.5 sm:ml-1" />
+                  <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-white text-white ml-0.5" />
                 )}
               </button>
 
-              {/* Next Track */}
+              {/* Next Track: Solid white double triangle */}
               <button
                 type="button"
                 onClick={nextTrack}
-                className="p-2 text-white/80 hover:text-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                className="p-2 text-white hover:opacity-80 active:scale-95 transition-all cursor-pointer"
                 title="Next Track"
               >
-                <SkipForward className="w-6 sm:w-7 h-6 sm:h-7 fill-current" />
+                <SkipForward className="w-6 h-6 fill-white text-white" />
               </button>
 
-              {/* Repeat Mode */}
+              {/* Repeat */}
               <button
                 type="button"
                 onClick={cycleRepeat}
@@ -349,25 +321,25 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                 }`}
                 title={`Repeat: ${repeatMode}`}
               >
-                <Repeat className="w-4 sm:w-5 h-4 sm:h-5" />
+                <Repeat className="w-4 h-4" />
                 {repeatMode === 'one' && (
                   <span className="absolute top-1 right-1 text-[9px] font-bold">1</span>
                 )}
               </button>
             </div>
 
-            {/* 5. Volume Slider */}
-            <div className="w-full flex items-center gap-3 max-w-xs mx-auto lg:mx-0 pt-0.5">
+            {/* Volume Slider Bar */}
+            <div className="w-full flex items-center gap-2.5 pt-1">
               <button
                 type="button"
                 onClick={toggleMute}
-                className="p-1 text-white/60 hover:text-white transition-colors cursor-pointer"
+                className="p-1 text-white/50 hover:text-white transition-colors cursor-pointer"
                 title={isMuted ? 'Unmute' : 'Mute'}
               >
                 {isMuted || volume === 0 ? (
-                  <VolumeX className="w-4 h-4 text-rose-400" />
+                  <VolumeX className="w-3.5 h-3.5 text-white/50" />
                 ) : (
-                  <Volume2 className="w-4 h-4" />
+                  <Volume2 className="w-3.5 h-3.5" />
                 )}
               </button>
               <input
@@ -386,23 +358,23 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
         </div>
 
         {/* ======================================================================= */}
-        {/* RIGHT COLUMN: SYNCHRONIZED BLURRED LYRICS OR QUEUE                      */}
+        {/* RIGHT COLUMN: CRISP SYNCHRONIZED LYRICS (ZERO GLOW) OR UP-NEXT QUEUE   */}
         {/* ======================================================================= */}
-        <div className="lg:col-span-7 flex flex-col h-full min-h-0 overflow-hidden border-t lg:border-t-0 lg:border-l border-white/10 pl-0 lg:pl-10 pt-4 lg:pt-0">
+        <div className="lg:col-span-7 flex flex-col h-full min-h-0 overflow-hidden pl-0 lg:pl-12 pt-6 lg:pt-0">
           
-          {/* TAB 1: SYNCHRONIZED LYRICS (Apple Music Karaoke Style: Active White, Surrounding Blurred) */}
+          {/* VIEW A: LYRICS */}
           {immersiveTab === 'lyrics' && (
             <div 
               ref={lyricsContainerRef}
-              className="flex-1 overflow-y-auto pr-2 am-scrollbar space-y-8 py-10"
+              className="flex-1 overflow-y-auto pr-4 am-scrollbar py-24 select-none"
             >
               {isLoadingLyrics ? (
-                <div className="flex flex-col items-center justify-center h-full text-white/40 gap-3 py-20">
-                  <Disc className="w-8 h-8 animate-spin text-white/60" />
-                  <p className="text-sm font-semibold">Loading synchronized lyrics...</p>
+                <div className="flex flex-col items-center justify-center h-full text-white/40 gap-3 py-24">
+                  <Disc className="w-7 h-7 animate-spin text-white/50" />
+                  <p className="text-sm font-medium">Loading synchronized lyrics...</p>
                 </div>
               ) : activeLyrics?.synced && activeLyrics.synced.length > 0 ? (
-                <div className="space-y-8 py-10">
+                <div className="space-y-10 py-20">
                   {activeLyrics.synced.map((line, idx) => {
                     const isActive = idx === activeLineIdx;
 
@@ -411,10 +383,10 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                         key={`${line.time}-${idx}`}
                         ref={isActive ? activeLineRef : null}
                         onClick={() => onSeek(line.time)}
-                        className={`cursor-pointer transition-all duration-300 rounded-2xl px-3 py-2 leading-tight tracking-tight ${
+                        className={`cursor-pointer transition-colors duration-300 rounded-xl px-2 py-1 leading-snug tracking-tight select-none ${
                           isActive
-                            ? 'text-white text-3xl sm:text-4xl lg:text-5xl font-black scale-[1.02] filter drop-shadow-[0_4px_24px_rgba(255,255,255,0.4)]'
-                            : 'text-white/30 text-2xl sm:text-3xl lg:text-4xl font-bold filter blur-[1.2px] hover:blur-none hover:text-white/60'
+                            ? 'text-white font-extrabold text-3xl sm:text-4xl lg:text-[42px]'
+                            : 'text-white/25 hover:text-white/60 font-bold text-2xl sm:text-3xl lg:text-[34px]'
                         }`}
                       >
                         {line.text}
@@ -423,36 +395,35 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                   })}
                 </div>
               ) : activeLyrics?.plain ? (
-                <div className="whitespace-pre-line text-xl sm:text-2xl font-bold leading-relaxed text-white/80 py-8 px-2">
+                <div className="whitespace-pre-line text-2xl sm:text-3xl font-bold leading-relaxed text-white/80 py-12 px-2">
                   {activeLyrics.plain}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center h-full text-center text-white/40 gap-3 py-20">
+                <div className="flex flex-col items-center justify-center h-full text-center text-white/40 gap-3 py-24">
                   <Disc className="w-10 h-10 text-white/20" />
                   <p className="text-base font-semibold text-white">No Synchronized Lyrics</p>
-                  <p className="text-xs text-[#98989d] max-w-xs">
-                    This track may be instrumental or lyrics have not yet been indexed in the Xainy Music repository.
+                  <p className="text-xs text-[#8e8e93] max-w-xs">
+                    Lyrics are not currently available for this track.
                   </p>
                 </div>
               )}
             </div>
           )}
 
-          {/* TAB 2: UP NEXT QUEUE */}
+          {/* VIEW B: UP NEXT QUEUE (Authentic Apple Music style from image_c594806c.png) */}
           {immersiveTab === 'queue' && (
-            <div className="flex-1 flex flex-col h-full overflow-hidden">
-              <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
-                <span className="text-xs font-semibold text-[#98989d] uppercase tracking-wider">
-                  Up Next ({upNextTracks.length})
-                </span>
+            <div className="flex-1 flex flex-col h-full overflow-hidden max-w-xl mx-auto w-full py-6">
+              <div className="flex items-center justify-between pb-4 border-b border-white/10 shrink-0">
+                <h3 className="text-2xl font-bold text-white tracking-tight">
+                  Up next
+                </h3>
                 {upNextTracks.length > 0 && (
                   <button
                     type="button"
                     onClick={clearQueue}
-                    className="flex items-center gap-1.5 text-xs text-[#98989d] hover:text-rose-400 transition-colors cursor-pointer"
+                    className="text-sm font-medium text-white/60 hover:text-white transition-colors cursor-pointer"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Clear Queue</span>
+                    Clear
                   </button>
                 )}
               </div>
@@ -466,37 +437,27 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                       <div
                         key={`${track.id}-${idx}`}
                         onClick={() => playTrack(track, queue)}
-                        className="group flex items-center justify-between p-2.5 rounded-xl hover:bg-[#1a1a1a] transition-colors cursor-pointer select-none"
+                        className="group flex items-center justify-between p-2.5 rounded-xl hover:bg-white/5 transition-colors cursor-pointer select-none"
                       >
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <span className="w-5 text-center text-xs text-[#777777] font-medium group-hover:hidden">
-                            {idx + 1}
-                          </span>
-                          <button
-                            type="button"
-                            className="w-5 h-5 items-center justify-center hidden group-hover:flex text-white"
-                          >
-                            <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-                          </button>
-
+                        <div className="flex items-center gap-3.5 min-w-0 flex-1">
                           <img 
                             src={track.artwork} 
                             alt="" 
-                            className="w-10 h-10 rounded-[6px] object-cover bg-[#1a1a1a] shrink-0" 
+                            className="w-11 h-11 rounded-[8px] object-cover bg-[#1a1a1a] shrink-0" 
                           />
 
                           <div className="min-w-0 flex-1 text-left">
-                            <h4 className="text-sm font-semibold text-white truncate text-left">
+                            <h4 className="text-sm font-semibold text-white truncate">
                               {track.title}
                             </h4>
-                            <p className="text-xs text-[#98989d] truncate mt-0.5 text-left">
+                            <p className="text-xs text-[#8e8e93] truncate mt-0.5">
                               {track.artist}
                             </p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-4 shrink-0 pl-2">
-                          <span className="text-xs font-mono text-[#98989d]">
+                        <div className="flex items-center gap-4 shrink-0 pl-3">
+                          <span className="text-xs font-mono text-[#8e8e93]">
                             {formatTime(track.duration)}
                           </span>
                           <button
@@ -505,7 +466,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                               e.stopPropagation();
                               removeFromQueue(actualQueueIndex);
                             }}
-                            className="p-1 text-white/30 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                            className="p-1 text-white/30 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                             title="Remove from queue"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -517,9 +478,9 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                 ) : (
                   <div className="py-24 text-center text-white/40 space-y-2">
                     <ListMusic className="w-10 h-10 mx-auto text-white/20" />
-                    <p className="text-sm font-semibold text-white">Queue is Empty</p>
-                    <p className="text-xs text-[#98989d]">
-                      Add tracks to "Play Next" from any album, artist, or search results.
+                    <p className="text-base font-semibold text-white">Queue is Empty</p>
+                    <p className="text-xs text-[#8e8e93]">
+                      Add songs to play next from any album or playlist.
                     </p>
                   </div>
                 )}
@@ -529,10 +490,52 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
 
         </div>
 
-      </div>
+      </main>
 
+      {/* ========================================================================= */}
+      {/* 4. BOTTOM-RIGHT CONTROLS: Lyrics bubble icon & Queue toggle               */}
+      {/* ========================================================================= */}
+      <footer className="absolute bottom-6 right-6 z-40 flex items-center gap-2">
+        {/* Lyrics toggle button (Apple Music speech bubble with quote mark) */}
+        <button
+          type="button"
+          onClick={() => setImmersiveTab('lyrics')}
+          className={`p-2.5 rounded-xl transition-all cursor-pointer ${
+            immersiveTab === 'lyrics'
+              ? 'text-white bg-white/15'
+              : 'text-white/40 hover:text-white hover:bg-white/5'
+          }`}
+          title="Lyrics"
+        >
+          <MessageSquareQuote className="w-5 h-5" />
+        </button>
+
+        {/* Queue toggle button */}
+        <button
+          type="button"
+          onClick={() => setImmersiveTab('queue')}
+          className={`p-2.5 rounded-xl transition-all cursor-pointer ${
+            immersiveTab === 'queue'
+              ? 'text-white bg-white/15'
+              : 'text-white/40 hover:text-white hover:bg-white/5'
+          }`}
+          title="Up Next"
+        >
+          <ListMusic className="w-5 h-5" />
+        </button>
+
+        {/* Native Fullscreen */}
+        <button
+          type="button"
+          onClick={toggleNativeFullscreen}
+          className="p-2.5 rounded-xl text-white/40 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+          title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+        >
+          {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+        </button>
+      </footer>
     </div>
   );
 };
-export default ImmersivePlayerOverlay;
 
+export default ImmersivePlayerOverlay;

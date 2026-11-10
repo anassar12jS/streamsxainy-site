@@ -203,7 +203,7 @@ export const ArtistRoute: React.FC = () => {
 
                       <div className="min-w-0 flex-1">
                         <span className={`text-sm font-semibold truncate block ${
-                          isCurrent ? 'text-rose-400' : 'text-white'
+                          isCurrent ? 'text-white font-bold' : 'text-white/90'
                         }`}>
                           {track.title}
                         </span>
@@ -260,7 +260,7 @@ export const ArtistRoute: React.FC = () => {
               </button>
             )}
             {songsQ.error && (
-              <p className="text-[11px] text-rose-300 pt-1">
+              <p className="text-[11px] text-white/50 pt-1">
                 Couldn't load the full song list: {(songsQ.error as Error).message}
               </p>
             )}

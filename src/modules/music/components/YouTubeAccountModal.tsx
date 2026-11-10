@@ -127,7 +127,7 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
         {/* Header */}
         <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between bg-[#161616]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-red-600/15 text-red-500 flex items-center justify-center border border-red-500/25">
+            <div className="w-8 h-8 rounded-xl bg-white/10 text-white flex items-center justify-center border border-white/15">
               <Youtube className="w-4 h-4 fill-current" />
             </div>
             <div>
@@ -155,7 +155,7 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
             statusMessage.type === 'success'
               ? 'bg-emerald-500/15 border-emerald-500/25 text-emerald-300'
               : statusMessage.type === 'error'
-              ? 'bg-red-500/15 border-red-500/25 text-red-300'
+              ? 'bg-white/10 border-white/15 text-white/90'
               : 'bg-white/5 border-white/10 text-white/80'
           }`}>
             {statusMessage.type === 'success' ? (
@@ -177,7 +177,7 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
               disabled={isLoading}
               className="flex items-center gap-1 text-[11px] text-white/60 hover:text-white font-medium cursor-pointer transition-colors"
             >
-              <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin text-red-400' : ''}`} />
+              <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin text-white' : ''}`} />
               <span>Refresh (Bypass Cache)</span>
             </button>
           </div>

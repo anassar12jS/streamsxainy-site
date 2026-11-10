@@ -97,7 +97,7 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
     q.isLoading ? (
       <p className="text-sm text-[#b3b3b3] py-10 text-center">Loading your {what}…</p>
     ) : q.error ? (
-      <p className="text-sm text-rose-300 py-10 text-center">
+      <p className="text-sm text-white/60 py-10 text-center">
         Couldn't load your {what}: {(q.error as Error).message}
       </p>
     ) : empty ? (
@@ -120,7 +120,7 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
       {/* 1. YouTube Music Account Link Card */}
       <div className="p-4 sm:p-5 rounded-2xl bg-[#141414] border border-white/5 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3.5 text-center sm:text-left">
-          <div className="w-11 h-11 rounded-xl bg-red-600/15 text-red-500 flex items-center justify-center shrink-0 border border-red-500/25">
+          <div className="w-11 h-11 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 border border-white/15">
             <Youtube className="w-5 h-5 fill-current" />
           </div>
           <div>
