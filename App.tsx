@@ -120,7 +120,10 @@ const App: React.FC = () => {
   if (!isAppReady) return <SplashScreen />;
 
   return (
-    <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] font-sans flex flex-col transition-colors duration-300" style={({ '--primary-color': themeColor } as React.CSSProperties)}>
+    <div 
+      className={`${isMusic ? 'h-screen h-[100dvh] overflow-hidden' : 'min-h-screen'} bg-[var(--bg-main)] text-[var(--text-main)] font-sans flex flex-col transition-colors duration-300`} 
+      style={({ '--primary-color': themeColor } as React.CSSProperties)}
+    >
       <ScrollToTop />
       {!hideSiteChrome && (
         <Navbar 
@@ -130,7 +133,7 @@ const App: React.FC = () => {
         />
       )}
       
-      <main className={isMusic ? "flex-grow h-screen overflow-hidden" : "flex-grow"}>
+      <main className={isMusic ? "flex-1 h-full min-h-0 overflow-hidden" : "flex-grow"}>
         <ErrorBoundary>
           <Suspense fallback={<PageLoadingFallback />}>
             <Routes>

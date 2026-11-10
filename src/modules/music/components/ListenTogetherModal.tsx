@@ -157,7 +157,7 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
               {/* Leave Button */}
               <button
                 onClick={handleLeaveParty}
-                className="w-full py-2.5 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold border border-red-500/20 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                className="w-full py-2.5 rounded-2xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold border border-white/15 flex items-center justify-center gap-2 transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Leave Party</span>

@@ -105,18 +105,6 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
 
   return (
     <>
-      {/* Mobile Drawer Trigger (Mobile Only) */}
-      <div className="lg:hidden fixed top-3 left-3 z-40">
-        <button
-          type="button"
-          onClick={onToggleMobileSidebar}
-          className="p-2.5 rounded-full bg-[#121212]/90 backdrop-blur-md border border-white/10 text-white/80 hover:text-white shadow-lg cursor-pointer"
-          title="Open Menu"
-        >
-          <Menu className="w-4 h-4" />
-        </button>
-      </div>
-
       {/* BitChord Apple Music Authentic Floating Player Pill */}
       <div 
         className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-[860px] w-[96vw] sm:w-auto"
@@ -431,7 +419,7 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                 title={isMuted ? 'Unmute' : 'Mute'}
               >
                 {isMuted || volume === 0 ? (
-                  <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+                  <VolumeX className="w-3.5 h-3.5 text-white/40" />
                 ) : (
                   <Volume2 className="w-3.5 h-3.5" />
                 )}

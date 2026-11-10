@@ -104,7 +104,7 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
       {/* Top Header Bar */}
       <div className="relative z-10 px-6 py-4 border-b border-white/10 flex items-center justify-between backdrop-blur-xl bg-black/20">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-[#fa243c]/15 text-[#fa243c] flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0">
             <Mic2 className="w-4 h-4" />
           </div>
           <div className="min-w-0">
@@ -142,7 +142,7 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
       >
         {isLoadingLyrics ? (
           <div className="flex flex-col items-center justify-center h-full text-white/40 gap-3">
-            <Disc className="w-8 h-8 animate-spin text-[#fa243c]" />
+            <Disc className="w-8 h-8 animate-spin text-white/60" />
             <p className="text-sm font-semibold">Synchronizing lyrics with audio clock...</p>
           </div>
         ) : activeLyrics?.synced && activeLyrics.synced.length > 0 ? (
@@ -190,7 +190,7 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
       {/* Footer Branding */}
       <div className="relative z-10 px-6 py-3 border-t border-white/10 backdrop-blur-xl bg-black/30 flex items-center justify-between text-[11px] font-mono text-white/40">
         <span>Steered Audio Clock: {steeredTime.toFixed(2)}s</span>
-        <span className="flex items-center gap-1 text-[#fa243c]">
+        <span className="flex items-center gap-1 text-white/70">
           <Sparkles className="w-3 h-3" /> Xainy Music am-lyrics Engine
         </span>
       </div>

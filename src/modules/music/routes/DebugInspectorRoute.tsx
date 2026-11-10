@@ -128,7 +128,7 @@ export const DebugInspectorRoute: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#282828] pb-6">
         <div>
           <div className="flex items-center gap-3">
-            <Terminal className="w-8 h-8 text-red-500" />
+            <Terminal className="w-8 h-8 text-white/80" />
             <h1 className="text-2xl font-bold tracking-tight">Phase 0: Xainy Music Extension Debug Inspector</h1>
           </div>
           <p className="text-sm text-[#a3a3a3] mt-1">
@@ -163,7 +163,7 @@ export const DebugInspectorRoute: React.FC = () => {
         {/* Core & YouTube Identity */}
         <div className="bg-[#161616] border border-[#282828] rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-2 text-xs font-semibold text-[#a3a3a3] uppercase tracking-wider">
-            <Radio className="w-4 h-4 text-red-500" />
+            <Radio className="w-4 h-4 text-white/80" />
             YouTube Music Identity
           </div>
           <div className="space-y-2">

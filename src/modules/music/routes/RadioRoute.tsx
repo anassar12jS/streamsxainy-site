@@ -102,12 +102,12 @@ export const RadioRoute: React.FC = () => {
 
             <button
               type="button"
-              className="w-14 h-14 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white flex items-center justify-center shadow-xl shadow-emerald-500/30 group-hover:scale-110 active:scale-95 transition-all shrink-0 cursor-pointer"
+              className="w-14 h-14 rounded-full bg-white hover:bg-white/90 text-black flex items-center justify-center shadow-xl group-hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer"
             >
               {isFeaturedPlaying ? (
-                <Pause className="w-6 h-6 fill-current" />
+                <Pause className="w-6 h-6 fill-current text-black" />
               ) : (
-                <Play className="w-6 h-6 fill-current ml-1" />
+                <Play className="w-6 h-6 fill-current ml-1 text-black" />
               )}
             </button>
           </div>
@@ -123,7 +123,7 @@ export const RadioRoute: React.FC = () => {
             onClick={() => setActiveCategory(cat)}
             className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
               activeCategory === cat
-                ? 'bg-emerald-500 text-white shadow-md'
+                ? 'bg-white text-black shadow-md'
                 : 'bg-[#18181b] hover:bg-[#27272a] text-[#b3b3b3] hover:text-white border border-white/5'
             }`}
           >

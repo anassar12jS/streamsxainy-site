@@ -91,7 +91,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
             onClick={() => setActiveTab('general')}
             className={`px-3.5 py-2 rounded-t-xl transition-colors cursor-pointer border-b-2 ${
               activeTab === 'general'
-                ? 'border-[#fa243c] text-white bg-white/5'
+                ? 'border-white text-white bg-white/5'
                 : 'border-transparent text-white/50 hover:text-white'
             }`}
           >
@@ -101,7 +101,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
             onClick={() => setActiveTab('addons')}
             className={`px-3.5 py-2 rounded-t-xl transition-colors cursor-pointer border-b-2 ${
               activeTab === 'addons'
-                ? 'border-[#fa243c] text-white bg-white/5'
+                ? 'border-white text-white bg-white/5'
                 : 'border-transparent text-white/50 hover:text-white'
             }`}
           >
@@ -111,7 +111,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
             onClick={() => setActiveTab('integrations')}
             className={`px-3.5 py-2 rounded-t-xl transition-colors cursor-pointer border-b-2 ${
               activeTab === 'integrations'
-                ? 'border-[#fa243c] text-white bg-white/5'
+                ? 'border-white text-white bg-white/5'
                 : 'border-transparent text-white/50 hover:text-white'
             }`}
           >
@@ -140,7 +140,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                       type="checkbox" 
                       checked={lossless} 
                       onChange={e => setLossless(e.target.checked)}
-                      className="accent-[#fa243c] w-4 h-4 cursor-pointer"
+                      className="accent-white w-4 h-4 cursor-pointer"
                     />
                   </label>
                 </div>
@@ -192,19 +192,19 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                     value={newAddonUrl}
                     onChange={(e) => setNewAddonUrl(e.target.value)}
                     placeholder="https://example.com/addon"
-                    className="flex-1 bg-[#141416] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#fa243c]"
+                    className="flex-1 bg-[#141416] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-white/40"
                   />
                   <button
                     type="submit"
                     disabled={isAdding || !newAddonUrl.trim()}
-                    className="px-4 py-2 rounded-xl bg-[#fa243c] hover:bg-[#ff3b50] disabled:opacity-40 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
+                    className="px-4 py-2 rounded-xl bg-white hover:bg-white/90 disabled:opacity-40 text-black text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>{isAdding ? 'Testing...' : 'Add'}</span>
                   </button>
                 </div>
                 {errorMsg && (
-                  <p className="text-xs text-red-400 mt-1">{errorMsg}</p>
+                  <p className="text-xs text-white/60 mt-1">{errorMsg}</p>
                 )}
               </form>
 
@@ -261,7 +261,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                   type="checkbox"
                   checked={discordRpc}
                   onChange={e => setDiscordRpc(e.target.checked)}
-                  className="accent-[#fa243c] w-4 h-4 cursor-pointer"
+                  className="accent-white w-4 h-4 cursor-pointer"
                 />
               </div>
 
@@ -275,7 +275,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                   type="checkbox"
                   checked={spotifyCanvas}
                   onChange={e => setSpotifyCanvas(e.target.checked)}
-                  className="accent-[#fa243c] w-4 h-4 cursor-pointer"
+                  className="accent-white w-4 h-4 cursor-pointer"
                 />
               </div>
 

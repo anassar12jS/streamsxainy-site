@@ -48,13 +48,13 @@ export const QueueDrawer: React.FC = () => {
           </h3>
 
           <div className="flex items-center gap-1.5 relative">
-            {/* Autoplay Infinity Toggle (Red in Apple Music when enabled) */}
+            {/* Autoplay Infinity Toggle */}
             <button
               type="button"
               onClick={() => setAutoplayRadio(!autoplayRadio)}
               className={`p-1 rounded-md transition-colors cursor-pointer ${
                 autoplayRadio 
-                  ? 'text-[#fa243c] hover:text-[#ff3b50]' 
+                  ? 'text-white bg-white/10' 
                   : 'text-[#666666] hover:text-white'
               }`}
               title={autoplayRadio ? 'Autoplay is on' : 'Turn on autoplay'}
@@ -85,7 +85,7 @@ export const QueueDrawer: React.FC = () => {
                       clearQueue();
                       setShowMenu(false);
                     }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-white/90 hover:text-rose-400 flex items-center gap-2 cursor-pointer transition-colors"
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-white/90 hover:text-white flex items-center gap-2 cursor-pointer transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Clear Up Next</span>

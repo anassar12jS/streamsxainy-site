@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Menu } from 'lucide-react';
 import './styles/tokens.css';
 import { useMusicPlayerStore } from './store/useMusicPlayerStore';
 import { MusicAudioEngine } from './player/AudioEngine';
@@ -422,11 +423,24 @@ export const MusicModule: React.FC = () => {
         onOpenYouTubeLink={() => setIsYtLinkOpen(true)}
       />
 
-      {/* Main Content Scroll View: BitChord #0f0f0f with 120px bottom padding */}
+      {/* Main Content Scroll View: BitChord #0f0f0f with 140px bottom padding */}
       <main 
-        className="flex-1 min-w-0 h-full overflow-y-auto px-4 sm:px-8 pt-6 am-scrollbar bg-[#0f0f0f]"
-        style={{ paddingBottom: '120px' }}
+        className="flex-1 min-w-0 h-full overflow-y-auto px-4 sm:px-8 pt-4 sm:pt-6 am-scrollbar bg-[#0f0f0f]"
+        style={{ paddingBottom: '140px' }}
       >
+        {/* Mobile top navigation header */}
+        <div className="lg:hidden flex items-center justify-between pb-3 mb-4 border-b border-white/10 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-2 rounded-xl bg-white/10 hover:bg-white/15 text-white transition-colors cursor-pointer"
+            title="Open navigation menu"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+          <span className="font-bold text-sm text-white tracking-tight">Xainy Music</span>
+          <div className="w-8" />
+        </div>
         
         {/* Extension Detection Banner */}
         <ExtensionBanner />

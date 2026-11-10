@@ -51,7 +51,7 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
       <div className="flex items-end justify-between px-1">
         <div>
           {subtitle && (
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#fa243c] font-mono mb-0.5">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#8e8e93] font-mono mb-0.5">
               {subtitle}
             </p>
           )}

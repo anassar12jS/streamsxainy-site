@@ -106,9 +106,9 @@ export const YouTubeMusicLinkModal: React.FC<YouTubeMusicLinkModalProps> = ({
       <div className="w-full max-w-lg bg-[#18181b] border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-red-950/40 via-[#18181b] to-[#18181b]">
+        <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-white/5 via-[#18181b] to-[#18181b]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-red-600/20 text-red-500 flex items-center justify-center border border-red-500/30">
+            <div className="w-9 h-9 rounded-2xl bg-white/10 text-white flex items-center justify-center border border-white/20">
               <Youtube className="w-5 h-5 fill-current" />
             </div>
             <div>
@@ -222,7 +222,7 @@ export const YouTubeMusicLinkModal: React.FC<YouTubeMusicLinkModalProps> = ({
                 disabled={isSyncing}
                 className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-red-400' : ''}`} />
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-white' : ''}`} />
                 <span>{isSyncing ? 'Synchronizing YouTube Music Library...' : 'Sync Full Library Now'}</span>
               </button>
             </div>
@@ -231,7 +231,7 @@ export const YouTubeMusicLinkModal: React.FC<YouTubeMusicLinkModalProps> = ({
           {/* Import via Playlist Link / ID */}
           <div className="space-y-2 pt-2 border-t border-white/10">
             <label className="text-xs font-bold text-white uppercase tracking-wider font-mono flex items-center gap-1.5">
-              <ListMusic className="w-3.5 h-3.5 text-red-400" />
+              <ListMusic className="w-3.5 h-3.5 text-white/70" />
               <span>Import Any YouTube Music Playlist</span>
             </label>
             <p className="text-[11px] text-white/50">

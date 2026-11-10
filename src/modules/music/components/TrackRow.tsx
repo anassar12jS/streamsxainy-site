@@ -112,7 +112,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
             </span>
           )}
           {track.isLive && (
-            <span className="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 text-[9px] font-mono font-bold border border-rose-500/30 shrink-0">
+            <span className="px-1.5 py-0.2 rounded bg-white/15 text-white/90 text-[9px] font-mono font-bold border border-white/20 shrink-0">
               LIVE
             </span>
           )}

@@ -192,7 +192,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const sidebarContent = (
     <div 
-      className="w-[230px] h-screen bg-[#121212] text-[#a3a3a3] flex flex-col justify-between select-none border-r border-[#1a1a1a]"
+      className="w-[230px] h-full bg-[#121212] text-[#a3a3a3] flex flex-col justify-between select-none border-r border-[#1a1a1a]"
       style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       
@@ -432,7 +432,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             <span className="text-[#a3a3a3] text-[10px] truncate">{channel.handle || 'YouTube Music'}</span>
                           </div>
                         </div>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-rose-400 shrink-0" />}
+                        {isSelected && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
                       </div>
                     );
                   })
@@ -443,12 +443,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
               </div>
 
-              {/* Red Disconnect Button */}
+              {/* Disconnect Button */}
               <div className="pt-2 border-t border-white/10 mt-1">
                 <button
                   type="button"
                   onClick={handleDisconnect}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-[#a3a3a3] hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>Disconnect from Xainy Music</span>
@@ -531,7 +531,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
       {/* Desktop Fixed Sidebar */}
-      <aside className="hidden lg:block w-[230px] shrink-0 h-screen sticky top-0 z-30">
+      <aside className="hidden lg:block w-[230px] shrink-0 h-full z-30">
         {sidebarContent}
       </aside>
 

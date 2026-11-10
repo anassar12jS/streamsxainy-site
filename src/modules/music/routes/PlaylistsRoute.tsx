@@ -48,7 +48,7 @@ export const PlaylistsRoute: React.FC = () => {
 
       {authStatus !== 'authenticated' ? (
         <div className="rounded-2xl bg-[#141414] border border-white/10 p-6 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+          <AlertCircle className="w-5 h-5 text-white/60 shrink-0 mt-0.5" />
           <div>
             <p className="text-sm text-white font-semibold">YouTube Music isn't connected</p>
             <p className="text-xs text-[#b3b3b3] mt-1">
@@ -62,7 +62,7 @@ export const PlaylistsRoute: React.FC = () => {
         </div>
       ) : error ? (
         <div className="rounded-2xl bg-[#141414] border border-white/10 p-6 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+          <AlertCircle className="w-5 h-5 text-white/60 shrink-0 mt-0.5" />
           <div>
             <p className="text-sm text-white font-semibold">Couldn't load your playlists</p>
             <p className="text-xs text-[#b3b3b3] mt-1">{(error as Error).message}</p>

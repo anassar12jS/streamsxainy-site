@@ -34,14 +34,14 @@ export const ReplayRoute: React.FC = () => {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 1080, 1920);
 
-    // Decorative Blur Glow
-    ctx.fillStyle = 'rgba(250, 36, 60, 0.25)';
+    // Decorative Blur Ambient
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.beginPath();
     ctx.arc(540, 400, 350, 0, Math.PI * 2);
     ctx.fill();
 
     // Top Xainy Music Replay Logo & Year
-    ctx.fillStyle = '#fa243c';
+    ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 36px "DM Sans", sans-serif';
     ctx.fillText('XAINY MUSIC REPLAY', 90, 160);
 
@@ -63,14 +63,14 @@ export const ReplayRoute: React.FC = () => {
     ctx.fillText(`${stats.totalMinutesListened.toLocaleString()} mins`, 140, 490);
 
     // Top Songs List
-    ctx.fillStyle = '#fa243c';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
     ctx.font = 'bold 34px "DM Sans", sans-serif';
     ctx.fillText('TOP SONGS', 90, 600);
 
     const topSongs = stats.topTracks.slice(0, 5);
     let yPos = 680;
     topSongs.forEach((item, i) => {
-      ctx.fillStyle = '#fa243c';
+      ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 44px "DM Sans", sans-serif';
       ctx.fillText(`#${i + 1}`, 90, yPos);
 
@@ -86,7 +86,7 @@ export const ReplayRoute: React.FC = () => {
     });
 
     // Top Artists
-    ctx.fillStyle = '#fa243c';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
     ctx.font = 'bold 34px "DM Sans", sans-serif';
     ctx.fillText('TOP ARTISTS', 90, 1320);
 
@@ -127,11 +127,11 @@ export const ReplayRoute: React.FC = () => {
       <canvas ref={posterCanvasRef} className="hidden" />
 
       {/* 1. Hero Spotlight */}
-      <div className="relative rounded-3xl overflow-hidden p-6 sm:p-12 border border-white/10 bg-gradient-to-br from-[#2a0e18] via-[#161618] to-[#0a0a0c] shadow-2xl flex flex-col sm:flex-row items-center sm:items-end justify-between gap-6">
+      <div className="relative rounded-3xl overflow-hidden p-6 sm:p-12 border border-white/10 bg-gradient-to-br from-[#1e1e22] via-[#161618] to-[#0a0a0c] shadow-2xl flex flex-col sm:flex-row items-center sm:items-end justify-between gap-6">
         <div className="space-y-3 text-center sm:text-left">
           <div className="flex items-center justify-center sm:justify-start gap-2">
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#fa243c] bg-[#fa243c]/20 px-3 py-1 rounded-full border border-[#fa243c]/30 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-[#fa243c]" /> Apple Music Replay
+            <span className="text-xs font-mono font-bold uppercase tracking-wider text-white bg-white/10 px-3 py-1 rounded-full border border-white/20 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-white" /> Apple Music Replay
             </span>
             <span className="text-xs font-mono text-white/50">
               {stats.year}
@@ -149,7 +149,7 @@ export const ReplayRoute: React.FC = () => {
         <button
           onClick={handleDownloadPoster}
           disabled={isExporting}
-          className="px-6 py-3 rounded-2xl bg-[#fa243c] hover:bg-[#ff3b50] text-white font-bold text-xs shadow-xl shadow-[#fa243c]/30 flex items-center gap-2 hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0"
+          className="px-6 py-3 rounded-2xl bg-white hover:bg-white/90 text-black font-bold text-xs shadow-xl flex items-center gap-2 hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0"
         >
           <Download className="w-4 h-4" />
           <span>{isExporting ? 'Generating Poster...' : 'Share Replay Poster'}</span>
@@ -160,7 +160,7 @@ export const ReplayRoute: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         
         <div className="p-6 rounded-3xl bg-[#141416] border border-white/5 shadow-xl flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-[#fa243c]/15 text-[#fa243c] flex items-center justify-center shrink-0">
+          <div className="w-14 h-14 rounded-2xl bg-white/10 text-white flex items-center justify-center shrink-0">
             <Clock className="w-7 h-7" />
           </div>
           <div>
@@ -222,7 +222,7 @@ export const ReplayRoute: React.FC = () => {
               >
                 <div className="flex items-center gap-3.5 min-w-0">
                   <span className={`w-6 text-center font-black text-sm ${
-                    idx === 0 ? 'text-[#fa243c]' : idx === 1 ? 'text-amber-400' : idx === 2 ? 'text-rose-400' : 'text-white/40'
+                    idx === 0 ? 'text-white' : idx === 1 ? 'text-white/80' : idx === 2 ? 'text-white/60' : 'text-white/40'
                   }`}>
                     {idx + 1}
                   </span>
@@ -234,7 +234,7 @@ export const ReplayRoute: React.FC = () => {
                   />
 
                   <div className="min-w-0">
-                    <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-[#fa243c] transition-colors">
+                    <h4 className="text-xs sm:text-sm font-bold text-white truncate group-hover:underline transition-colors">
                       {item.track.title}
                     </h4>
                     <p className="text-[11px] text-white/50 truncate">
@@ -271,7 +271,7 @@ export const ReplayRoute: React.FC = () => {
               >
                 <div className="flex items-center gap-3.5 min-w-0">
                   <span className={`w-6 text-center font-black text-sm ${
-                    idx === 0 ? 'text-[#fa243c]' : 'text-white/40'
+                    idx === 0 ? 'text-white' : 'text-white/40'
                   }`}>
                     {idx + 1}
                   </span>
