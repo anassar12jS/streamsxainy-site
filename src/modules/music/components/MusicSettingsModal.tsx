@@ -25,6 +25,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
   const [lossless, setLossless] = useState(true);
   const [discordRpc, setDiscordRpc] = useState(true);
   const [spotifyCanvas, setSpotifyCanvas] = useState(true);
+  const [jioUrl, setJioUrl] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('bitchord_jiosaavn_url') || '' : ''));
 
   const extensionConnected = useMusicPlayerStore(state => state.extensionConnected);
 
@@ -172,6 +173,31 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                     <span>Store</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
+                </div>
+              </div>
+
+              {/* JioSaavn Custom Server (Scalar / OpenAPI) */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                  JioSaavn 320kbps API URL (Scalar / Hono)
+                </label>
+                <div className="p-4 rounded-2xl bg-[#141416] border border-white/10 space-y-2.5">
+                  <p className="text-xs text-white/70">
+                    Connect a self-hosted JioSaavn API instance for direct 320kbps studio audio extraction.
+                  </p>
+                  <input
+                    type="url"
+                    value={jioUrl}
+                    onChange={(e) => {
+                      setJioUrl(e.target.value);
+                      localStorage.setItem('bitchord_jiosaavn_url', e.target.value.trim());
+                    }}
+                    placeholder="e.g. http://localhost:8787 or https://your-jiosaavn.vercel.app"
+                    className="w-full bg-[#1e1e22] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-white/40"
+                  />
+                  <p className="text-[11px] text-white/40 font-mono">
+                    Compatible with endpoints like <code className="text-white/60">/api/search/songs</code> from Scalar & sumitkolhe/jiosaavn-api.
+                  </p>
                 </div>
               </div>
 

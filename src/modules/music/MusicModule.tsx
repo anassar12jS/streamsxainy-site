@@ -15,6 +15,8 @@ import { ImmersivePlayerOverlay } from './components/ImmersivePlayerOverlay';
 import { replayRecorder } from './api/replay';
 import { fetchLyrics } from './api/lyrics';
 import { getResilientAudioFallback } from './api/fallbackAudio';
+import { getAudiusAudioStream } from './api/audiusStream';
+import { getJioSaavnStream } from './api/jiosaavnApi';
 
 // Keep home feed static for 0ms initial render
 import { BrowseRoute } from './routes/BrowseRoute';
@@ -319,7 +321,53 @@ export const MusicModule: React.FC = () => {
           return;
         }
 
-        // 5. Guaranteed Resilient Fallback: If YouTube is rate-limited or blocked, stream high-quality audio
+        // 5. JioSaavn 320kbps High-Fidelity Audio Stream (if configured or accessible)
+        if (currentTrack.title && currentTrack.artist) {
+          try {
+            const jioResult = await getJioSaavnStream(currentTrack.title, currentTrack.artist);
+            if (jioResult?.streamUrl && engineRef.current) {
+              await engineRef.current.loadStream(jioResult.streamUrl);
+              if (!isCancelled) {
+                setPlaybackStatus('playing');
+                engineRef.current.syncMediaSession(
+                  currentTrack,
+                  togglePlayPause,
+                  togglePlayPause,
+                  nextTrack,
+                  prevTrack
+                );
+                return;
+              }
+            }
+          } catch (jioErr) {
+            console.debug('JioSaavn streaming skipped:', jioErr);
+          }
+        }
+
+        // 6. Full-Length Open Network Audio Fallback (Audius 320kbps MP3 stream, unblocked)
+        if (currentTrack.title && currentTrack.artist) {
+          try {
+            const audiusStream = await getAudiusAudioStream(currentTrack.title, currentTrack.artist);
+            if (audiusStream && engineRef.current) {
+              await engineRef.current.loadStream(audiusStream);
+              if (!isCancelled) {
+                setPlaybackStatus('playing');
+                engineRef.current.syncMediaSession(
+                  currentTrack,
+                  togglePlayPause,
+                  togglePlayPause,
+                  nextTrack,
+                  prevTrack
+                );
+                return;
+              }
+            }
+          } catch (audErr) {
+            console.debug('Audius streaming fallback skipped:', audErr);
+          }
+        }
+
+        // 6. Guaranteed Resilient Fallback: Stream high-quality audio
         let fallbackStream = currentTrack.audioUrl;
         if (!fallbackStream && currentTrack.title && currentTrack.artist) {
           try {

@@ -63,30 +63,7 @@ export async function resolveVideoId(
     }
   }
 
-  // 3. Public mirrors
-  if (!videoId) {
-    try {
-      const query = `${track.title} ${track.artist}`.trim();
-      const fallbackSearchUrls = [
-        `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=music_songs`,
-        `https://api.piped.privacy.com.de/search?q=${encodeURIComponent(query)}&filter=music_songs`,
-        `https://invidious.nerdvpn.de/api/v1/search?q=${encodeURIComponent(query)}&type=video`,
-      ];
-      for (const sUrl of fallbackSearchUrls) {
-        try {
-          const res = await extensionBridge.proxyFetch(sUrl);
-          if (res.ok) {
-            const data = await res.json();
-            const items = Array.isArray(data) ? data : data.items || [];
-            const first = items?.[0];
-            const match = first?.url?.match(/v=([a-zA-Z0-9_-]{11})/);
-            if (match?.[1]) { videoId = match[1]; break; }
-            if (first?.videoId) { videoId = first.videoId; break; }
-          }
-        } catch {}
-      }
-    } catch {}
-  }
+
 
   if (videoId) videoIdCache.set(key, videoId);
   return videoId || null;
@@ -213,33 +190,6 @@ export async function resolveStreamUrl(
       }
     } catch (err) {
       console.debug('InnerTube getInfo/decipher failed:', err);
-    }
-  }
-
-  // 3. Fallback streaming mirrors (reliable with CORS headers)
-  if (videoId) {
-    const proxyEndpoints = [
-      `https://pipedapi.kavin.rocks/streams/${videoId}`,
-      `https://api.piped.privacy.com.de/streams/${videoId}`,
-      `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`,
-    ];
-
-    for (const ep of proxyEndpoints) {
-      try {
-        const res = await extensionBridge.proxyFetch(ep);
-        if (res.ok) {
-          const data = await res.json();
-          const audioStreams = data.audioStreams || data.adaptiveFormats?.filter((f: any) => f.type?.includes('audio')) || [];
-          if (audioStreams.length > 0) {
-            const best = audioStreams.find((s: any) => s.itag === 251) || audioStreams[0];
-            if (best?.url && typeof best.url === 'string' && best.url.startsWith('http')) {
-              const mirrorResult = { url: best.url, isDash: Boolean(best.url.includes('.mpd')) };
-              streamUrlCache.set(cacheKey, { ...mirrorResult, expiresAt: Date.now() + 1000 * 60 * 60 * 2 });
-              return mirrorResult;
-            }
-          }
-        }
-      } catch {}
     }
   }
 

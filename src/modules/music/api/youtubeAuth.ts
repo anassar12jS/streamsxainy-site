@@ -114,37 +114,7 @@ export async function importPlaylistFromYouTube(urlOrId: string): Promise<{ titl
     console.debug('getPlaylistDetails failed, falling back to public mirror:', err);
   }
 
-  // Fallback if direct InnerTube playlist fetch was blocked
-  if (tracks.length === 0) {
-    const mirrors = [
-      `https://pipedapi.kavin.rocks/playlists/${playlistId}`,
-      `https://api.piped.privacy.com.de/playlists/${playlistId}`,
-    ];
 
-    for (const mirror of mirrors) {
-      try {
-        const res = await extensionBridge.proxyFetch(mirror);
-        if (res.ok) {
-          const data = await res.json();
-          playlistTitle = data.name || playlistTitle;
-          const relatedStreams = data.relatedStreams || [];
-          if (relatedStreams.length > 0) {
-            tracks = relatedStreams.map((s: any, idx: number): MusicTrack => ({
-              id: `mirror-pl-${s.id || idx}`,
-              title: s.title || 'Unknown Track',
-              artist: s.uploaderName || 'Unknown Artist',
-              album: playlistTitle,
-              artwork: s.thumbnailUrl || '',
-              duration: s.duration || 0,
-              youtubeId: s.url ? s.url.replace('/watch?v=', '') : undefined,
-              source: 'innertube',
-            }));
-            break;
-          }
-        }
-      } catch {}
-    }
-  }
 
   if (tracks.length === 0) {
     throw new Error('Could not find tracks for this playlist ID. Make sure the playlist is public or unlisted.');

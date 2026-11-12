@@ -426,11 +426,16 @@ export class BitChordExtensionBridge {
       method,
       headers,
     };
-    if (!isGetOrHead && body !== undefined) {
-      directInit.body = body;
+    try {
+      return await fetch(url, directInit);
+    } catch (netErr: any) {
+      console.debug(`[Bridge proxyFetch] Direct fetch failed for ${url}:`, netErr?.message);
+      return new Response(JSON.stringify({ error: 'Direct fetch failed', message: netErr?.message }), {
+        status: 502,
+        statusText: 'Bad Gateway',
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
-
-    return fetch(url, directInit);
   }
 
   /**
