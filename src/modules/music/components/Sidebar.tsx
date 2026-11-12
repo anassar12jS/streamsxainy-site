@@ -47,8 +47,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     queryKey: ['ytm-library-playlists', activeChannel?.id || 'default'],
     queryFn: getLibraryPlaylists,
     enabled: authStatus === 'authenticated',
-    staleTime: 1000 * 60 * 3,
-    refetchOnWindowFocus: true,
+    staleTime: 1000 * 60 * 15,
+    refetchOnWindowFocus: false,
     retry: 1,
   });
 

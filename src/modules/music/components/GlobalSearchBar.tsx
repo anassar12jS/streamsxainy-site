@@ -4,6 +4,8 @@ import { Search as SearchIcon, X, ArrowUpRight } from 'lucide-react';
 import { getSearchSuggestions, SearchSuggestionsResult } from '../api/innertube';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
+const suggestionsCache = new Map<string, SearchSuggestionsResult>();
+
 export const GlobalSearchBar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -31,7 +33,7 @@ export const GlobalSearchBar: React.FC = () => {
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Call yt.music.getSearchSuggestions(query)
+  // Call yt.music.getSearchSuggestions(query) with cache
   useEffect(() => {
     if (!debouncedQuery) {
       setSuggestions({ textSuggestions: [], entitySuggestions: [] });
@@ -39,9 +41,18 @@ export const GlobalSearchBar: React.FC = () => {
       return;
     }
 
+    const key = debouncedQuery.toLowerCase();
+    if (suggestionsCache.has(key)) {
+      const cached = suggestionsCache.get(key)!;
+      setSuggestions(cached);
+      setIsOpen(cached.textSuggestions.length > 0 || cached.entitySuggestions.length > 0);
+      return;
+    }
+
     let isCurrent = true;
     getSearchSuggestions(debouncedQuery).then(res => {
       if (isCurrent) {
+        suggestionsCache.set(key, res);
         setSuggestions(res);
         setIsOpen(res.textSuggestions.length > 0 || res.entitySuggestions.length > 0);
       }

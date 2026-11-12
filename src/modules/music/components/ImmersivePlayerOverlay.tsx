@@ -383,10 +383,10 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                         key={`${line.time}-${idx}`}
                         ref={isActive ? activeLineRef : null}
                         onClick={() => onSeek(line.time)}
-                        className={`cursor-pointer transition-colors duration-300 rounded-xl px-2 py-1 leading-snug tracking-tight select-none ${
+                        className={`cursor-pointer transition-all duration-300 rounded-xl px-2 py-1.5 leading-snug tracking-tight select-none ${
                           isActive
-                            ? 'text-white font-extrabold text-3xl sm:text-4xl lg:text-[42px]'
-                            : 'text-white/25 hover:text-white/60 font-bold text-2xl sm:text-3xl lg:text-[34px]'
+                            ? 'text-white font-extrabold text-3xl sm:text-4xl lg:text-[44px] scale-[1.01] origin-left blur-none'
+                            : 'text-white/20 hover:text-white/60 font-bold text-2xl sm:text-3xl lg:text-[34px] blur-[0.4px]'
                         }`}
                       >
                         {line.text}
@@ -421,7 +421,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                   <button
                     type="button"
                     onClick={clearQueue}
-                    className="text-sm font-medium text-white/60 hover:text-white transition-colors cursor-pointer"
+                    className="text-sm font-semibold text-[#ff453a] hover:text-[#ff6961] transition-colors cursor-pointer"
                   >
                     Clear
                   </button>

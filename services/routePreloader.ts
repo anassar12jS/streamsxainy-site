@@ -42,6 +42,7 @@ export const warmIdleRoutes = (): void => {
   const scheduleIdle = (window as any).requestIdleCallback || ((cb: () => void) => setTimeout(cb, 1000));
   
   scheduleIdle(() => {
+    preloadRoute('music');
     preloadRoute('discover');
     preloadRoute('details');
     preloadRoute('sports');

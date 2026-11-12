@@ -169,6 +169,7 @@ export class MusicAudioEngine {
       this.ytPlayer = new (window as any).YT.Player(playerDivId, {
         height: '200',
         width: '200',
+        host: 'https://www.youtube-nocookie.com',
         playerVars: {
           autoplay: 1,
           controls: 0,
@@ -177,6 +178,7 @@ export class MusicAudioEngine {
           modestbranding: 1,
           playsinline: 1,
           rel: 0,
+          enablejsapi: 1,
           origin: window.location.origin,
         },
         events: {
@@ -287,11 +289,11 @@ export class MusicAudioEngine {
         if (token === this.loadToken && this.startWaiter) {
           try { this.ytPlayer.playVideo(); } catch {}
         }
-      }, 1500);
-      // ...and if it still doesn't, report 'blocked' so the UI shows a play button instead of lying.
+      }, 800);
+      // ...and if it still doesn't, report 'blocked' so fallbacks kick in without making the app feel slow
       watchdog = setTimeout(() => {
         if (token === this.loadToken && this.startWaiter) this.settleStart('blocked');
-      }, 6000);
+      }, 3500);
     });
   }
 

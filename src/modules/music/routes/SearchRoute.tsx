@@ -88,16 +88,26 @@ export const SearchRoute: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
+const searchCache = new Map<string, FullCatalogSearchResult>();
+
   const executeSearch = async (queryText: string) => {
     const q = queryText.trim();
     if (!q) return;
 
     setIsDropdownOpen(false);
-    setIsSearching(true);
     setSearchParams({ q });
 
+    const cacheKey = q.toLowerCase();
+    if (searchCache.has(cacheKey)) {
+      setCatalogResults(searchCache.get(cacheKey)!);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
     try {
       const results = await searchFullCatalog(q);
+      searchCache.set(cacheKey, results);
       setCatalogResults(results);
     } catch (err) {
       console.error('Catalog search failed:', err);

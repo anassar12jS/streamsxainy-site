@@ -19,7 +19,9 @@ export const AlbumRoute: React.FC = () => {
     queryKey: ['music-album', id],
     queryFn: () => getAlbumDetails(id || ''),
     enabled: Boolean(id),
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 30,
+    gcTime: 1000 * 60 * 60 * 24,
+    refetchOnWindowFocus: false,
     retry: 1,
   });
 

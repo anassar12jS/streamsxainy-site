@@ -18,8 +18,9 @@ export const NewRoute: React.FC = () => {
   const { data: explore, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['music-explore-new'],
     queryFn: () => getExploreNewReleases(),
-    staleTime: 1000 * 60 * 5,
-    refetchOnWindowFocus: true,
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 60 * 24,
+    refetchOnWindowFocus: false,
     retry: 1,
   });
 

@@ -1,35 +1,52 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import './styles/tokens.css';
 import { useMusicPlayerStore } from './store/useMusicPlayerStore';
 import { MusicAudioEngine } from './player/AudioEngine';
-import { resolveStreamUrl, resolveVideoId, resolveAlternateVideoId, getRadioTracks } from './api/innertube';
+import { resolveStreamUrl, resolveVideoId, resolveAlternateVideoId, getRadioTracks, prefetchStreamUrl } from './api/innertube';
 import type { MusicTrack } from './types';
 import { extensionBridge } from './extension/bridge';
 import { Sidebar } from './components/Sidebar';
 import { PlayerChrome } from './components/PlayerChrome';
 import { QueueDrawer } from './components/QueueDrawer';
 import { ExtensionBanner } from './components/ExtensionBanner';
-import { ListenTogetherModal } from './components/ListenTogetherModal';
-import { MusicSettingsModal } from './components/MusicSettingsModal';
-import { YouTubeAccountModal } from './components/YouTubeAccountModal';
 import { ImmersivePlayerOverlay } from './components/ImmersivePlayerOverlay';
 import { replayRecorder } from './api/replay';
 import { fetchLyrics } from './api/lyrics';
+import { getResilientAudioFallback } from './api/fallbackAudio';
 
+// Keep home feed static for 0ms initial render
 import { BrowseRoute } from './routes/BrowseRoute';
-import { PlaylistsRoute } from './routes/PlaylistsRoute';
-import { NewRoute } from './routes/NewRoute';
-import { SearchRoute } from './routes/SearchRoute';
-import { AlbumRoute } from './routes/AlbumRoute';
-import { ArtistRoute } from './routes/ArtistRoute';
-import { PlaylistRoute } from './routes/PlaylistRoute';
-import { RadioRoute } from './routes/RadioRoute';
-import { LibraryRoute } from './routes/LibraryRoute';
-import { ReplayRoute } from './routes/ReplayRoute';
-import { SettingsRoute } from './routes/SettingsRoute';
-import { DebugInspectorRoute } from './routes/DebugInspectorRoute';
+
+// Code-split secondary routes for lightweight initial bundle
+const PlaylistsRoute = lazy(() => import('./routes/PlaylistsRoute').then(m => ({ default: m.PlaylistsRoute })));
+const NewRoute = lazy(() => import('./routes/NewRoute').then(m => ({ default: m.NewRoute })));
+const SearchRoute = lazy(() => import('./routes/SearchRoute').then(m => ({ default: m.SearchRoute })));
+const AlbumRoute = lazy(() => import('./routes/AlbumRoute').then(m => ({ default: m.AlbumRoute })));
+const ArtistRoute = lazy(() => import('./routes/ArtistRoute').then(m => ({ default: m.ArtistRoute })));
+const PlaylistRoute = lazy(() => import('./routes/PlaylistRoute').then(m => ({ default: m.PlaylistRoute })));
+const RadioRoute = lazy(() => import('./routes/RadioRoute').then(m => ({ default: m.RadioRoute })));
+const LibraryRoute = lazy(() => import('./routes/LibraryRoute').then(m => ({ default: m.LibraryRoute })));
+const ReplayRoute = lazy(() => import('./routes/ReplayRoute').then(m => ({ default: m.ReplayRoute })));
+const SettingsRoute = lazy(() => import('./routes/SettingsRoute').then(m => ({ default: m.SettingsRoute })));
+const DebugInspectorRoute = lazy(() => import('./routes/DebugInspectorRoute').then(m => ({ default: m.DebugInspectorRoute })));
+
+// Lazy-load secondary overlay modals
+const ListenTogetherModal = lazy(() => import('./components/ListenTogetherModal').then(m => ({ default: m.ListenTogetherModal })));
+const MusicSettingsModal = lazy(() => import('./components/MusicSettingsModal').then(m => ({ default: m.MusicSettingsModal })));
+const YouTubeAccountModal = lazy(() => import('./components/YouTubeAccountModal').then(m => ({ default: m.YouTubeAccountModal })));
+
+const RouteLoadingSkeleton = () => (
+  <div className="space-y-6 animate-pulse max-w-7xl mx-auto py-4">
+    <div className="h-8 w-44 bg-white/10 rounded-lg" />
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      {[...Array(6)].map((_, i) => (
+        <div key={i} className="aspect-square bg-white/5 rounded-xl" />
+      ))}
+    </div>
+  </div>
+);
 
 export const MusicModule: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -46,6 +63,7 @@ export const MusicModule: React.FC = () => {
   const volume = useMusicPlayerStore(state => state.volume);
   const isMuted = useMusicPlayerStore(state => state.isMuted);
   const trackPlayNonce = useMusicPlayerStore(state => state.trackPlayNonce);
+  const showLyrics = useMusicPlayerStore(state => state.showLyrics);
   
   const setTime = useMusicPlayerStore(state => state.setTime);
   const setPlaybackStatus = useMusicPlayerStore(state => state.setPlaybackStatus);
@@ -238,6 +256,13 @@ export const MusicModule: React.FC = () => {
             duration: currentTrack.duration,
             artwork: currentTrack.artwork,
           });
+
+          // Proactively prefetch next track stream for 0ms transition
+          const st = useMusicPlayerStore.getState();
+          const nextTrackInQueue = st.queue[st.queueIndex + 1];
+          if (nextTrackInQueue) {
+            prefetchStreamUrl(nextTrackInQueue);
+          }
         };
 
         const tryYouTube = async (id: string): Promise<boolean> => {
@@ -294,20 +319,30 @@ export const MusicModule: React.FC = () => {
           return;
         }
 
-        // 5. Fallback only if audioUrl is NOT an iTunes 30-sec preview
-        const isItunesPreview = Boolean(
-          currentTrack.audioUrl && 
-          (currentTrack.audioUrl.includes('itunes.apple.com') || currentTrack.audioUrl.includes('apple.com/itunes-assets'))
-        );
-        if (currentTrack.audioUrl && !isItunesPreview && engineRef.current) {
-          await engineRef.current.loadStream(currentTrack.audioUrl);
+        // 5. Guaranteed Resilient Fallback: If YouTube is rate-limited or blocked, stream high-quality audio
+        let fallbackStream = currentTrack.audioUrl;
+        if (!fallbackStream && currentTrack.title && currentTrack.artist) {
+          try {
+            fallbackStream = (await getResilientAudioFallback(currentTrack.title, currentTrack.artist)) || undefined;
+          } catch {}
+        }
+
+        if (fallbackStream && engineRef.current) {
+          await engineRef.current.loadStream(fallbackStream);
           if (!isCancelled) {
             setPlaybackStatus('playing');
+            engineRef.current.syncMediaSession(
+              currentTrack,
+              togglePlayPause,
+              togglePlayPause,
+              nextTrack,
+              prevTrack
+            );
           }
           return;
         }
 
-        throw new Error(`No full-length audio stream available for "${currentTrack.title}"`);
+        throw new Error(`No audio stream available for "${currentTrack.title}"`);
       } catch (err) {
         if (!isCancelled) {
           console.error('Failed to stream audio:', err);
@@ -445,31 +480,33 @@ export const MusicModule: React.FC = () => {
         {/* Extension Detection Banner */}
         <ExtensionBanner />
 
-        {/* Subroutes */}
-        <Routes>
-          <Route path="/" element={<BrowseRoute />} />
-          <Route path="/browse" element={<BrowseRoute />} />
-          <Route path="/new" element={<NewRoute />} />
-          <Route path="/search" element={<SearchRoute />} />
-          <Route path="/album/:id" element={<AlbumRoute />} />
-          <Route path="/artist/:id" element={<ArtistRoute />} />
-          <Route path="/playlist/:id" element={<PlaylistRoute />} />
-          <Route path="/radio" element={<RadioRoute />} />
-          <Route path="/replay" element={<ReplayRoute />} />
-          <Route path="/settings" element={<SettingsRoute />} />
-          <Route path="/debug" element={<DebugInspectorRoute />} />
-          <Route path="/inspector" element={<DebugInspectorRoute />} />
-          <Route path="/library/playlists" element={<PlaylistsRoute />} />
-          <Route path="/library/recent" element={<LibraryRoute defaultTab="recent" />} />
-          <Route path="/library/songs" element={<LibraryRoute defaultTab="songs" />} />
-          <Route path="/library/artists" element={<LibraryRoute defaultTab="artists" />} />
-          <Route path="/library/albums" element={<LibraryRoute defaultTab="albums" />} />
-          <Route path="/library/for-you" element={<LibraryRoute defaultTab="for-you" />} />
-          <Route path="/library/liked" element={<LibraryRoute defaultTab="liked" />} />
-          <Route path="/library/replay" element={<ReplayRoute />} />
-          <Route path="/library/*" element={<LibraryRoute />} />
-          <Route path="*" element={<Navigate to="/music" replace />} />
-        </Routes>
+        {/* Subroutes with Suspense */}
+        <Suspense fallback={<RouteLoadingSkeleton />}>
+          <Routes>
+            <Route path="/" element={<BrowseRoute />} />
+            <Route path="/browse" element={<BrowseRoute />} />
+            <Route path="/new" element={<NewRoute />} />
+            <Route path="/search" element={<SearchRoute />} />
+            <Route path="/album/:id" element={<AlbumRoute />} />
+            <Route path="/artist/:id" element={<ArtistRoute />} />
+            <Route path="/playlist/:id" element={<PlaylistRoute />} />
+            <Route path="/radio" element={<RadioRoute />} />
+            <Route path="/replay" element={<ReplayRoute />} />
+            <Route path="/settings" element={<SettingsRoute />} />
+            <Route path="/debug" element={<DebugInspectorRoute />} />
+            <Route path="/inspector" element={<DebugInspectorRoute />} />
+            <Route path="/library/playlists" element={<PlaylistsRoute />} />
+            <Route path="/library/recent" element={<LibraryRoute defaultTab="recent" />} />
+            <Route path="/library/songs" element={<LibraryRoute defaultTab="songs" />} />
+            <Route path="/library/artists" element={<LibraryRoute defaultTab="artists" />} />
+            <Route path="/library/albums" element={<LibraryRoute defaultTab="albums" />} />
+            <Route path="/library/for-you" element={<LibraryRoute defaultTab="for-you" />} />
+            <Route path="/library/liked" element={<LibraryRoute defaultTab="liked" />} />
+            <Route path="/library/replay" element={<ReplayRoute />} />
+            <Route path="/library/*" element={<LibraryRoute />} />
+            <Route path="*" element={<Navigate to="/music" replace />} />
+          </Routes>
+        </Suspense>
       </main>
 
       {/* Floating Glassmorphic Player Capsule Dock */}
@@ -479,31 +516,45 @@ export const MusicModule: React.FC = () => {
       />
 
       {/* Full-Screen Lyrics & Queue Immersive View */}
-      <ImmersivePlayerOverlay
-        steeredClock={engineRef.current?.steeredClock}
-        onSeek={handleSeek}
-      />
+      {showLyrics && currentTrack && (
+        <ImmersivePlayerOverlay
+          steeredClock={engineRef.current?.steeredClock}
+          onSeek={handleSeek}
+        />
+      )}
 
       {/* Up Next Slide-over Queue Drawer */}
       <QueueDrawer />
 
-      {/* Listen Together Live Room Modal */}
-      <ListenTogetherModal
-        isOpen={isListenTogetherOpen}
-        onClose={() => setIsListenTogetherOpen(false)}
-      />
+      {/* Listen Together Live Room Modal (Lazy) */}
+      {isListenTogetherOpen && (
+        <Suspense fallback={null}>
+          <ListenTogetherModal
+            isOpen={isListenTogetherOpen}
+            onClose={() => setIsListenTogetherOpen(false)}
+          />
+        </Suspense>
+      )}
 
-      {/* Preferences & Addons Settings Modal */}
-      <MusicSettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-      />
+      {/* Preferences & Addons Settings Modal (Lazy) */}
+      {isSettingsOpen && (
+        <Suspense fallback={null}>
+          <MusicSettingsModal
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+          />
+        </Suspense>
+      )}
 
-      {/* YouTube Music Sync & Account Switcher Modal */}
-      <YouTubeAccountModal
-        isOpen={isYtLinkOpen}
-        onClose={() => setIsYtLinkOpen(false)}
-      />
+      {/* YouTube Music Sync & Account Switcher Modal (Lazy) */}
+      {isYtLinkOpen && (
+        <Suspense fallback={null}>
+          <YouTubeAccountModal
+            isOpen={isYtLinkOpen}
+            onClose={() => setIsYtLinkOpen(false)}
+          />
+        </Suspense>
+      )}
 
     </div>
   );

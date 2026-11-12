@@ -46,7 +46,10 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
   };
 
   return (
-    <div className="space-y-3.5 group/shelf">
+    <div 
+      className="space-y-3.5 group/shelf"
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '280px' }}
+    >
       {/* Shelf Header */}
       <div className="flex items-end justify-between px-1">
         <div>
@@ -98,6 +101,8 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
               <img 
                 src={item.artwork} 
                 alt={item.title} 
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
               />
               <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity" />

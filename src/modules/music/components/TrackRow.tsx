@@ -94,7 +94,13 @@ export const TrackRow: React.FC<TrackRowProps> = ({
         {/* Artwork Thumbnail */}
         {showArtwork && (
           <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-[6px] overflow-hidden shrink-0 shadow bg-black/40 border border-white/5">
-            <img src={track.artwork} alt="" className="w-full h-full object-cover" />
+            <img 
+              src={track.artwork} 
+              alt="" 
+              loading="lazy" 
+              decoding="async" 
+              className="w-full h-full object-cover" 
+            />
             {track.isLive && (
               <span className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-1 ring-black" />
             )}

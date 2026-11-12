@@ -18,8 +18,9 @@ export const PlaylistsRoute: React.FC = () => {
     queryKey: ['ytm-library-playlists', activeChannel?.id || 'default'],
     queryFn: getLibraryPlaylists,
     enabled: authStatus === 'authenticated',
-    staleTime: 1000 * 60 * 3,
-    refetchOnWindowFocus: true,
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 60 * 24,
+    refetchOnWindowFocus: false,
     retry: 1,
   });
 

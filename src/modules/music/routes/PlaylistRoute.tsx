@@ -15,9 +15,10 @@ export const PlaylistRoute: React.FC = () => {
     queryKey: ['music-playlist', id],
     queryFn: () => getPlaylistDetails(id || ''),
     enabled: Boolean(id),
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 60 * 24,
     retry: 1,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const tracks: MusicTrack[] = playlist?.tracks || [];

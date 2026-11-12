@@ -73,23 +73,27 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
     queryKey: ['ytm-library-albums', activeChannelId || 'default'],
     queryFn: () => getLibrarySection('Albums'),
     enabled: activeTab === 'albums',
-    staleTime: 1000 * 60 * 3,
-    refetchOnWindowFocus: true,
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 60 * 24,
+    refetchOnWindowFocus: false,
     retry: 1,
   });
   const artistsQ = useQuery({
     queryKey: ['ytm-library-artists', activeChannelId || 'default'],
     queryFn: () => getLibrarySection('Artists'),
     enabled: activeTab === 'artists',
-    staleTime: 1000 * 60 * 3,
-    refetchOnWindowFocus: true,
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 60 * 24,
+    refetchOnWindowFocus: false,
     retry: 1,
   });
   const homeQ = useQuery({
     queryKey: ['ytm-home', activeChannelId || 'default'],
-    queryFn: getHomeShelves,
+    queryFn: () => getHomeShelves(),
     enabled: activeTab === 'for-you',
-    staleTime: 1000 * 60 * 2,
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 60 * 24,
+    refetchOnWindowFocus: false,
     retry: 1,
   });
 

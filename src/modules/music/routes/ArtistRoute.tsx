@@ -20,7 +20,9 @@ export const ArtistRoute: React.FC = () => {
     queryKey: ['music-artist', id],
     queryFn: () => getArtistDetails(id || ''),
     enabled: Boolean(id),
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 30,
+    gcTime: 1000 * 60 * 60 * 24,
+    refetchOnWindowFocus: false,
     retry: 1,
   });
 
@@ -29,7 +31,9 @@ export const ArtistRoute: React.FC = () => {
     queryKey: ['music-artist-songs', id, artist?.songsPlaylistId],
     queryFn: () => getArtistAllSongs(id || '', artist?.songsPlaylistId),
     enabled: Boolean(id && artist?.songsPlaylistId),
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 30,
+    gcTime: 1000 * 60 * 60 * 24,
+    refetchOnWindowFocus: false,
     retry: 1,
   });
   const [showAll, setShowAll] = useState(false);

@@ -12,18 +12,41 @@ import type { HomeItem, HomeShelf } from '../api/ytmParse';
 import type { MusicTrack } from '../types';
 
 /** Home: live YouTube Music home feed (personalised when a session is connected). */
+const loadCachedShelves = (channelId: string): HomeShelf[] | undefined => {
+  try {
+    const raw = sessionStorage.getItem(`ytm_home_shelves_${channelId}`);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return undefined;
+};
+
+const saveCachedShelves = (channelId: string, data: HomeShelf[]) => {
+  try {
+    sessionStorage.setItem(`ytm_home_shelves_${channelId}`, JSON.stringify(data));
+  } catch {}
+};
+
 export const BrowseRoute: React.FC = () => {
   const navigate = useNavigate();
   const playTrack = useMusicPlayerStore(state => state.playTrack);
   const activeChannelId = useSessionStore(state => state.activeChannelId);
   const activeChannel = useSessionStore(state => state.activeChannel);
+  const cacheKey = activeChannelId || 'default';
 
   const { data: shelves, isLoading, isFetching, error, refetch } = useQuery({
-    // keyed by channel so switching account shows that account's feed
-    queryKey: ['ytm-home', activeChannelId || 'default'],
-    queryFn: getHomeShelves,
-    staleTime: 1000 * 60 * 2,
-    refetchOnWindowFocus: true,
+    queryKey: ['ytm-home', cacheKey],
+    queryFn: async () => {
+      const data = await getHomeShelves();
+      if (data && data.length > 0) {
+        saveCachedShelves(cacheKey, data);
+      }
+      return data;
+    },
+    initialData: () => loadCachedShelves(cacheKey),
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 60 * 24,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
     retry: 1,
   });
 

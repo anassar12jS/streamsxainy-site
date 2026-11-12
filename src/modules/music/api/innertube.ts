@@ -111,6 +111,13 @@ export async function resolveAlternateVideoId(
   }
 }
 
+interface CachedStream {
+  url: string;
+  isDash: boolean;
+  expiresAt: number;
+}
+const streamUrlCache = new Map<string, CachedStream>();
+
 /**
  * Resolves full-length audio stream for a track from YouTube Music.
  * Uses yt.music.search to find videoId, fetches basic info, and deciphers the best audio format.
@@ -122,8 +129,15 @@ export async function resolveStreamUrl(
     ? { title: '', artist: '', youtubeId: trackOrId } 
     : trackOrId;
 
-  const yt = await getInnertube();
   let videoId = await resolveVideoId(track);
+  const cacheKey = videoId || (typeof trackOrId === 'string' ? trackOrId : `${track.title}|${track.artist}`.toLowerCase());
+
+  const cached = streamUrlCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return { url: cached.url, isDash: cached.isDash };
+  }
+
+  const yt = await getInnertube();
 
   // 2. Fetch stream format and decipher via player
   if (videoId) {
@@ -184,14 +198,18 @@ export async function resolveStreamUrl(
             const dashXml = await info.toDash();
             if (dashXml && typeof dashXml === 'string') {
               const blob = new Blob([dashXml], { type: 'application/dash+xml' });
-              return { url: URL.createObjectURL(blob), isDash: true };
+              const dashResult = { url: URL.createObjectURL(blob), isDash: true };
+              streamUrlCache.set(cacheKey, { ...dashResult, expiresAt: Date.now() + 1000 * 60 * 60 * 3 });
+              return dashResult;
             }
           } catch {}
         }
       }
 
       if (streamUrl && typeof streamUrl === 'string' && streamUrl.startsWith('http')) {
-        return { url: streamUrl, isDash: false };
+        const streamResult = { url: streamUrl, isDash: false };
+        streamUrlCache.set(cacheKey, { ...streamResult, expiresAt: Date.now() + 1000 * 60 * 60 * 3 });
+        return streamResult;
       }
     } catch (err) {
       console.debug('InnerTube getInfo/decipher failed:', err);
@@ -215,7 +233,9 @@ export async function resolveStreamUrl(
           if (audioStreams.length > 0) {
             const best = audioStreams.find((s: any) => s.itag === 251) || audioStreams[0];
             if (best?.url && typeof best.url === 'string' && best.url.startsWith('http')) {
-              return { url: best.url, isDash: Boolean(best.url.includes('.mpd')) };
+              const mirrorResult = { url: best.url, isDash: Boolean(best.url.includes('.mpd')) };
+              streamUrlCache.set(cacheKey, { ...mirrorResult, expiresAt: Date.now() + 1000 * 60 * 60 * 2 });
+              return mirrorResult;
             }
           }
         }
@@ -224,6 +244,20 @@ export async function resolveStreamUrl(
   }
 
   throw new Error(`Unable to resolve YouTube audio stream for "${track.title || 'Unknown'}"`);
+}
+
+/**
+ * Proactively prefetches the audio stream for upcoming queue tracks
+ * so skips and auto-advances begin with 0ms buffering delay.
+ */
+export async function prefetchStreamUrl(track: MusicTrack | null | undefined): Promise<void> {
+  if (!track || track.isLive) return;
+  try {
+    const vId = track.youtubeId || (await resolveVideoId(track));
+    if (!vId) return;
+    if (streamUrlCache.has(vId)) return;
+    resolveStreamUrl(track).catch(() => {});
+  } catch {}
 }
 
 /**
@@ -520,9 +554,14 @@ function unwrapHeader(h: any): any {
  * Album page via yt.music.getAlbum. Throws on failure so the UI can show a real error
  * (instead of an invented album).
  */
+const albumDetailsCache = new Map<string, { at: number; data: Album }>();
+
 export async function getAlbumDetails(albumId: string): Promise<Album | null> {
   const id = albumId?.trim();
   if (!id) return null;
+
+  const hit = albumDetailsCache.get(id);
+  if (hit && Date.now() - hit.at < 15 * 60 * 1000) return hit.data;
 
   try {
     const yt: any = await getInnertube();
@@ -541,7 +580,7 @@ export async function getAlbumDetails(albumId: string): Promise<Album | null> {
         )
         .filter(Boolean) as MusicTrack[];
 
-      return {
+      const albumData: Album = {
         id,
         title: head.title,
         artist: head.artist || 'Unknown Artist',
@@ -553,6 +592,9 @@ export async function getAlbumDetails(albumId: string): Promise<Album | null> {
         duration: tracks.reduce((n, t) => n + (t.duration || 0), 0),
         tracks,
       };
+
+      albumDetailsCache.set(id, { at: Date.now(), data: albumData });
+      return albumData;
     }
   } catch (err) {
     console.debug('InnerTube getAlbum failed:', err);
@@ -656,7 +698,7 @@ const CURATED_FEATURED_ALBUMS: Record<string, Album> = {
 const artistCache = new Map<string, { at: number; res: any }>();
 async function fetchArtistPage(yt: any, id: string): Promise<any> {
   const hit = artistCache.get(id);
-  if (hit && Date.now() - hit.at < 2 * 60 * 1000) return hit.res;
+  if (hit && Date.now() - hit.at < 15 * 60 * 1000) return hit.res;
   const res = await yt.music.getArtist(id);
   artistCache.set(id, { at: Date.now(), res });
   return res;
@@ -961,23 +1003,49 @@ export async function getRadioTracks(videoId: string, limit = 25): Promise<Music
   return out;
 }
 
-/** Personalised home feed shelves (live, follows a couple of continuations). */
-export async function getHomeShelves(): Promise<HomeShelf[]> {
+const homeShelvesCache = new Map<string, { at: number; shelves: HomeShelf[] }>();
+
+/** Personalised home feed shelves (super fast non-blocking single-pass). */
+export async function getHomeShelves(forceRefresh = false): Promise<HomeShelf[]> {
+  const cacheKey = 'home_shelves';
+  const hit = homeShelvesCache.get(cacheKey);
+  if (!forceRefresh && hit && Date.now() - hit.at < 15 * 60 * 1000) {
+    return hit.shelves;
+  }
+
   const yt: any = await getInnertube();
   let feed: any = await yt.music.getHomeFeed();
   const shelves: HomeShelf[] = [];
   const seen = new Set<string>();
-  for (let page = 0; page < 3 && feed; page++) {
-    for (const [i, sec] of (feed.sections ?? []).entries()) {
-      const shelf = parseShelf(sec, `home-${page}-${i}`);
+
+  const collectSections = (sections: any[], pageIdx: number) => {
+    for (const [i, sec] of (sections ?? []).entries()) {
+      const shelf = parseShelf(sec, `home-${pageIdx}-${i}`);
       if (shelf && !seen.has(shelf.title)) {
         seen.add(shelf.title);
         shelves.push(shelf);
       }
     }
-    if (!feed.has_continuation) break;
-    feed = await feed.getContinuation();
+  };
+
+  if (feed?.sections) {
+    collectSections(feed.sections, 0);
   }
+
+  // Only fetch 1 continuation if initial feed has very few shelves
+  if (shelves.length < 5 && feed?.has_continuation) {
+    try {
+      const cont = await feed.getContinuation();
+      if (cont?.sections) {
+        collectSections(cont.sections, 1);
+      }
+    } catch {}
+  }
+
+  if (shelves.length > 0) {
+    homeShelvesCache.set(cacheKey, { at: Date.now(), shelves });
+  }
+
   return shelves;
 }
 
