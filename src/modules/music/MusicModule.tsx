@@ -16,7 +16,6 @@ import { replayRecorder } from './api/replay';
 import { fetchLyrics } from './api/lyrics';
 import { getResilientAudioFallback } from './api/fallbackAudio';
 import { getAudiusAudioStream } from './api/audiusStream';
-import { getJioSaavnStream } from './api/jiosaavnApi';
 
 // Keep home feed static for 0ms initial render
 import { BrowseRoute } from './routes/BrowseRoute';
@@ -250,27 +249,7 @@ export const MusicModule: React.FC = () => {
           return;
         }
 
-        // 2. PRIMARY DEFAULT ENGINE: JioSaavn 320kbps High-Fidelity Studio Audio
-        // Pure unblocked CDN AAC/MP4 stream with full CORS & byte-range support.
-        // Starts instantly on 1st click with zero extension needed; supports mobile lock-screen & background playback.
-        if (currentTrack.title && currentTrack.artist) {
-          try {
-            const jioResult = await getJioSaavnStream(currentTrack.title, currentTrack.artist);
-            if (jioResult?.streamUrl && engineRef.current) {
-              await engineRef.current.loadStream(jioResult.streamUrl);
-              if (!isCancelled) {
-                setPlaybackStatus('playing');
-                afterStart();
-                return;
-              }
-            }
-          } catch (jioErr) {
-            console.debug('JioSaavn primary stream skipped, cascading:', jioErr);
-          }
-        }
-        if (isCancelled) return;
-
-        // 3. SECONDARY ENGINE: Direct stream URL if available
+        // 2. Direct stream URL if available (e.g. companion extension or cached format)
         let streamUrl = '';
         let isDash = false;
         try {
