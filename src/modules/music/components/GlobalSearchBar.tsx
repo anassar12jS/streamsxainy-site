@@ -132,9 +132,11 @@ export const GlobalSearchBar: React.FC = () => {
         <div className="absolute left-0 right-0 top-full mt-2 bg-[#121212] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-white/5 animate-in fade-in zoom-in-95 duration-150">
           
           {/* Top half: Text suggestions */}
-          {suggestions.textSuggestions.length > 0 && (
+          {suggestions.textSuggestions.filter(t => typeof t === 'string' && t.trim().length > 0 && t !== '[object Object]').length > 0 && (
             <div className="p-2 space-y-0.5">
-              {suggestions.textSuggestions.map((text, i) => (
+              {suggestions.textSuggestions
+                .filter(t => typeof t === 'string' && t.trim().length > 0 && t !== '[object Object]')
+                .map((text, i) => (
                 <div
                   key={`top-sug-${i}`}
                   onClick={() => handleSearchSubmit(text)}

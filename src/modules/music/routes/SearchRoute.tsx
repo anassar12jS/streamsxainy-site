@@ -13,9 +13,9 @@ import { TrackRow } from '../components/TrackRow';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
 const QUICK_TRENDING_TAGS = [
-  'Hans Zimmer', 'Dune', 'Billie Eilish', 'Interstellar', 
-  'The Weeknd', 'RADWIMPS', 'Attack on Titan', 'Oppenheimer', 
-  'Cyberpunk 2077', 'Lofi Beats'
+  'Superheaven', 'Sade', 'Wisp', 'The Weeknd', 'Billie Eilish', 
+  'Kendrick Lamar', 'Deftones', 'Frank Ocean', 'Pixies', 
+  'Amira Elfeky', 'Radiohead', 'Tyler, The Creator', 'Travis Scott'
 ];
 
 export const SearchRoute: React.FC = () => {
@@ -164,7 +164,18 @@ const searchCache = new Map<string, FullCatalogSearchResult>();
   /**
    * Highlights the matching prefix in white, and the remaining text in gray
    */
-  const renderHighlightedText = (fullText: string, currentQuery: string) => {
+  const renderHighlightedText = (rawText: any, currentQuery: string) => {
+    let fullText = '';
+    if (typeof rawText === 'string') {
+      fullText = rawText;
+    } else if (rawText && typeof rawText === 'object') {
+      fullText = rawText.text || rawText.query || rawText.title || '';
+    }
+    fullText = String(fullText || '').trim();
+    if (!fullText || fullText === '[object Object]' || fullText.startsWith('[object ')) {
+      return null;
+    }
+
     const lowerFull = fullText.toLowerCase();
     const lowerQuery = currentQuery.toLowerCase();
     if (!lowerQuery || !lowerFull.startsWith(lowerQuery)) {
@@ -210,7 +221,7 @@ const searchCache = new Map<string, FullCatalogSearchResult>();
                 }
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Search songs, artists, albums, or anime OSTs..."
+              placeholder="Search songs, artists, albums, or playlists..."
               className="w-full bg-transparent border-0 outline-none text-sm sm:text-base text-white placeholder-[#777777] font-normal"
             />
             {inputValue && (
@@ -230,9 +241,11 @@ const searchCache = new Map<string, FullCatalogSearchResult>();
             <div className="absolute left-0 right-0 top-full mt-2 bg-[#121212] border border-white/10 rounded-2xl shadow-[0_24px_50px_rgba(0,0,0,0.85)] z-50 overflow-hidden divide-y divide-white/5 animate-in fade-in zoom-in-95 duration-150">
               
               {/* TOP HALF: Text Suggestions (matched portion in white, rest in gray) */}
-              {suggestions.textSuggestions.length > 0 && (
+              {suggestions.textSuggestions.filter(t => typeof t === 'string' && t.trim().length > 0 && t !== '[object Object]').length > 0 && (
                 <div className="p-2 space-y-0.5">
-                  {suggestions.textSuggestions.map((text, i) => (
+                  {suggestions.textSuggestions
+                    .filter(t => typeof t === 'string' && t.trim().length > 0 && t !== '[object Object]')
+                    .map((text, i) => (
                     <div
                       key={`sug-${i}`}
                       onClick={() => handleSelectTextSuggestion(text)}
@@ -286,7 +299,7 @@ const searchCache = new Map<string, FullCatalogSearchResult>();
           )}
 
           {/* Quick Trending Tags */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-3 am-scrollbar text-xs">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-3 no-scrollbar scroll-smooth text-xs">
             <span className="text-[#777777] font-semibold text-[11px] shrink-0 uppercase tracking-wider">
               Trending:
             </span>

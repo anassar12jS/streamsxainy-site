@@ -273,6 +273,95 @@ export interface FullCatalogSearchResult {
 }
 
 /**
+ * Safely extracts a clean plain-text string from any YouTube.js SearchSuggestion or raw node
+ */
+export function extractSuggestionText(item: any): string {
+  if (!item) return '';
+  if (typeof item === 'string') {
+    const s = item.trim();
+    return s === '[object Object]' || s.startsWith('[object ') ? '' : s;
+  }
+
+  // YouTube.js SearchSuggestion stores its parsed Text node under .suggestion
+  if (item.suggestion) {
+    if (typeof item.suggestion === 'string') {
+      const s = item.suggestion.trim();
+      if (s && s !== '[object Object]') return s;
+    }
+    if (typeof item.suggestion.text === 'string') {
+      const s = item.suggestion.text.trim();
+      if (s && s !== '[object Object]') return s;
+    }
+    if (Array.isArray(item.suggestion.runs)) {
+      const s = item.suggestion.runs.map((r: any) => (typeof r === 'string' ? r : r?.text || '')).join('').trim();
+      if (s && s !== '[object Object]') return s;
+    }
+    if (typeof item.suggestion.toString === 'function') {
+      try {
+        const s = item.suggestion.toString().trim();
+        if (s && s !== '[object Object]' && !s.startsWith('[object ')) return s;
+      } catch {}
+    }
+  }
+
+  // Fallback for objects with .text property
+  if (item.text) {
+    if (typeof item.text === 'string') {
+      const s = item.text.trim();
+      if (s && s !== '[object Object]') return s;
+    }
+    if (typeof item.text.text === 'string') {
+      const s = item.text.text.trim();
+      if (s && s !== '[object Object]') return s;
+    }
+    if (Array.isArray(item.text.runs)) {
+      const s = item.text.runs.map((r: any) => (typeof r === 'string' ? r : r?.text || '')).join('').trim();
+      if (s && s !== '[object Object]') return s;
+    }
+    if (typeof item.text.toString === 'function') {
+      try {
+        const s = item.text.toString().trim();
+        if (s && s !== '[object Object]' && !s.startsWith('[object ')) return s;
+      } catch {}
+    }
+  }
+
+  // Some items have .query
+  if (typeof item.query === 'string') {
+    const s = item.query.trim();
+    if (s && s !== '[object Object]') return s;
+  }
+
+  // Some items have .title
+  if (typeof item.title === 'string') {
+    const s = item.title.trim();
+    if (s && s !== '[object Object]') return s;
+  }
+  if (item.title && typeof item.title.text === 'string') {
+    const s = item.title.text.trim();
+    if (s && s !== '[object Object]') return s;
+  }
+
+  // Direct runs array
+  if (Array.isArray(item.runs)) {
+    const s = item.runs.map((r: any) => (typeof r === 'string' ? r : r?.text || '')).join('').trim();
+    if (s && s !== '[object Object]') return s;
+  }
+
+  // Check toString() only if it does not produce [object ...]
+  if (typeof item.toString === 'function') {
+    try {
+      const s = item.toString().trim();
+      if (s && !s.startsWith('[object ') && s !== '[object Object]') {
+        return s;
+      }
+    } catch {}
+  }
+
+  return '';
+}
+
+/**
  * Fetches query text suggestions and rich entity suggestions strictly via YouTube / InnerTube
  */
 export async function getSearchSuggestions(query: string): Promise<SearchSuggestionsResult> {
@@ -288,24 +377,31 @@ export async function getSearchSuggestions(query: string): Promise<SearchSuggest
     if (yt?.music && typeof (yt.music as any).getSearchSuggestions === 'function') {
       const res: any = await (yt.music as any).getSearchSuggestions(q);
       if (Array.isArray(res)) {
-        textSuggestions = res.map((item: any) => typeof item === 'string' ? item : item?.text || String(item)).slice(0, 5);
+        textSuggestions = res
+          .map(extractSuggestionText)
+          .filter((s): s is string => typeof s === 'string' && s.length > 0 && s !== '[object Object]');
       }
     }
   } catch {}
 
-  // 2. Query YouTube suggest API for query autocomplete
-  if (textSuggestions.length === 0) {
+  // 2. Query YouTube suggest API for query autocomplete if needed
+  if (textSuggestions.length < 5) {
     try {
       const suggestUrl = `https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&client=firefox&q=${encodeURIComponent(q)}`;
       const sRes = await extensionBridge.proxyFetch(suggestUrl);
       if (sRes.ok) {
         const sData = await sRes.json();
         if (Array.isArray(sData?.[1])) {
-          textSuggestions = sData[1].slice(0, 5);
+          const apiSuggestions = sData[1]
+            .map(extractSuggestionText)
+            .filter((s): s is string => typeof s === 'string' && s.length > 0 && s !== '[object Object]');
+          textSuggestions = Array.from(new Set([...textSuggestions, ...apiSuggestions]));
         }
       }
     } catch {}
   }
+
+  textSuggestions = textSuggestions.slice(0, 6);
 
   // 3. Rich entity suggestions via native YouTube Music search (strictly native IDs!)
   try {
@@ -558,57 +654,40 @@ export async function getAlbumDetails(albumId: string): Promise<Album | null> {
 }
 
 const CURATED_FEATURED_ALBUMS: Record<string, Album> = {
-  'MPREb_kZ32L3x7eJ8': {
-    id: 'MPREb_kZ32L3x7eJ8',
-    title: 'Interstellar (Original Motion Picture Soundtrack)',
-    artist: 'Hans Zimmer',
-    artistId: 'UC3u1g-8w_a9_Y1XpQcM715Q',
-    artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/f4/5b/73/f45b735a-8d7a-9713-b217-0f8e1593c28b/794043201943.jpg/600x600bb.jpg',
-    year: '2014',
-    genre: 'Soundtrack',
+  'MPREb_sade_lovedeluxe': {
+    id: 'MPREb_sade_lovedeluxe',
+    title: 'Love Deluxe',
+    artist: 'Sade',
+    artistId: 'UCsade_official',
+    artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
+    year: '1992',
+    genre: 'R&B / Soul',
     trackCount: 6,
-    duration: 1610,
+    duration: 1800,
     tracks: [
-      { id: 'int-1', title: 'Cornfield Chase', artist: 'Hans Zimmer', album: 'Interstellar', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/f4/5b/73/f45b735a-8d7a-9713-b217-0f8e1593c28b/794043201943.jpg/600x600bb.jpg', duration: 236, audioUrl: '', youtubeId: 'UDVtMYqUAyw' },
-      { id: 'int-2', title: 'Stay', artist: 'Hans Zimmer', album: 'Interstellar', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/f4/5b/73/f45b735a-8d7a-9713-b217-0f8e1593c28b/794043201943.jpg/600x600bb.jpg', duration: 412, audioUrl: '', youtubeId: '1m6u3sQZ_u8' },
-      { id: 'int-3', title: 'No Time for Caution', artist: 'Hans Zimmer', album: 'Interstellar', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/f4/5b/73/f45b735a-8d7a-9713-b217-0f8e1593c28b/794043201943.jpg/600x600bb.jpg', duration: 246, audioUrl: '', youtubeId: 'm3zvVGJrTP8' },
-      { id: 'int-4', title: 'Mountains', artist: 'Hans Zimmer', album: 'Interstellar', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/f4/5b/73/f45b735a-8d7a-9713-b217-0f8e1593c28b/794043201943.jpg/600x600bb.jpg', duration: 219, audioUrl: '', youtubeId: 'o_Ay_iDRAbc' },
-      { id: 'int-5', title: 'S.T.A.Y.', artist: 'Hans Zimmer', album: 'Interstellar', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/f4/5b/73/f45b735a-8d7a-9713-b217-0f8e1593c28b/794043201943.jpg/600x600bb.jpg', duration: 383, audioUrl: '', youtubeId: 'N41v1_yO8oY' },
-      { id: 'int-6', title: 'Day One', artist: 'Hans Zimmer', album: 'Interstellar', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/f4/5b/73/f45b735a-8d7a-9713-b217-0f8e1593c28b/794043201943.jpg/600x600bb.jpg', duration: 204, audioUrl: '', youtubeId: 'gM0yM7YwV-E' },
+      { id: 'sade-1', title: 'No Ordinary Love', artist: 'Sade', album: 'Love Deluxe', artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80', duration: 439, audioUrl: '', youtubeId: '_WcWHZc8s2I' },
+      { id: 'sade-2', title: 'Feel No Pain', artist: 'Sade', album: 'Love Deluxe', artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80', duration: 308, audioUrl: '', youtubeId: 'eN9vG3pB6_0' },
+      { id: 'sade-3', title: 'Like a Tattoo', artist: 'Sade', album: 'Love Deluxe', artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80', duration: 218, audioUrl: '', youtubeId: 'sF2dJvTz6v0' },
+      { id: 'sade-4', title: 'Kiss of Life', artist: 'Sade', album: 'Love Deluxe', artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80', duration: 350, audioUrl: '', youtubeId: '2mX0q6l2W6U' },
+      { id: 'sade-5', title: 'Cherish the Day', artist: 'Sade', album: 'Love Deluxe', artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80', duration: 330, audioUrl: '', youtubeId: 'k1Z5hV6L_aE' },
+      { id: 'sade-6', title: 'Pearls', artist: 'Sade', album: 'Love Deluxe', artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80', duration: 274, audioUrl: '', youtubeId: '7Xq0r5qV_c8' },
     ],
   },
-  'MPREb_8kL4w9Z2x1a': {
-    id: 'MPREb_8kL4w9Z2x1a',
-    title: 'Oppenheimer (Original Motion Picture Soundtrack)',
-    artist: 'Ludwig Göransson',
-    artistId: 'UCY4s2D_iR2gM7l8xUj0t8wA',
-    artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/4a/15/48/4a1548b2-b5ca-fae5-4f3d-ca290bf494ec/23UMGIM74921.rgb.jpg/600x600bb.jpg',
-    year: '2023',
-    genre: 'Soundtrack',
+  'MPREb_superheaven_jar': {
+    id: 'MPREb_superheaven_jar',
+    title: 'Jar',
+    artist: 'Superheaven',
+    artistId: 'UCsuperheaven_band',
+    artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg',
+    year: '2013',
+    genre: 'Grunge / Alternative',
     trackCount: 4,
-    duration: 655,
+    duration: 860,
     tracks: [
-      { id: 'opp-1', title: 'Can You Hear the Music', artist: 'Ludwig Göransson', album: 'Oppenheimer', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/27/fa/ca/27faca2e-7f7a-cf17-ae3e-647294d52713/697.jpg/600x600bb.jpg', duration: 110, audioUrl: '', youtubeId: '4JZ-o3iAJv4' },
-      { id: 'opp-2', title: 'Destroyer of Worlds', artist: 'Ludwig Göransson', album: 'Oppenheimer', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/27/fa/ca/27faca2e-7f7a-cf17-ae3e-647294d52713/697.jpg/600x600bb.jpg', duration: 174, audioUrl: '', youtubeId: 'W4rC9gS-V2o' },
-      { id: 'opp-3', title: 'Fusion', artist: 'Ludwig Göransson', album: 'Oppenheimer', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/27/fa/ca/27faca2e-7f7a-cf17-ae3e-647294d52713/697.jpg/600x600bb.jpg', duration: 235, audioUrl: '', youtubeId: 'F92tQx1kYwA' },
-      { id: 'opp-4', title: 'Oppenheimer', artist: 'Ludwig Göransson', album: 'Oppenheimer', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/27/fa/ca/27faca2e-7f7a-cf17-ae3e-647294d52713/697.jpg/600x600bb.jpg', duration: 136, audioUrl: '', youtubeId: '8lYQ3w9D-Zs' },
-    ],
-  },
-  'MPREb_7mN0kL1z7x9': {
-    id: 'MPREb_7mN0kL1z7x9',
-    title: 'Dune: Part Two (Original Soundtrack)',
-    artist: 'Hans Zimmer',
-    artistId: 'UC3u1g-8w_a9_Y1XpQcM715Q',
-    artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/b8/b5/45/b8b545d0-9ce1-38ae-aa21-0300a74ea85a/794043217997.jpg/600x600bb.jpg',
-    year: '2024',
-    genre: 'Soundtrack',
-    trackCount: 4,
-    duration: 724,
-    tracks: [
-      { id: 'dune-1', title: 'A Time of Quiet Between the Storms', artist: 'Hans Zimmer', album: 'Dune: Part Two', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/fd/b2/76/fdb276e7-ac61-856a-3eeb-36007e9fba7c/794043220425.jpg/600x600bb.jpg', duration: 261, audioUrl: '', youtubeId: 'tZkWc2Z866o' },
-      { id: 'dune-2', title: 'Eclipse', artist: 'Hans Zimmer', album: 'Dune: Part Two', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/fd/b2/76/fdb276e7-ac61-856a-3eeb-36007e9fba7c/794043220425.jpg/600x600bb.jpg', duration: 132, audioUrl: '', youtubeId: 'mK2mZ2E4m9A' },
-      { id: 'dune-3', title: 'Worm Ride', artist: 'Hans Zimmer', album: 'Dune: Part Two', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/fd/b2/76/fdb276e7-ac61-856a-3eeb-36007e9fba7c/794043220425.jpg/600x600bb.jpg', duration: 139, audioUrl: '', youtubeId: 'H_UfH7t6W1I' },
-      { id: 'dune-4', title: 'Kiss the Ring', artist: 'Hans Zimmer', album: 'Dune: Part Two', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/fd/b2/76/fdb276e7-ac61-856a-3eeb-36007e9fba7c/794043220425.jpg/600x600bb.jpg', duration: 192, audioUrl: '', youtubeId: 's5Y2k7f4tQc' },
+      { id: 'sh-1', title: "Youngest Daughter", artist: 'Superheaven', album: 'Jar', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg', duration: 249, audioUrl: '', youtubeId: 'qQ3y8y3gCbc' },
+      { id: 'sh-2', title: "No One's Deserving", artist: 'Superheaven', album: 'Jar', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg', duration: 184, audioUrl: '', youtubeId: 'B-d_t2eUfXo' },
+      { id: 'sh-3', title: 'Life in a Jar', artist: 'Superheaven', album: 'Jar', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg', duration: 219, audioUrl: '', youtubeId: 'eM3vV4q5YcQ' },
+      { id: 'sh-4', title: 'Sponge', artist: 'Superheaven', album: 'Jar', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg', duration: 208, audioUrl: '', youtubeId: 'oN2v4qY8y0A' },
     ],
   },
   'MPREb_U81Qp66p0oT': {
@@ -627,20 +706,20 @@ const CURATED_FEATURED_ALBUMS: Record<string, Album> = {
       { id: 'bil-3', title: 'CHIHIRO', artist: 'Billie Eilish', album: 'HIT ME HARD AND SOFT', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/71/6a/5f/716a5fae-7833-255e-2b1b-b21a37c35e38/24UMGIM36919.rgb.jpg/600x600bb.jpg', duration: 303, audioUrl: '', youtubeId: 'BY_X02Q46gs' },
     ],
   },
-  'MPREb_3fD5kL1z7x9': {
-    id: 'MPREb_3fD5kL1z7x9',
-    title: 'Your Name. (Original Soundtrack)',
-    artist: 'RADWIMPS',
-    artistId: 'UC2wRz2B6e21E2Z_rFmQ269A',
-    artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/8e/31/31/8e31317a-85d7-b362-e935-d22798fbb0d8/16UMGIM41846.rgb.jpg/600x600bb.jpg',
-    year: '2016',
-    genre: 'Anime',
+  'MPREb_weeknd_afterhours': {
+    id: 'MPREb_weeknd_afterhours',
+    title: 'After Hours',
+    artist: 'The Weeknd',
+    artistId: 'UC0WP5P-ufpRfjbNrmOWwLBQ',
+    artwork: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80',
+    year: '2020',
+    genre: 'R&B / Pop',
     trackCount: 3,
-    duration: 1164,
+    duration: 680,
     tracks: [
-      { id: 'rad-1', title: 'Sparkle (Movie ver.)', artist: 'RADWIMPS', album: 'Your Name.', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/8e/31/31/8e31317a-85d7-b362-e935-d22798fbb0d8/16UMGIM41846.rgb.jpg/600x600bb.jpg', duration: 537, audioUrl: '', youtubeId: 'a2GujJZfXpg' },
-      { id: 'rad-2', title: 'Zenzenzense (Movie ver.)', artist: 'RADWIMPS', album: 'Your Name.', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/8e/31/31/8e31317a-85d7-b362-e935-d22798fbb0d8/16UMGIM41846.rgb.jpg/600x600bb.jpg', duration: 285, audioUrl: '', youtubeId: 'PDSkFeMVNKs' },
-      { id: 'rad-3', title: 'Nandemonaiya (Movie ver.)', artist: 'RADWIMPS', album: 'Your Name.', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/8e/31/31/8e31317a-85d7-b362-e935-d22798fbb0d8/16UMGIM41846.rgb.jpg/600x600bb.jpg', duration: 342, audioUrl: '', youtubeId: 'oxw90e9iO48' },
+      { id: 'wk-1', title: 'Blinding Lights', artist: 'The Weeknd', album: 'After Hours', artwork: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80', duration: 200, audioUrl: '', youtubeId: '4NRXx6U8ABQ' },
+      { id: 'wk-2', title: 'Save Your Tears', artist: 'The Weeknd', album: 'After Hours', artwork: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80', duration: 215, audioUrl: '', youtubeId: 'XXYlFuWEuKI' },
+      { id: 'wk-3', title: 'In Your Eyes', artist: 'The Weeknd', album: 'After Hours', artwork: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80', duration: 237, audioUrl: '', youtubeId: 'dqRZDebPIGs' },
     ],
   },
 };
@@ -730,25 +809,41 @@ export async function getArtistDetails(artistId: string): Promise<Artist | null>
 }
 
 const CURATED_FEATURED_ARTISTS: Record<string, Artist> = {
-  'UC3u1g-8w_a9_Y1XpQcM715Q': {
-    id: 'UC3u1g-8w_a9_Y1XpQcM715Q',
-    name: 'Hans Zimmer',
-    avatar: 'https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/fd/b2/76/fdb276e7-ac61-856a-3eeb-36007e9fba7c/794043220425.jpg/600x600bb.jpg',
-    bio: 'Academy Award-winning composer behind Interstellar, Dune, The Dark Knight, Inception, and The Lion King.',
-    monthlyListeners: '14.2M subscribers',
+  'UCsade_official': {
+    id: 'UCsade_official',
+    name: 'Sade',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
+    bio: 'Legendary English band formed in London, fronted by iconic lead singer Sade Adu, celebrated worldwide for their timeless blend of soul, smooth jazz, and quiet storm.',
+    monthlyListeners: '14.8M monthly listeners',
     topTracks: [
-      { id: 'am-1', title: 'Cornfield Chase', artist: 'Hans Zimmer', album: 'Interstellar', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/f4/5b/73/f45b735a-8d7a-9713-b217-0f8e1593c28b/794043201943.jpg/600x600bb.jpg', duration: 236, audioUrl: '', youtubeId: 'UDVtMYqUAyw' },
-      { id: 'am-3', title: 'A Time of Quiet Between the Storms', artist: 'Hans Zimmer', album: 'Dune: Part Two', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/fd/b2/76/fdb276e7-ac61-856a-3eeb-36007e9fba7c/794043220425.jpg/600x600bb.jpg', duration: 261, audioUrl: '', youtubeId: 'tZkWc2Z866o' },
-      { id: 'int-2', title: 'Stay', artist: 'Hans Zimmer', album: 'Interstellar', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/f4/5b/73/f45b735a-8d7a-9713-b217-0f8e1593c28b/794043201943.jpg/600x600bb.jpg', duration: 412, audioUrl: '', youtubeId: '1m6u3sQZ_u8' },
+      { id: 'sade-1', title: 'No Ordinary Love', artist: 'Sade', album: 'Love Deluxe', artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80', duration: 439, audioUrl: '', youtubeId: '_WcWHZc8s2I' },
+      { id: 'sade-3', title: 'Like a Tattoo', artist: 'Sade', album: 'Love Deluxe', artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80', duration: 218, audioUrl: '', youtubeId: 'sF2dJvTz6v0' },
+      { id: 'sade-4', title: 'Kiss of Life', artist: 'Sade', album: 'Love Deluxe', artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80', duration: 350, audioUrl: '', youtubeId: '2mX0q6l2W6U' },
+      { id: 'sade-5', title: 'Smooth Operator', artist: 'Sade', album: 'Diamond Life', artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80', duration: 258, audioUrl: '', youtubeId: '4TYv2PhG89A' },
     ],
     albums: [
-      { id: 'MPREb_kZ32L3x7eJ8', title: 'Interstellar (Original Soundtrack)', artist: 'Hans Zimmer', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/f4/5b/73/f45b735a-8d7a-9713-b217-0f8e1593c28b/794043201943.jpg/600x600bb.jpg', year: '2014', genre: 'Soundtrack', trackCount: 16, tracks: [] },
-      { id: 'MPREb_7mN0kL1z7x9', title: 'Dune: Part Two (Original Soundtrack)', artist: 'Hans Zimmer', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/b8/b5/45/b8b545d0-9ce1-38ae-aa21-0300a74ea85a/794043217997.jpg/600x600bb.jpg', year: '2024', genre: 'Soundtrack', trackCount: 25, tracks: [] },
+      { id: 'MPREb_sade_lovedeluxe', title: 'Love Deluxe', artist: 'Sade', artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80', year: '1992', genre: 'R&B / Soul', trackCount: 6, tracks: [] },
     ],
     singles: [],
     related: [
-      { id: 'UCY4s2D_iR2gM7l8xUj0t8wA', name: 'Ludwig Göransson', avatar: 'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/4a/15/48/4a1548b2-b5ca-fae5-4f3d-ca290bf494ec/23UMGIM74921.rgb.jpg/600x600bb.jpg', subtitle: 'Composer' },
+      { id: 'UCsuperheaven_band', name: 'Superheaven', avatar: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg', subtitle: 'Alternative' },
     ],
+  },
+  'UCsuperheaven_band': {
+    id: 'UCsuperheaven_band',
+    name: 'Superheaven',
+    avatar: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg',
+    bio: 'American alternative rock and grunge band from Doylestown, Pennsylvania, known for heavy melodic guitars and emotionally charged songwriting.',
+    monthlyListeners: '3.2M monthly listeners',
+    topTracks: [
+      { id: 'sh-1', title: "Youngest Daughter", artist: 'Superheaven', album: 'Jar', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg', duration: 249, audioUrl: '', youtubeId: 'qQ3y8y3gCbc' },
+      { id: 'sh-2', title: "No One's Deserving", artist: 'Superheaven', album: 'Jar', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg', duration: 184, audioUrl: '', youtubeId: 'B-d_t2eUfXo' },
+    ],
+    albums: [
+      { id: 'MPREb_superheaven_jar', title: 'Jar', artist: 'Superheaven', artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg', year: '2013', genre: 'Grunge', trackCount: 4, tracks: [] },
+    ],
+    singles: [],
+    related: [],
   },
 };
 
@@ -1073,84 +1168,84 @@ export const APPLE_MUSIC_BROWSE_SECTIONS = {
   heroSpotlight: [
     {
       id: 'spot-1',
-      title: 'Dune: Part Two (Original Soundtrack)',
-      artist: 'Hans Zimmer',
-      description: 'Experience the sweeping desert soundscape in high-fidelity Apple Music spatial audio.',
-      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/fd/b2/76/fdb276e7-ac61-856a-3eeb-36007e9fba7c/794043220425.jpg/600x600bb.jpg',
-      badge: 'SPATIAL AUDIO',
+      title: 'Love Deluxe',
+      artist: 'Sade',
+      description: 'The definitive quiet-storm and smooth soul masterpiece, featuring No Ordinary Love and Like a Tattoo.',
+      artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
+      badge: 'TIMELESS CLASSIC',
       type: 'album',
-      targetId: 'album-dune2',
+      targetId: 'MPREb_sade_lovedeluxe',
     },
     {
       id: 'spot-2',
-      title: 'Today’s Hits 2025',
-      artist: 'Apple Music Pop',
-      description: 'The biggest songs across the globe, updated in real time.',
-      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/92/9f/69/929f69f1-9977-3a44-d674-11f70c852d1b/24UMGIM36186.rgb.jpg/600x600bb.jpg',
-      badge: 'FEATURED PLAYLIST',
-      type: 'playlist',
-      targetId: 'pl-todays-hits',
+      title: 'Jar',
+      artist: 'Superheaven',
+      description: 'Heavy atmospheric grunge and alternative rock riffs from Pennsylvania.',
+      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg',
+      badge: 'ALTERNATIVE SPOTLIGHT',
+      type: 'album',
+      targetId: 'MPREb_superheaven_jar',
     },
     {
       id: 'spot-3',
-      title: 'Anime Soundtracks: Epic Battles',
-      artist: 'Attack on Titan, Jujutsu Kaisen, Demon Slayer',
-      description: 'Shonen battle themes and orchestrations by Hiroyuki Sawano & RADWIMPS.',
-      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/ca/b0/7f/cab07fff-c8aa-e3ed-5051-7a91e9739b5c/192650630147_cover.jpg/600x600bb.jpg',
-      badge: 'ANIME SPOTLIGHT',
-      type: 'playlist',
-      targetId: 'pl-anime-epic',
+      title: 'HIT ME HARD AND SOFT',
+      artist: 'Billie Eilish',
+      description: 'The globally acclaimed alternative pop studio album, including BIRDS OF A FEATHER and CHIHIRO.',
+      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/71/6a/5f/716a5fae-7833-255e-2b1b-b21a37c35e38/24UMGIM36919.rgb.jpg/600x600bb.jpg',
+      badge: 'GLOBAL HIT',
+      type: 'album',
+      targetId: 'MPREb_U81Qp66p0oT',
     },
   ],
 
   topTracks: [
     {
       id: 'am-1',
-      title: 'Cornfield Chase',
-      artist: 'Hans Zimmer',
-      album: 'Interstellar (Original Motion Picture Soundtrack)',
-      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/f4/5b/73/f45b735a-8d7a-9713-b217-0f8e1593c28b/794043201943.jpg/600x600bb.jpg',
-      duration: 236,
+      title: 'No Ordinary Love',
+      artist: 'Sade',
+      album: 'Love Deluxe',
+      artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
+      duration: 439,
       audioUrl: '',
-      youtubeId: 'UDVtMYqUAyw',
-      genre: 'Soundtrack',
-      year: '2014',
+      youtubeId: '_WcWHZc8s2I',
+      genre: 'R&B / Soul',
+      year: '1992',
     },
     {
       id: 'am-2',
-      title: 'Can You Hear the Music',
-      artist: 'Ludwig Göransson',
-      album: 'Oppenheimer (Original Motion Picture Soundtrack)',
-      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/27/fa/ca/27faca2e-7f7a-cf17-ae3e-647294d52713/697.jpg/600x600bb.jpg',
-      duration: 110,
+      title: 'Youngest Daughter',
+      artist: 'Superheaven',
+      album: 'Jar',
+      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg',
+      duration: 249,
       audioUrl: '',
-      youtubeId: '4JZ-o3iAJv4',
-      genre: 'Soundtrack',
-      year: '2023',
+      youtubeId: 'qQ3y8y3gCbc',
+      genre: 'Grunge',
+      year: '2013',
     },
     {
       id: 'am-3',
-      title: 'A Time of Quiet Between the Storms',
-      artist: 'Hans Zimmer',
-      album: 'Dune: Part Two (Original Soundtrack)',
-      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/fd/b2/76/fdb276e7-ac61-856a-3eeb-36007e9fba7c/794043220425.jpg/600x600bb.jpg',
-      duration: 261,
+      title: 'Like a Tattoo',
+      artist: 'Sade',
+      album: 'Love Deluxe',
+      artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
+      duration: 218,
       audioUrl: '',
-      youtubeId: 'tZkWc2Z866o',
-      genre: 'Soundtrack',
-      year: '2024',
+      youtubeId: 'sF2dJvTz6v0',
+      genre: 'R&B / Soul',
+      year: '1992',
     },
     {
       id: 'am-4',
-      title: 'Sparkle (Movie ver.)',
-      artist: 'RADWIMPS',
-      album: 'Your Name. (Original Soundtrack)',
-      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/56/b3/8c/56b38c05-1728-402c-016c-c1e4b0635be8/4988031167618_cover.jpg/600x600bb.jpg',
-      duration: 537,
+      title: "No One's Deserving",
+      artist: 'Superheaven',
+      album: 'Jar',
+      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg',
+      duration: 184,
       audioUrl: '',
-      youtubeId: 'a2GujJZfXpg',
-      genre: 'Anime / J-Rock',
-      year: '2016',
+      youtubeId: 'B-d_t2eUfXo',
+      genre: 'Grunge',
+      year: '2013',
     },
     {
       id: 'am-5',
@@ -1178,15 +1273,15 @@ export const APPLE_MUSIC_BROWSE_SECTIONS = {
     },
     {
       id: 'am-7',
-      title: 'YouSeeBIGGIRL/T:T',
-      artist: 'Hiroyuki Sawano & Gemie',
-      album: 'Attack on Titan Season 2 (Original Soundtrack)',
-      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music128/v4/ca/b0/7f/cab07fff-c8aa-e3ed-5051-7a91e9739b5c/192650630147_cover.jpg/600x600bb.jpg',
-      duration: 358,
+      title: 'Smooth Operator',
+      artist: 'Sade',
+      album: 'Diamond Life',
+      artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
+      duration: 258,
       audioUrl: '',
-      youtubeId: '1Tf6yZ8H_gY',
-      genre: 'Anime / Epic',
-      year: '2017',
+      youtubeId: '4TYv2PhG89A',
+      genre: 'Smooth Soul',
+      year: '1984',
     },
     {
       id: 'am-8',
@@ -1204,34 +1299,24 @@ export const APPLE_MUSIC_BROWSE_SECTIONS = {
 
   featuredAlbums: [
     {
-      id: 'MPREb_kZ32L3x7eJ8',
-      title: 'Interstellar (Original Soundtrack)',
-      artist: 'Hans Zimmer',
-      artistId: 'UC3u1g-8w_a9_Y1XpQcM715Q',
-      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/f4/5b/73/f45b735a-8d7a-9713-b217-0f8e1593c28b/794043201943.jpg/600x600bb.jpg',
-      year: '2014',
-      genre: 'Soundtrack',
-      trackCount: 16,
+      id: 'MPREb_sade_lovedeluxe',
+      title: 'Love Deluxe',
+      artist: 'Sade',
+      artistId: 'UCsade_official',
+      artwork: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
+      year: '1992',
+      genre: 'R&B / Soul',
+      trackCount: 6,
     },
     {
-      id: 'MPREb_8kL4w9Z2x1a',
-      title: 'Oppenheimer (Original Soundtrack)',
-      artist: 'Ludwig Göransson',
-      artistId: 'UCY4s2D_iR2gM7l8xUj0t8wA',
-      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/4a/15/48/4a1548b2-b5ca-fae5-4f3d-ca290bf494ec/23UMGIM74921.rgb.jpg/600x600bb.jpg',
-      year: '2023',
-      genre: 'Soundtrack',
-      trackCount: 24,
-    },
-    {
-      id: 'MPREb_7mN0kL1z7x9',
-      title: 'Dune: Part Two (Original Soundtrack)',
-      artist: 'Hans Zimmer',
-      artistId: 'UC3u1g-8w_a9_Y1XpQcM715Q',
-      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/b8/b5/45/b8b545d0-9ce1-38ae-aa21-0300a74ea85a/794043217997.jpg/600x600bb.jpg',
-      year: '2024',
-      genre: 'Soundtrack',
-      trackCount: 25,
+      id: 'MPREb_superheaven_jar',
+      title: 'Jar',
+      artist: 'Superheaven',
+      artistId: 'UCsuperheaven_band',
+      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/e3/6b/0c/e36b0c1b-5a7f-d776-6717-5110a40b3286/cover.jpg/600x600bb.jpg',
+      year: '2013',
+      genre: 'Grunge',
+      trackCount: 4,
     },
     {
       id: 'MPREb_U81Qp66p0oT',
@@ -1244,14 +1329,14 @@ export const APPLE_MUSIC_BROWSE_SECTIONS = {
       trackCount: 10,
     },
     {
-      id: 'MPREb_3fD5kL1z7x9',
-      title: 'Your Name. (Original Soundtrack)',
-      artist: 'RADWIMPS',
-      artistId: 'UC2wRz2B6e21E2Z_rFmQ269A',
-      artwork: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/8e/31/31/8e31317a-85d7-b362-e935-d22798fbb0d8/16UMGIM41846.rgb.jpg/600x600bb.jpg',
-      year: '2016',
-      genre: 'Anime',
-      trackCount: 27,
+      id: 'MPREb_weeknd_afterhours',
+      title: 'After Hours',
+      artist: 'The Weeknd',
+      artistId: 'UC0WP5P-ufpRfjbNrmOWwLBQ',
+      artwork: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80',
+      year: '2020',
+      genre: 'R&B / Pop',
+      trackCount: 14,
     },
   ],
 
@@ -1269,9 +1354,9 @@ export const APPLE_MUSIC_BROWSE_SECTIONS = {
     },
     {
       id: 'radio-synthwave',
-      title: 'Synthwave & Retrowave Cyberpunk',
+      title: 'Synthwave & Retrowave Vibes',
       artist: 'Night City Radio',
-      album: 'Retro 80s Chill',
+      album: 'Retro Chill',
       artwork: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&auto=format&fit=crop&q=80',
       duration: 0,
       audioUrl: 'https://stream.zeno.fm/0r0xa792kwzuv',
@@ -1279,14 +1364,14 @@ export const APPLE_MUSIC_BROWSE_SECTIONS = {
       isLive: true,
     },
     {
-      id: 'radio-anime',
-      title: 'Anime Piano & Orchestral Radio',
-      artist: 'Studio Ghibli & Shonen Beats',
-      album: 'Anime OST Radio',
-      artwork: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80',
+      id: 'radio-indie',
+      title: 'Indie Rock & Shoegaze Radio',
+      artist: 'Dream Pop Collective',
+      album: 'Fuzz & Reverberation',
+      artwork: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80',
       duration: 0,
       audioUrl: 'https://stream.zeno.fm/4t8wd44yvtzuv',
-      genre: 'Anime Chill',
+      genre: 'Indie Alternative',
       isLive: true,
     },
     {

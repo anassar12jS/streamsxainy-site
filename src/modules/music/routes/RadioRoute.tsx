@@ -51,7 +51,7 @@ export const RadioRoute: React.FC = () => {
           Live Radio
         </h1>
         <p className="text-sm text-white/60 max-w-xl mt-1">
-          Continuous, commercial-free streaming stations: chill lo-fi beats, cyberpunk retrowave, studio orchestral anime, and smooth midnight jazz.
+          Continuous, commercial-free streaming stations: chill lo-fi beats, synthwave retrowave, indie shoegaze & alternative, and smooth midnight jazz.
         </p>
       </div>
 
