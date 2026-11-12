@@ -355,8 +355,16 @@ export class MusicAudioEngine {
         } catch {}
       }
       this.audioElement.src = streamUrl;
-      await this.audioElement.play();
-    } catch (err) {
+      const playPromise = this.audioElement.play();
+      if (playPromise !== undefined) {
+        await playPromise;
+      }
+    } catch (err: any) {
+      if (err?.name === 'NotAllowedError') {
+        console.warn('Autoplay held by browser policy; user gesture will start playback');
+        this.callbacks?.onStatusChange?.('paused');
+        return;
+      }
       console.error('Audio play error:', err);
       throw err;
     }

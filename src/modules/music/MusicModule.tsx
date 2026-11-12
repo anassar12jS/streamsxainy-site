@@ -220,36 +220,7 @@ export const MusicModule: React.FC = () => {
           }).catch(() => {});
         }
 
-        // 1. Live radio station with direct stream URL
-        if (currentTrack.isLive && currentTrack.audioUrl) {
-          if (engineRef.current) {
-            await engineRef.current.loadStream(currentTrack.audioUrl);
-            if (!isCancelled) {
-              setPlaybackStatus('playing');
-              engineRef.current.syncMediaSession(
-                currentTrack,
-                togglePlayPause,
-                togglePlayPause,
-                nextTrack,
-                prevTrack
-              );
-            }
-          }
-          return;
-        }
-
-        // 2. Resolve YouTube video ID for full song playback
-        let videoId = currentTrack.youtubeId;
-        if (!videoId && (currentTrack.title || currentTrack.artist)) {
-          try {
-            videoId = (await resolveVideoId(currentTrack)) || undefined;
-          } catch (e) {
-            console.debug('Failed to resolve videoId:', e);
-          }
-        }
-        if (isCancelled) return;
-
-        // 3. Play the full song via the YouTube player. playYouTube reports what really happened.
+        // Common post-playback setup helper
         const afterStart = () => {
           engineRef.current?.syncMediaSession(currentTrack, togglePlayPause, togglePlayPause, nextTrack, prevTrack);
           extensionBridge.updateDiscordRpc({
@@ -267,35 +238,39 @@ export const MusicModule: React.FC = () => {
           }
         };
 
-        const tryYouTube = async (id: string): Promise<boolean> => {
-          if (!engineRef.current) return false;
-          const result = await engineRef.current.playYouTube(id);
-          if (isCancelled || result === 'superseded') return true; // a newer track owns the player now
-          if (result === 'playing') {
-            afterStart();
-            return true;
+        // 1. Live radio station with direct stream URL
+        if (currentTrack.isLive && currentTrack.audioUrl) {
+          if (engineRef.current) {
+            await engineRef.current.loadStream(currentTrack.audioUrl);
+            if (!isCancelled) {
+              setPlaybackStatus('playing');
+              afterStart();
+            }
           }
-          if (result === 'blocked') {
-            // The browser held autoplay back. Be honest in the UI: show a play button, one press starts it.
-            setPlaybackStatus('paused');
-            afterStart();
-            return true;
-          }
-          console.warn(`YouTube would not play ${id}; trying another source`);
-          return false;
-        };
-
-        if (videoId && (await tryYouTube(videoId))) return;
-        if (isCancelled) return;
-
-        // YouTube refused that upload (often "embedding disabled"): try another upload of the song
-        if (videoId) {
-          const altId = await resolveAlternateVideoId(currentTrack, videoId);
-          if (isCancelled) return;
-          if (altId && (await tryYouTube(altId))) return;
+          return;
         }
 
-        // 4. Fallback to direct stream URL if available
+        // 2. PRIMARY DEFAULT ENGINE: JioSaavn 320kbps High-Fidelity Studio Audio
+        // Pure unblocked CDN AAC/MP4 stream with full CORS & byte-range support.
+        // Starts instantly on 1st click with zero extension needed; supports mobile lock-screen & background playback.
+        if (currentTrack.title && currentTrack.artist) {
+          try {
+            const jioResult = await getJioSaavnStream(currentTrack.title, currentTrack.artist);
+            if (jioResult?.streamUrl && engineRef.current) {
+              await engineRef.current.loadStream(jioResult.streamUrl);
+              if (!isCancelled) {
+                setPlaybackStatus('playing');
+                afterStart();
+                return;
+              }
+            }
+          } catch (jioErr) {
+            console.debug('JioSaavn primary stream skipped, cascading:', jioErr);
+          }
+        }
+        if (isCancelled) return;
+
+        // 3. SECONDARY ENGINE: Direct stream URL if available
         let streamUrl = '';
         let isDash = false;
         try {
@@ -310,41 +285,52 @@ export const MusicModule: React.FC = () => {
           await engineRef.current.loadStream(streamUrl, isDash);
           if (!isCancelled) {
             setPlaybackStatus('playing');
-            engineRef.current.syncMediaSession(
-              currentTrack,
-              togglePlayPause,
-              togglePlayPause,
-              nextTrack,
-              prevTrack
-            );
+            afterStart();
+            return;
           }
-          return;
         }
+        if (isCancelled) return;
 
-        // 5. JioSaavn 320kbps High-Fidelity Audio Stream (if configured or accessible)
-        if (currentTrack.title && currentTrack.artist) {
+        // 4. TERTIARY ENGINE: YouTube player fallback
+        const tryYouTube = async (id: string): Promise<boolean> => {
+          if (!engineRef.current) return false;
+          const result = await engineRef.current.playYouTube(id);
+          if (isCancelled || result === 'superseded') return true;
+          if (result === 'playing') {
+            afterStart();
+            return true;
+          }
+          if (result === 'blocked') {
+            setPlaybackStatus('paused');
+            afterStart();
+            return true;
+          }
+          console.warn(`YouTube would not play ${id}; trying another source`);
+          return false;
+        };
+
+        let videoId = currentTrack.youtubeId;
+        if (!videoId && (currentTrack.title || currentTrack.artist)) {
           try {
-            const jioResult = await getJioSaavnStream(currentTrack.title, currentTrack.artist);
-            if (jioResult?.streamUrl && engineRef.current) {
-              await engineRef.current.loadStream(jioResult.streamUrl);
-              if (!isCancelled) {
-                setPlaybackStatus('playing');
-                engineRef.current.syncMediaSession(
-                  currentTrack,
-                  togglePlayPause,
-                  togglePlayPause,
-                  nextTrack,
-                  prevTrack
-                );
-                return;
-              }
-            }
-          } catch (jioErr) {
-            console.debug('JioSaavn streaming skipped:', jioErr);
+            videoId = (await resolveVideoId(currentTrack)) || undefined;
+          } catch (e) {
+            console.debug('Failed to resolve videoId:', e);
           }
         }
+        if (isCancelled) return;
 
-        // 6. Full-Length Open Network Audio Fallback (Audius 320kbps MP3 stream, unblocked)
+        if (videoId && (await tryYouTube(videoId))) return;
+        if (isCancelled) return;
+
+        // YouTube refused that upload (e.g. embedding disabled): try alternate upload
+        if (videoId) {
+          const altId = await resolveAlternateVideoId(currentTrack, videoId);
+          if (isCancelled) return;
+          if (altId && (await tryYouTube(altId))) return;
+        }
+        if (isCancelled) return;
+
+        // 5. QUATERNARY ENGINE: Audius Open Network 320kbps MP3 stream (unblocked)
         if (currentTrack.title && currentTrack.artist) {
           try {
             const audiusStream = await getAudiusAudioStream(currentTrack.title, currentTrack.artist);
@@ -352,13 +338,7 @@ export const MusicModule: React.FC = () => {
               await engineRef.current.loadStream(audiusStream);
               if (!isCancelled) {
                 setPlaybackStatus('playing');
-                engineRef.current.syncMediaSession(
-                  currentTrack,
-                  togglePlayPause,
-                  togglePlayPause,
-                  nextTrack,
-                  prevTrack
-                );
+                afterStart();
                 return;
               }
             }
@@ -366,8 +346,9 @@ export const MusicModule: React.FC = () => {
             console.debug('Audius streaming fallback skipped:', audErr);
           }
         }
+        if (isCancelled) return;
 
-        // 6. Guaranteed Resilient Fallback: Stream high-quality audio
+        // 6. FINAL RESILIENT FALLBACK: Stream high-quality audio
         let fallbackStream = currentTrack.audioUrl;
         if (!fallbackStream && currentTrack.title && currentTrack.artist) {
           try {
