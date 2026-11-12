@@ -55,11 +55,11 @@ body, html, #root {
 
 /* Seamless Frosted Glass Floating Player Pill */
 .bitchord-floating-pill {
-  background: rgba(34, 34, 36, 0.82) !important;
+  background: rgba(30, 30, 32, 0.88) !important;
   backdrop-filter: blur(32px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(32px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.75) !important;
 }
 
 /* Slim Micro Scrubber */

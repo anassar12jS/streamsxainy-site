@@ -112,7 +112,7 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
         style={{ fontFamily: 'var(--bitchord-font)' }}
       >
         <div 
-          className="bitchord-floating-pill rounded-full px-4 sm:px-5 py-2.5 flex items-center justify-between gap-3 sm:gap-5 select-none transition-all shadow-[0_20px_50px_rgba(0,0,0,0.85)] border border-white/15 relative overflow-hidden"
+          className="bitchord-floating-pill rounded-full px-4 sm:px-5 py-2.5 flex items-center justify-between gap-3 sm:gap-5 select-none transition-all shadow-[0_20px_50px_rgba(0,0,0,0.85)] border border-white/15 relative"
         >
           {/* ========================================================================= */}
           {/* 1. LEFT: Transport Controls                                               */}
@@ -191,11 +191,11 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
           </div>
 
           {/* ========================================================================= */}
-          {/* 2. CENTER: Artwork (~8px radius) + Title/Artist + PREVIEW Badge + More    */}
+          {/* 2. CENTER: Artwork (~8px radius) + Title/Artist + Micro Scrubber          */}
           {/* ========================================================================= */}
           <div className="flex items-center gap-3 min-w-0 flex-1 sm:flex-initial">
             {currentTrack ? (
-              <div className="relative flex items-center gap-3 min-w-0">
+              <div className="flex items-center gap-3 min-w-0">
                 <img 
                   src={currentTrack.artwork} 
                   alt="" 
@@ -204,13 +204,13 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                   title="Expand Fullscreen Player"
                 />
                 
-                <div className="min-w-0 flex flex-col justify-center items-start pr-1">
-                  <div className="flex items-center gap-1.5 max-w-[160px] sm:max-w-[220px]">
+                <div className="min-w-0 flex flex-col justify-center items-start pr-1 w-[160px] sm:w-[220px]">
+                  <div className="flex items-center gap-1.5 w-full">
                     <button
                       type="button"
                       onClick={() => setShowLyrics(true)}
                       title="Open Fullscreen Player"
-                      className="text-[14px] font-semibold text-white truncate hover:underline text-left cursor-pointer leading-snug"
+                      className="text-[13px] font-semibold text-white truncate hover:underline text-left cursor-pointer leading-snug"
                     >
                       {currentTrack.title}
                     </button>
@@ -224,32 +224,23 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                     type="button"
                     onClick={openArtist}
                     title="Go to artist"
-                    className="text-[12px] text-[#98989d] hover:text-white hover:underline truncate max-w-[160px] sm:max-w-[220px] text-left cursor-pointer leading-snug"
+                    className="text-[11px] text-[#98989d] hover:text-white hover:underline truncate w-full text-left cursor-pointer leading-snug"
                   >
                     {resolving ? 'Opening…' : currentTrack.artist} {currentTrack.album ? `— ${currentTrack.album}` : ''}
                   </button>
+
+                  {/* Sleek integrated micro-scrubber */}
+                  <div 
+                    onClick={handleScrubberClick}
+                    className="w-full h-[3px] hover:h-[5px] bg-white/15 rounded-full cursor-pointer transition-all overflow-hidden mt-1.5 relative group"
+                    title={`Seek playback (${formatTime(currentTime)} / ${formatTime(duration)})`}
+                  >
+                    <div 
+                      className="h-full bg-white rounded-full transition-all group-hover:bg-white"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
                 </div>
-
-                {/* Subtle PREVIEW / LOSSLESS badge matching Image 1 */}
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-white/10 text-neutral-300 border border-white/15 shrink-0 hidden md:inline-block select-none">
-                  PREVIEW
-                </span>
-
-                {/* More options button */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowMoreMenu(prev => !prev);
-                  }}
-                  className={`p-1.5 rounded-full transition-colors cursor-pointer text-[#98989d] hover:text-white ${
-                    showMoreMenu ? 'text-white bg-white/20' : ''
-                  }`}
-                  title="More options"
-                  aria-label="More options"
-                >
-                  <MoreHorizontal className="w-4 h-4" />
-                </button>
               </div>
             ) : (
               <div className="flex items-center gap-2 text-xs text-[#98989d] px-2">
@@ -259,9 +250,9 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
           </div>
 
           {/* ========================================================================= */}
-          {/* 3. RIGHT: Queue, Lyrics Toggle, Volume Control (Matching Image 1)         */}
+          {/* 3. RIGHT: Star, More Options Popover, Lyrics, Queue, Volume Control       */}
           {/* ========================================================================= */}
-          <div className="relative flex items-center gap-1.5 sm:gap-2 shrink-0 text-[#98989d]">
+          <div className="relative flex items-center gap-1 sm:gap-2 shrink-0 text-[#98989d]">
             {/* Star Favorite */}
             <button
               type="button"
@@ -274,115 +265,136 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
               <Star className={`w-3.5 h-3.5 ${isLiked ? 'fill-current' : ''}`} />
             </button>
 
-            {/* Apple Music Context Menu Popover */}
-            {showMoreMenu && currentTrack && (
-              <div 
-                ref={moreMenuRef}
-                onClick={(e) => e.stopPropagation()}
-                className="absolute bottom-full left-0 sm:left-4 mb-3 w-56 bg-[#1e1e20]/95 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.85)] p-1.5 z-50 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150 select-none"
+            {/* Three Dots More (with Apple Music popover anchored above) */}
+            <div className="relative inline-flex items-center" ref={moreMenuRef}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (currentTrack) {
+                    setShowMoreMenu(prev => !prev);
+                  }
+                }}
+                disabled={!currentTrack}
+                className={`p-1.5 rounded-full transition-colors cursor-pointer hidden sm:block ${
+                  showMoreMenu ? 'text-white bg-white/20' : 'hover:text-white'
+                } ${!currentTrack ? 'opacity-40 cursor-not-allowed' : ''}`}
+                title="More options"
+                aria-label="More options"
+                aria-expanded={showMoreMenu}
               >
-                {/* Mini track header */}
-                <div className="px-2.5 py-2 border-b border-white/10 mb-1 flex items-center gap-2.5">
-                  <img
-                    src={currentTrack.artwork || '/default_cover.png'}
-                    alt={currentTrack.title}
-                    className="w-8 h-8 rounded-lg object-cover shrink-0 shadow-md border border-white/10"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-white text-xs font-semibold truncate leading-tight">{currentTrack.title}</p>
-                    <p className="text-white/60 text-[11px] truncate leading-tight mt-0.5">{currentTrack.artist}</p>
+                <MoreHorizontal className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Apple Music Context Menu Popover */}
+              {showMoreMenu && currentTrack && (
+                <div 
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute bottom-full right-0 mb-3 w-56 bg-[#1e1e20]/95 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.85)] p-1.5 z-50 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150 select-none"
+                >
+                  {/* Mini track header */}
+                  <div className="px-2.5 py-2 border-b border-white/10 mb-1 flex items-center gap-2.5">
+                    <img
+                      src={currentTrack.artwork || '/default_cover.png'}
+                      alt={currentTrack.title}
+                      className="w-8 h-8 rounded-lg object-cover shrink-0 shadow-md border border-white/10"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-white text-xs font-semibold truncate leading-tight">{currentTrack.title}</p>
+                      <p className="text-white/60 text-[11px] truncate leading-tight mt-0.5">{currentTrack.artist}</p>
+                    </div>
                   </div>
-                </div>
 
-                {/* Queue Controls */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    addToQueue(currentTrack, true);
-                    setShowMoreMenu(false);
-                  }}
-                  className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5 text-white/70" />
-                  <span>Play Next</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    addToQueue(currentTrack, false);
-                    setShowMoreMenu(false);
-                  }}
-                  className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
-                >
-                  <Disc className="w-3.5 h-3.5 text-white/70" />
-                  <span>Add to Queue</span>
-                </button>
-
-                <div className="my-1 border-t border-white/10" />
-
-                {/* Actions */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    toggleLike(currentTrack.id);
-                    setShowMoreMenu(false);
-                  }}
-                  className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
-                >
-                  <Star className={`w-3.5 h-3.5 ${isLiked ? 'text-amber-400 fill-amber-400' : 'text-white/70'}`} />
-                  <span>{isLiked ? 'Remove from Favorites' : 'Favorite'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMoreMenu(false);
-                    openArtist();
-                  }}
-                  className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
-                >
-                  <User className="w-3.5 h-3.5 text-white/70" />
-                  <span className="truncate">Go to Artist</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMoreMenu(false);
-                    openAlbum();
-                  }}
-                  className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
-                >
-                  <Compass className="w-3.5 h-3.5 text-white/70" />
-                  <span className="truncate">Go to Album</span>
-                </button>
-
-                <div className="my-1 border-t border-white/10" />
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    try {
-                      navigator.clipboard.writeText(
-                        window.location.origin + `/music?track=${encodeURIComponent(currentTrack.id)}`
-                      );
-                      setCopied(true);
-                      setTimeout(() => {
-                        setCopied(false);
-                        setShowMoreMenu(false);
-                      }, 1000);
-                    } catch {
+                  {/* Queue Controls */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addToQueue(currentTrack, true);
                       setShowMoreMenu(false);
-                    }
-                  }}
-                  className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-white/70" />}
-                  <span>{copied ? 'Link Copied!' : 'Share Track'}</span>
-                </button>
-              </div>
-            )}
+                    }}
+                    className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-white/70" />
+                    <span>Play Next</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addToQueue(currentTrack, false);
+                      setShowMoreMenu(false);
+                    }}
+                    className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
+                  >
+                    <Disc className="w-3.5 h-3.5 text-white/70" />
+                    <span>Add to Queue</span>
+                  </button>
+
+                  <div className="my-1 border-t border-white/10" />
+
+                  {/* Actions */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleLike(currentTrack.id);
+                      setShowMoreMenu(false);
+                    }}
+                    className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
+                  >
+                    <Star className={`w-3.5 h-3.5 ${isLiked ? 'text-amber-400 fill-amber-400' : 'text-white/70'}`} />
+                    <span>{isLiked ? 'Remove from Favorites' : 'Favorite'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      openArtist();
+                    }}
+                    className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
+                  >
+                    <User className="w-3.5 h-3.5 text-white/70" />
+                    <span className="truncate">Go to Artist</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      openAlbum();
+                    }}
+                    className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
+                  >
+                    <Compass className="w-3.5 h-3.5 text-white/70" />
+                    <span className="truncate">Go to Album</span>
+                  </button>
+
+                  <div className="my-1 border-t border-white/10" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        navigator.clipboard.writeText(
+                          window.location.origin + `/music?track=${encodeURIComponent(currentTrack.id)}`
+                        );
+                        setCopied(true);
+                        setTimeout(() => {
+                          setCopied(false);
+                          setShowMoreMenu(false);
+                        }, 1000);
+                      } catch {
+                        setShowMoreMenu(false);
+                      }
+                    }}
+                    className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 text-white/90 hover:text-white cursor-pointer transition-colors"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5 text-white/70" />}
+                    <span>{copied ? 'Link Copied!' : 'Share Track'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Synced Lyrics Toggle (Quote / Message) */}
             <button
@@ -434,20 +446,6 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
               />
             </div>
 
-          </div>
-
-          {/* ========================================================================= */}
-          {/* 4. CAPSULE-WIDE BOTTOM SCRUBBER (Authentic Apple Music matching Image 1)  */}
-          {/* ========================================================================= */}
-          <div 
-            onClick={handleScrubberClick}
-            className="absolute bottom-0 left-0 right-0 h-[3px] hover:h-[5px] bg-white/10 cursor-pointer transition-all overflow-hidden"
-            title="Seek playback"
-          >
-            <div 
-              className="h-full bg-white transition-all rounded-r-full"
-              style={{ width: `${progressPercent}%` }}
-            />
           </div>
 
         </div>
