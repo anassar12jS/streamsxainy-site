@@ -38,7 +38,7 @@ export async function getJioSaavnStream(
     customBaseUrl ||
     (typeof window !== 'undefined' ? localStorage.getItem('bitchord_jiosaavn_url') : null) ||
     (typeof process !== 'undefined' && process.env?.VITE_JIOSAAVN_API_URL) ||
-    ''
+    'https://saavn.sumit.co'
   ).replace(/\/+$/, '');
 
   if (!baseUrl) return null;
@@ -71,7 +71,15 @@ export async function getJioSaavnStream(
       return null;
     }
 
-    const song = results[0];
+    // Filter out karaoke/tribute covers when original audio is requested
+    const cleanLowerTitle = cleanTitle.toLowerCase();
+    const song = results.find(s => {
+      const name = (s.name || '').toLowerCase();
+      const isCover = name.includes('karaoke') || name.includes('tribute') || name.includes('ringtone');
+      if (cleanLowerTitle.includes('karaoke')) return true;
+      return !isCover;
+    }) || results[0];
+
     const downloads = song.downloadUrl || [];
     // Prefer 320kbps -> 160kbps -> highest available
     const bestAudio = 
