@@ -1,0 +1,43 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="100" x2="1080" y2="560" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1020"/>
+      <stop offset="0.5" stop-color="#111827"/>
+      <stop offset="1" stop-color="#020617"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(904 128) rotate(135) scale(420 520)">
+      <stop stop-color="#7C3AED" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#7C3AED" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="154" y1="118" x2="470" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F43F5E"/>
+      <stop offset="0.5" stop-color="#FB7185"/>
+      <stop offset="1" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+
+  <g opacity="0.12">
+    <circle cx="192" cy="146" r="170" stroke="#E2E8F0" stroke-width="1.5"/>
+    <circle cx="920" cy="524" r="220" stroke="#E2E8F0" stroke-width="1.5"/>
+  </g>
+
+  <g transform="translate(90 122)">
+    <rect x="0" y="0" width="280" height="280" rx="48" fill="url(#accent)"/>
+    <path d="M88 78C88 67.5063 96.5063 59 107 59H165C175.494 59 184 67.5063 184 78V110.5C184 120.994 175.494 129.5 165 129.5H107C96.5063 129.5 88 120.994 88 110.5V78Z" fill="#0F172A" opacity="0.95"/>
+    <path d="M104 96.5C104 93.4624 106.462 91 109.5 91H162.5C165.538 91 168 93.4624 168 96.5V101.5C168 104.538 165.538 107 162.5 107H109.5C106.462 107 104 104.538 104 101.5V96.5Z" fill="#F8FAFC" opacity="0.8"/>
+    <path d="M116 154C116 146.268 122.268 140 130 140H155C162.732 140 169 146.268 169 154V155.5C169 163.232 162.732 169.5 155 169.5H130C122.268 169.5 116 163.232 116 155.5V154Z" fill="#F8FAFC" opacity="0.8"/>
+    <path d="M118 180H172V190C172 197.732 165.732 204 158 204H132C124.268 204 118 197.732 118 190V180Z" fill="#F8FAFC" opacity="0.86"/>
+    <circle cx="206" cy="161" r="26" fill="#0F172A" opacity="0.9"/>
+    <circle cx="206" cy="161" r="13" fill="#F43F5E"/>
+  </g>
+
+  <g transform="translate(430 160)">
+    <text x="0" y="80" fill="#F8FAFC" font-family="'Segoe UI', Arial, sans-serif" font-size="82" font-weight="800" letter-spacing="-3">StreamHub</text>
+    <text x="4" y="142" fill="#A5B4FC" font-family="'Segoe UI', Arial, sans-serif" font-size="28" font-weight="600" letter-spacing="4">DISCOVER • STREAM • PLAY</text>
+    <rect x="0" y="178" width="280" height="8" rx="4" fill="#F43F5E"/>
+    <text x="0" y="245" fill="#CBD5E1" font-family="'Segoe UI', Arial, sans-serif" font-size="34" font-weight="500">Movies, shows, sports, music, and live TV</text>
+  </g>
+</svg>
