@@ -37,7 +37,9 @@ export type PartyEventType =
   | 'error'
   | 'bye'
   | 'host_left'
-  | 'member_joined';
+  | 'promoted'
+  | 'member_joined'
+  | 'chat';
 
 export type PartyEventListener = (type: PartyEventType, payload: any) => void;
 
@@ -78,6 +80,7 @@ export class ListenTogetherClient {
   private memberId: string = '';
   private memberName: string = '';
   private isHost: boolean = false;
+  private myJoinedAt = 0;
   private listeners: Set<PartyEventListener> = new Set();
   /** Offset that maps local Date.now() onto the host's clock domain */
   private clockOffsetMs: number = 0;
@@ -132,6 +135,7 @@ export class ListenTogetherClient {
     this.memberId = `m_${Math.random().toString(36).slice(2, 10)}`;
     this.memberName = hostName || 'Host';
     this.isHost = true;
+    this.myJoinedAt = Date.now();
 
     // Retry a few codes in case of a rare collision on an existing channel
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -158,6 +162,7 @@ export class ListenTogetherClient {
     this.memberName = memberName || 'Guest';
     this.isHost = false;
     this.clockOffsetMs = 0;
+    this.myJoinedAt = Date.now();
 
     const channel = this.openChannel(cleanCode);
     const ok = await this.waitForSubscribe(channel);
@@ -210,6 +215,30 @@ export class ListenTogetherClient {
     this.send('control', { ...control, anchorMs: Date.now() });
   }
 
+  /** Anyone in the room can chat — social, not a playback control. */
+  public sendChat(text: string) {
+    const clean = String(text || '').trim().slice(0, 200);
+    if (!clean || !this.channel) return;
+    this.send('chat', { memberId: this.memberId, name: this.memberName, text: clean, ts: Date.now() });
+  }
+
+  /** Guest → host promotion after the host leaves. Re-tracks presence and
+   *  notifies listeners so the app layer starts publishing state again. */
+  private promoteToHost() {
+    if (this.isHost || !this.channel) return;
+    this.isHost = true;
+    this.clockOffsetMs = 0; // new clock domain — guests re-sync via ping-pong
+    try {
+      void this.channel.track({
+        id: this.memberId,
+        name: this.memberName,
+        isHost: true,
+        joinedAt: this.myJoinedAt,
+      });
+    } catch {}
+    this.emit('promoted', {});
+  }
+
   // ---------------------------------------------------------------- internals
 
   private openChannel(code: string): RealtimeChannel {
@@ -233,6 +262,12 @@ export class ListenTogetherClient {
         }
         members.sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
         this.emit('members', { members });
+
+        // Host migration: if nobody carries the host flag, the earliest-joined
+        // member promotes themselves — deterministic, so exactly one client wins.
+        if (!this.isHost && members.length > 0 && !members.some(m => m.isHost)) {
+          if (members[0].id === this.memberId) this.promoteToHost();
+        }
 
         // Host: when someone new shows up, send them the current snapshot
         if (this.isHost && members.length > 1) {
@@ -322,10 +357,11 @@ export class ListenTogetherClient {
         break;
       }
       case 'host_left':
-        if (!this.isHost) {
-          this.emit('host_left', {});
-          this.leaveParty();
-        }
+        // Party continues — presence sync will promote the earliest member.
+        if (!this.isHost) this.emit('host_left', {});
+        break;
+      case 'chat':
+        this.emit('chat', raw);
         break;
     }
   }

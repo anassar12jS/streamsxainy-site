@@ -18,6 +18,22 @@ const ALLOWED_PATH_RE = /^\/youtubei\//;
 
 const MAX_BODY_BYTES = 256 * 1024;
 
+// Short-TTL response cache — repeated browse/search calls across visitors
+// hit YouTube once instead of once-per-user. Player endpoints are excluded:
+// their responses contain expiring, session-bound stream URLs.
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_MAX = 500;
+const responseCache = new Map(); // key -> { at, status, payload }
+
+const cacheKeyFor = (url, method, body) => {
+  const raw = `${method}|${url}|${typeof body === 'string' ? body : JSON.stringify(body ?? '')}`;
+  let h = 0;
+  for (let i = 0; i < raw.length; i++) h = (Math.imul(31, h) + raw.charCodeAt(i)) | 0;
+  return `${h >>> 0}:${raw.length}`;
+};
+
+const isCacheable = (url) => !url.includes('/player');
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -72,6 +88,16 @@ export default async function handler(req, res) {
     }
   }
 
+  const cacheable = isCacheable(url);
+  const cacheKey = cacheable ? cacheKeyFor(url, upstreamMethod, upstreamBody ?? body) : null;
+  if (cacheKey) {
+    const hit = responseCache.get(cacheKey);
+    if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
+      res.setHeader('x-proxy-cache', 'HIT');
+      return res.status(hit.status).json(hit.payload);
+    }
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
 
@@ -89,12 +115,23 @@ export default async function handler(req, res) {
 
     // JSON responses pass through as text; everything else is base64
     const isText = /json|text|javascript|xml/.test(contentType);
-    res.status(upstream.status).json({
+    const payload = {
       status: upstream.status,
       headers: { 'content-type': contentType },
       bodyEncoding: isText ? 'text' : 'base64',
       body: isText ? buf.toString('utf8') : buf.toString('base64'),
-    });
+    };
+
+    // Only cache successful JSON-ish catalog responses
+    if (cacheKey && upstream.ok && isText) {
+      if (responseCache.size >= CACHE_MAX) {
+        responseCache.delete(responseCache.keys().next().value);
+      }
+      responseCache.set(cacheKey, { at: Date.now(), status: upstream.status, payload });
+    }
+
+    res.setHeader('x-proxy-cache', 'MISS');
+    res.status(upstream.status).json(payload);
   } catch (err) {
     res.status(502).json({ error: 'Upstream request failed', message: String(err?.message || err) });
   } finally {

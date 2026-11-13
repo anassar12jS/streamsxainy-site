@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Users, Copy, Check, Play, LogOut, Sparkles, Crown, AlertTriangle } from 'lucide-react';
+import { X, Users, Copy, Check, Play, LogOut, Sparkles, Crown, AlertTriangle, Send, MessageCircle } from 'lucide-react';
 import { listenTogetherClient, isPartyBackendConfigured } from '../api/listenTogether';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
@@ -31,6 +31,8 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [hostLeft, setHostLeft] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Array<{ id: string; name: string; text: string; ts: number }>>([]);
+  const [chatInput, setChatInput] = useState('');
 
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
@@ -47,8 +49,17 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
       } else if (type === 'bye') {
         setActiveCode(null);
         setMembers([]);
+        setChatMessages([]);
       } else if (type === 'host_left') {
         setHostLeft(true);
+      } else if (type === 'promoted') {
+        setIsHost(true);
+        setHostLeft(false);
+      } else if (type === 'chat' && payload?.text) {
+        setChatMessages(prev => [
+          ...prev.slice(-49),
+          { id: `${payload.memberId}-${payload.ts}`, name: payload.name || 'Guest', text: payload.text, ts: payload.ts || Date.now() },
+        ]);
       } else if (type === 'error' && payload?.message) {
         setError(payload.message);
       }
@@ -180,8 +191,8 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
               </div>
 
               {hostLeft && (
-                <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-[11px] text-red-300">
-                  The host ended the party.
+                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200/90">
+                  The host left — the earliest member is being promoted to host.
                 </div>
               )}
 
@@ -231,6 +242,55 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
                   </span>
                 </div>
               )}
+
+              {/* Party chat — everyone can talk, only host controls music */}
+              <div className="rounded-2xl bg-[#141416] border border-white/10 overflow-hidden">
+                <div className="flex items-center gap-1.5 px-3 py-2 border-b border-white/5">
+                  <MessageCircle className="w-3.5 h-3.5 text-white/40" />
+                  <span className="text-[10px] font-mono text-white/40 uppercase tracking-wider font-semibold">
+                    Party Chat
+                  </span>
+                </div>
+                <div className="max-h-36 overflow-y-auto overscroll-contain px-3 py-2 space-y-1.5 am-scrollbar">
+                  {chatMessages.length === 0 && (
+                    <p className="text-[11px] text-white/30 text-center py-3">
+                      Say something — everyone in the room sees this.
+                    </p>
+                  )}
+                  {chatMessages.map(m => (
+                    <p key={m.id} className="text-[11px] leading-snug">
+                      <span className="font-bold text-purple-300/90">{m.name}: </span>
+                      <span className="text-white/75">{m.text}</span>
+                    </p>
+                  ))}
+                </div>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const text = chatInput.trim();
+                    if (!text) return;
+                    listenTogetherClient.sendChat(text);
+                    setChatInput('');
+                  }}
+                  className="flex items-center gap-2 px-2.5 py-2 border-t border-white/5"
+                >
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    maxLength={200}
+                    placeholder="Message the room…"
+                    className="flex-1 min-w-0 bg-transparent text-[11px] text-white placeholder-white/30 focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!chatInput.trim()}
+                    className="p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                </form>
+              </div>
 
               {!isHost && (
                 <p className="text-[10px] text-white/35 text-center font-mono">

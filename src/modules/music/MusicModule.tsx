@@ -604,6 +604,10 @@ export const MusicModule: React.FC = () => {
       } else if (type === 'member_joined' && payload?.hello && client.isCurrentHost) {
         // A guest just announced themselves — send the snapshot addressed to them
         publishCurrentState(payload.hello.memberId);
+      } else if (type === 'promoted' && client.isCurrentHost) {
+        // Host migration: we just became host — push our real playback state
+        // so guests re-anchor to the new clock domain immediately.
+        publishCurrentState();
       }
     });
 

@@ -4,6 +4,7 @@ import { extensionBridge } from '../extension/bridge';
 import { YTNodes } from 'youtubei.js';
 import { txt, thumbOf, artworkOr, durationSeconds, ARTWORK_PLACEHOLDER, parsePanelVideo, parseSong, parseAlbumCard, parseArtistCard, parsePlaylistCard, parseCard, parseShelf, parseAlbumHeader, type HomeShelf, type HomeItem } from './ytmParse';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
+import { cacheGet, cacheSet } from '../../../lib/appCache';
 
 let ytInstance: Innertube | null = null;
 let isInitializing = false;
@@ -42,6 +43,13 @@ export async function resolveVideoId(
   const cached = videoIdCache.get(key);
   if (cached) return cached;
 
+  // Shared Supabase cache — another visitor may have already resolved this
+  const shared = await cacheGet<string>(`vid:${key}`);
+  if (shared) {
+    videoIdCache.set(key, shared);
+    return shared;
+  }
+
   let videoId: string | undefined;
   const yt: any = await getInnertube();
 
@@ -66,7 +74,10 @@ export async function resolveVideoId(
 
 
 
-  if (videoId) videoIdCache.set(key, videoId);
+  if (videoId) {
+    videoIdCache.set(key, videoId);
+    cacheSet(`vid:${key}`, videoId, 1000 * 60 * 60 * 24 * 30); // 30d — videoIds are stable
+  }
   return videoId || null;
 }
 
@@ -261,6 +272,10 @@ export async function searchInnerTube(query: string): Promise<MusicTrack[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
 
+  const searchKey = `search:${trimmed.toLowerCase()}`;
+  const shared = await cacheGet<MusicTrack[]>(searchKey);
+  if (shared && shared.length) return shared;
+
   try {
     const it = await getInnertube();
     if (it?.music) {
@@ -269,7 +284,7 @@ export async function searchInnerTube(query: string): Promise<MusicTrack[]> {
       const contents = (searchRes as any).results || songShelf?.contents || (searchRes as any).contents || [];
 
       if (contents.length > 0) {
-        return contents.slice(0, 25).map((item: any, idx: number): MusicTrack => {
+        const results = contents.slice(0, 25).map((item: any, idx: number): MusicTrack => {
           const videoId = item.id || item.videoId || '';
           const artwork = thumbOf(item.thumbnail ?? item.thumbnails);
           return {
@@ -286,6 +301,8 @@ export async function searchInnerTube(query: string): Promise<MusicTrack[]> {
             source: 'innertube',
           };
         });
+        cacheSet(searchKey, results, 1000 * 60 * 15); // 15m — search results drift slowly
+        return results;
       }
     }
   } catch (err) {
@@ -1114,10 +1131,30 @@ function persistDurationCache() {
  * through the lightweight player endpoint, a few at a time, cached per session.
  */
 export async function resolveTrackDurations(tracks: MusicTrack[]): Promise<void> {
-  const missing = [...new Map(
+  const candidates = [...new Map(
     tracks.filter(t => t.youtubeId && !(t.duration > 0) && !durationCache.has(t.youtubeId))
       .map(t => [t.youtubeId as string, t])
   ).values()].slice(0, 24);
+  if (!candidates.length) return;
+
+  // Shared Supabase cache — durations are stable, reuse across visitors
+  const shared = await Promise.all(
+    candidates.map(async t => {
+      const secs = await cacheGet<number>(`dur:${t.youtubeId}`);
+      return secs && secs > 0 ? { t, secs } : null;
+    })
+  );
+  const stillMissing: MusicTrack[] = [];
+  for (let i = 0; i < candidates.length; i++) {
+    const hit = shared[i];
+    if (hit) {
+      durationCache.set(hit.t.youtubeId as string, hit.secs);
+      hit.t.duration = hit.secs;
+    } else {
+      stillMissing.push(candidates[i]);
+    }
+  }
+  const missing = stillMissing;
   if (!missing.length) return;
   const yt: any = await getInnertube();
   const queue = [...missing];
@@ -1130,7 +1167,10 @@ export async function resolveTrackDurations(tracks: MusicTrack[]): Promise<void>
         const info: any = await withTimeout(yt.getBasicInfo(id), 6000);
         const secs = Number(info?.video_details?.length_seconds ?? info?.basic_info?.duration ?? 0);
         durationCache.set(id, secs > 0 ? secs : -1);
-        if (secs > 0) t.duration = secs;
+        if (secs > 0) {
+          t.duration = secs;
+          cacheSet(`dur:${id}`, secs, 1000 * 60 * 60 * 24 * 30); // 30d
+        }
       } catch {
         durationCache.set(id, -1);
       }
