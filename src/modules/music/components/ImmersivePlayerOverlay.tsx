@@ -291,7 +291,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
         {/* ======================================================================= */}
         {/* LEFT COLUMN: PLAYER HERO & CONTROLS STACK                              */}
         {/* ======================================================================= */}
-        <div className={`${immersiveTab === 'none' ? 'lg:col-span-12' : 'lg:col-span-5'} flex flex-col ${immersiveTab === 'none' ? 'justify-center' : 'justify-start lg:justify-center'} items-center lg:items-start w-full shrink-0 lg:h-full lg:max-w-[400px] mx-auto min-h-0`}>
+        <div className={`${immersiveTab === 'none' ? 'lg:col-span-12 flex-1 lg:flex-initial' : 'lg:col-span-5 shrink-0'} flex flex-col ${immersiveTab === 'none' ? 'justify-center' : 'justify-start lg:justify-center'} items-center lg:items-start w-full lg:h-full lg:max-w-[400px] mx-auto min-h-0`}>
           
           {/* Album Artwork with smooth rounded corners & subtle shadow */}
           <div 
