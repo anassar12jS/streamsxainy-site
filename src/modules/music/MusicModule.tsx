@@ -395,12 +395,13 @@ export const MusicModule: React.FC = () => {
               await engineRef.current.loadStream(hires.url, false);
               if (!isCancelled) {
                 const m = hires.meta;
-                const flacLabel = m.sampleRate
-                  ? `FLAC ${m.bitDepth ? `${m.bitDepth}-bit/` : ''}${Math.round(m.sampleRate / 100) / 10}kHz`
-                  : 'FLAC';
+                const isFlac = m.codec === 'flac' || m.format === 'flac';
+                const flacLabel = isFlac
+                  ? (m.sampleRate ? `FLAC ${m.bitDepth ? `${m.bitDepth}-bit/` : ''}${Math.round(m.sampleRate / 100) / 10}kHz` : 'FLAC')
+                  : (m.quality || 'Hi-res audio');
                 useMusicPlayerStore.getState().setActiveStreamInfo({
                   label: `${flacLabel}${m.provider ? ` · ${m.provider}` : ''}`,
-                  isLossless: true,
+                  isLossless: isFlac,
                 });
                 setPlaybackStatus('playing');
                 afterStart();

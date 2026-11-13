@@ -2,12 +2,13 @@ import { monochrome } from './providers/monochrome.js';
 import { netease } from './providers/netease.js';
 import { deezer } from './providers/deezer.js';
 import { archive } from './providers/archive.js';
+import { kugou, joox, migu } from './providers/meting.js';
 import { streamCache, createCache } from './cache.js';
 
 // Qobuz/Tidal upstreams are dead (soundfean suspended, aurix/gglos offline) —
 // audio sources are the providers whose upstreams are currently reachable.
-const AUDIO_SOURCES = [monochrome, netease, archive];
-const CATALOGUE_SOURCES = [monochrome, netease, deezer, archive];
+const AUDIO_SOURCES = [monochrome, netease, kugou, joox, migu, archive];
+const CATALOGUE_SOURCES = [monochrome, netease, deezer, kugou, joox, migu, archive];
 
 const metaCache = createCache(60 * 60 * 1000, 2000);
 
