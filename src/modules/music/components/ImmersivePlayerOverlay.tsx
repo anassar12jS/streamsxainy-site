@@ -7,6 +7,7 @@ import {
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { fetchLyrics } from '../api/lyrics';
 import { SteeredClock } from '../player/SteeredClock';
+import { getArtworkColors, AmbientColors } from '../utils/artworkColors';
 
 interface ImmersivePlayerOverlayProps {
   steeredClock?: SteeredClock;
@@ -57,6 +58,20 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showSleepMenu, setShowSleepMenu] = useState(false);
+  const [ambient, setAmbient] = useState<AmbientColors | null>(null);
+
+  // Extract dominant artwork colors for the ambient background (Spotify-style)
+  useEffect(() => {
+    let cancelled = false;
+    setAmbient(null);
+    if (currentTrack?.artwork) {
+      getArtworkColors(currentTrack.artwork).then(c => {
+        if (!cancelled) setAmbient(c);
+      });
+    }
+    return () => { cancelled = true; };
+  }, [currentTrack?.id, currentTrack?.artwork]);
+
   const [now, setNow] = useState(() => Date.now());
   const [steeredTime, setSteeredTime] = useState(0);
 
@@ -174,20 +189,84 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
   // Up next tracks
   const upNextTracks = queue.slice(queueIndex + 1);
 
+  // Keyboard shortcuts: Space/K play-pause, ←/→ seek ±5s, ↑/↓ volume, Esc close, F fullscreen
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      switch (e.key) {
+        case ' ':
+        case 'k':
+        case 'K':
+          e.preventDefault();
+          togglePlayPause();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          onSeek(Math.max(0, effectiveTime - 5));
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          onSeek(Math.min(duration || Infinity, effectiveTime + 5));
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setVolume(Math.min(1, volume + 0.05));
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          setVolume(Math.max(0, volume - 0.05));
+          break;
+        case 'Escape':
+          handleClose();
+          break;
+        case 'f':
+        case 'F':
+          toggleNativeFullscreen();
+          break;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, effectiveTime, duration, volume]);
+
   return (
     <div 
       className="fixed inset-0 z-50 flex flex-col bg-[#07080b] text-white select-none overflow-hidden animate-fade-in font-sans"
       style={{ fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}
     >
       {/* ========================================================================= */}
-      {/* 1. ATMOSPHERIC AMBIENT BACKGROUND: Deep, soft, monochromatic with artwork */}
-      {/* Zero neon, zero red or harsh gradients. Pure Apple Music dark aesthetic   */}
+      {/* 1. ATMOSPHERIC AMBIENT BACKGROUND: artwork blur + dominant-color blobs    */}
       {/* ========================================================================= */}
+      {/* Blurred artwork texture */}
       <div 
-        className="absolute inset-0 bg-cover bg-center filter blur-[140px] opacity-20 scale-125 pointer-events-none transition-all duration-1000"
+        className="absolute inset-0 bg-cover bg-center filter blur-[120px] opacity-25 scale-110 pointer-events-none transition-all duration-1000"
         style={{ backgroundImage: `url(${currentTrack.artwork})` }}
       />
-      <div className="absolute inset-0 bg-[#07080b]/85 pointer-events-none" />
+      {/* Dominant-color gradient blobs, drifting slowly (Spotify-style ambiance) */}
+      <div
+        className="absolute -top-[20%] -left-[10%] w-[70vmax] h-[70vmax] rounded-full pointer-events-none transition-colors duration-1000"
+        style={{
+          background: `radial-gradient(circle at center, ${ambient?.[0] ?? '#1a1a2e'} 0%, transparent 65%)`,
+          opacity: 0.32,
+          filter: 'blur(60px)',
+          animation: 'ambDrift1 26s ease-in-out infinite alternate',
+        }}
+      />
+      <div
+        className="absolute -bottom-[25%] -right-[10%] w-[65vmax] h-[65vmax] rounded-full pointer-events-none transition-colors duration-1000"
+        style={{
+          background: `radial-gradient(circle at center, ${ambient?.[1] ?? '#16213e'} 0%, transparent 65%)`,
+          opacity: 0.28,
+          filter: 'blur(70px)',
+          animation: 'ambDrift2 32s ease-in-out infinite alternate',
+        }}
+      />
+      {/* Depth vignette so content stays readable */}
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 40%, transparent 30%, rgba(7,8,11,0.55) 100%)' }} />
+      <div className="absolute inset-0 bg-[#07080b]/60 pointer-events-none" />
 
       {/* ========================================================================= */}
       {/* 2. TOP-LEFT CLOSE BUTTON: Minimalist ✕ like in image_64b5cefb.png        */}
@@ -214,11 +293,22 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
         <div className="lg:col-span-5 flex flex-col justify-center items-center lg:items-start max-w-[400px] mx-auto w-full h-full min-h-0">
           
           {/* Album Artwork with smooth rounded corners & subtle shadow */}
-          <div className="relative aspect-square w-full max-w-[320px] rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.85)] border border-white/5 bg-[#121316] shrink-0">
+          <div 
+            className="relative aspect-square w-full max-w-[320px] rounded-2xl sm:rounded-3xl overflow-hidden shrink-0 transition-shadow duration-700"
+            style={{
+              boxShadow: ambient
+                ? `0 24px 80px rgba(0,0,0,0.85), 0 0 90px ${ambient[0]}33`
+                : '0 24px 60px rgba(0,0,0,0.85)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              background: '#121316',
+            }}
+          >
             <img 
+              key={currentTrack.id}
               src={currentTrack.artwork} 
               alt={currentTrack.title} 
-              className="w-full h-full object-cover" 
+              className="w-full h-full object-cover animate-fade-in"
+              style={{ animation: isPlaying ? 'artBreathe 7s ease-in-out infinite' : undefined }}
             />
           </div>
 
@@ -444,6 +534,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
             <div 
               ref={lyricsContainerRef}
               className="flex-1 overflow-y-auto pr-4 am-scrollbar py-24 select-none"
+              style={{ maskImage: 'linear-gradient(to bottom, transparent 0%, black 12%, black 82%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 12%, black 82%, transparent 100%)' }}
             >
               {isLoadingLyrics ? (
                 <div className="flex flex-col items-center justify-center h-full text-white/40 gap-3 py-24">
