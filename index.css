@@ -113,6 +113,35 @@ body {
   background-color: rgba(var(--primary-color), 0.8);
 }
 
+/* Apple-Music-style thin scrollbar used across the music module */
+.am-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.am-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.am-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+}
+.am-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.28);
+}
+.am-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+/* Actually hides scrollbars (class was referenced but never defined) */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Utilities */
 .skeleton-loader {
   background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-hover) 50%, var(--bg-card) 75%);
