@@ -74,6 +74,73 @@ async function health() {
   };
 }
 
+// Hosts we are willing to proxy audio from — prevents open-proxy abuse.
+const PROXY_ALLOWED_SUFFIXES = ['monochrome.st', 'qqdl.site', '126.net', 'archive.org', 'music.163.com'];
+
+function isProxyableHost(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    if (u.protocol !== 'https:') return false;
+    const host = u.hostname.toLowerCase();
+    return PROXY_ALLOWED_SUFFIXES.some((s) => host === s || host.endsWith(`.${s}`));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Stream-proxy for upstream FLAC URLs that lack CORS headers.
+ * The player's Web Audio graph requires CORS-clean media, so we fetch
+ * upstream server-side and pipe it back same-origin. Range requests are
+ * forwarded so seeking keeps working.
+ */
+async function proxyStream(req, res, targetUrl) {
+  if (!isProxyableHost(targetUrl)) {
+    return json(res, 403, { error: 'host not allowed' });
+  }
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    Accept: '*/*',
+  };
+  if (req.headers.range) headers.Range = req.headers.range;
+
+  let upstream;
+  try {
+    upstream = await fetch(targetUrl, { headers, redirect: 'follow' });
+  } catch (err) {
+    return json(res, 502, { error: `upstream unreachable: ${err?.message || err}` });
+  }
+
+  const outHeaders = {
+    'Content-Type': upstream.headers.get('content-type') || 'application/octet-stream',
+    'Access-Control-Allow-Origin': '*',
+    'Accept-Ranges': upstream.headers.get('accept-ranges') || 'bytes',
+    'Cache-Control': 'no-store',
+  };
+  for (const h of ['content-length', 'content-range']) {
+    const v = upstream.headers.get(h);
+    if (v) outHeaders[h === 'content-length' ? 'Content-Length' : 'Content-Range'] = v;
+  }
+  res.writeHead(upstream.status, outHeaders);
+
+  if (!upstream.body) {
+    res.end();
+    return;
+  }
+  const reader = upstream.body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+  } catch {
+    // upstream aborted mid-stream — nothing more we can do
+  } finally {
+    res.end();
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
@@ -89,6 +156,11 @@ export default async function handler(req, res) {
   }
 
   const url = new URL(req.url, 'http://localhost');
+
+  const proxyTarget = url.searchParams.get('proxy');
+  if (proxyTarget) {
+    return proxyStream(req, res, proxyTarget);
+  }
 
   if (url.searchParams.get('health') === '1') {
     try {

@@ -104,7 +104,16 @@ export async function tryHiresStream(
   // Try top candidates until one resolves to a real stream
   for (const { t } of scored.slice(0, 4)) {
     const stream = await resolveHiresStream(t.id, 'lossless');
-    if (stream?.url) return { url: stream.url, meta: stream };
+    if (stream?.url) {
+      // Monochrome/qqdl upstreams don't send CORS headers, and the player's
+      // Web Audio graph requires CORS-clean media or it silently fails.
+      // Netease and Archive send ACAO:* so they can play direct.
+      const needsProxy = /monochrome\.st|qqdl\.site/i.test(stream.url) || stream.provider === 'Monochrome';
+      const url = needsProxy
+        ? `${BASE}?proxy=${encodeURIComponent(stream.url)}`
+        : stream.url;
+      return { url, meta: stream };
+    }
   }
   return null;
 }
