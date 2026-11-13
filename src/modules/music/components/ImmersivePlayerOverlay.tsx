@@ -35,6 +35,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
   const queueIndex = useMusicPlayerStore(state => state.queueIndex);
   const likedTrackIds = useMusicPlayerStore(state => state.likedTrackIds);
   const audioQuality = useMusicPlayerStore(state => state.audioQuality);
+  const activeStreamInfo = useMusicPlayerStore(state => state.activeStreamInfo);
 
   const playTrack = useMusicPlayerStore(state => state.playTrack);
   const togglePlayPause = useMusicPlayerStore(state => state.togglePlayPause);
@@ -114,7 +115,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
     let isCurrent = true;
     setIsLoadingLyrics(true);
 
-    fetchLyrics(currentTrack.artist, currentTrack.title, currentTrack.duration).then(data => {
+    fetchLyrics(currentTrack.artist, currentTrack.title, currentTrack.duration, currentTrack.youtubeId).then(data => {
       if (isCurrent) {
         setLyrics(data);
         setIsLoadingLyrics(false);
@@ -413,15 +414,26 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
               {currentTrack.artist} {currentTrack.album ? `— ${currentTrack.album}` : ''}
             </p>
 
-            {/* Quality badge — hi-fi player style */}
-            {audioQuality !== 'auto' && (
-              <div className="flex items-center gap-1.5 -mt-1">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-[9px] font-bold uppercase tracking-wider text-white/70">
-                  <span className={`w-1.5 h-1.5 rounded-full ${audioQuality === 'lossless' ? 'bg-emerald-400' : 'bg-sky-400'}`} />
-                  {audioQuality === 'lossless' ? 'Lossless' : 'High quality'}
-                </span>
-              </div>
-            )}
+            {/* Quality badge — shows the REAL resolved source, not just the setting */}
+            {(() => {
+              const info = activeStreamInfo;
+              const label = info?.label
+                || (audioQuality === 'lossless' ? 'Lossless' : audioQuality === 'high' ? 'High quality' : null);
+              if (!label) return null;
+              const isFlac = info?.isLossless === true;
+              return (
+                <div className="flex items-center gap-1.5 -mt-1">
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-wider ${
+                    isFlac
+                      ? 'bg-emerald-400/15 border-emerald-300/40 text-emerald-200'
+                      : 'bg-white/10 border-white/15 text-white/70'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${isFlac ? 'bg-emerald-400' : 'bg-sky-400'}`} />
+                    {label}
+                  </span>
+                </div>
+              );
+            })()}
 
             {/* Scrubber Timeline */}
             <div className="w-full pt-1">

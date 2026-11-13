@@ -341,6 +341,7 @@ export const MusicModule: React.FC = () => {
     const loadAndPlay = async () => {
       try {
         setPlaybackStatus('loading');
+        useMusicPlayerStore.getState().setActiveStreamInfo(null);
         replayRecorder.onTrackStart(currentTrack);
 
         // Pre-fetch lyrics in background so full-screen lyrics are instant
@@ -376,6 +377,7 @@ export const MusicModule: React.FC = () => {
           if (engineRef.current) {
             await engineRef.current.loadStream(currentTrack.audioUrl);
             if (!isCancelled) {
+              useMusicPlayerStore.getState().setActiveStreamInfo({ label: 'Live stream', isLossless: false });
               setPlaybackStatus('playing');
               afterStart();
             }
@@ -392,6 +394,14 @@ export const MusicModule: React.FC = () => {
             if (hires?.url && engineRef.current && !isCancelled) {
               await engineRef.current.loadStream(hires.url, false);
               if (!isCancelled) {
+                const m = hires.meta;
+                const flacLabel = m.sampleRate
+                  ? `FLAC ${m.bitDepth ? `${m.bitDepth}-bit/` : ''}${Math.round(m.sampleRate / 100) / 10}kHz`
+                  : 'FLAC';
+                useMusicPlayerStore.getState().setActiveStreamInfo({
+                  label: `${flacLabel}${m.provider ? ` · ${m.provider}` : ''}`,
+                  isLossless: true,
+                });
                 setPlaybackStatus('playing');
                 afterStart();
                 return;
@@ -417,6 +427,7 @@ export const MusicModule: React.FC = () => {
         if (streamUrl && engineRef.current) {
           await engineRef.current.loadStream(streamUrl, isDash);
           if (!isCancelled) {
+            useMusicPlayerStore.getState().setActiveStreamInfo({ label: 'YouTube', isLossless: false });
             setPlaybackStatus('playing');
             afterStart();
             return;
@@ -430,6 +441,7 @@ export const MusicModule: React.FC = () => {
           const result = await engineRef.current.playYouTube(id);
           if (isCancelled || result === 'superseded') return true;
           if (result === 'playing') {
+            useMusicPlayerStore.getState().setActiveStreamInfo({ label: 'YouTube', isLossless: false });
             afterStart();
             return true;
           }
@@ -470,6 +482,7 @@ export const MusicModule: React.FC = () => {
             if (audiusStream && engineRef.current) {
               await engineRef.current.loadStream(audiusStream);
               if (!isCancelled) {
+                useMusicPlayerStore.getState().setActiveStreamInfo({ label: 'Audius', isLossless: false });
                 setPlaybackStatus('playing');
                 afterStart();
                 return;
@@ -492,6 +505,7 @@ export const MusicModule: React.FC = () => {
         if (fallbackStream && engineRef.current) {
           await engineRef.current.loadStream(fallbackStream);
           if (!isCancelled) {
+            useMusicPlayerStore.getState().setActiveStreamInfo({ label: 'Fallback stream', isLossless: false });
             setPlaybackStatus('playing');
             engineRef.current.syncMediaSession(
               currentTrack,

@@ -144,6 +144,8 @@ export interface MusicPlayerState {
   recentlyPlayed: MusicTrack[];
   activeLyrics: LyricsData | null;
   isLoadingLyrics: boolean;
+  /** Real source of the currently playing audio — set by MusicModule per stream path */
+  activeStreamInfo: { label: string; isLossless: boolean } | null;
   trackPlayNonce: number;
   activeAccount: any | null;
   /** When the queue runs out, keep playing similar songs (YouTube Music radio) */
@@ -187,6 +189,7 @@ export interface MusicPlayerState {
   setIsLoadingLyrics: (loading: boolean) => void;
   setExtensionConnected: (connected: boolean) => void;
   setAudioQuality: (quality: 'auto' | 'high' | 'lossless') => void;
+  setActiveStreamInfo: (info: { label: string; isLossless: boolean } | null) => void;
 }
 
 const initialSession = loadStoredSession();
@@ -211,6 +214,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   recentlyPlayed: loadStoredRecent(),
   activeLyrics: null,
   isLoadingLyrics: false,
+  activeStreamInfo: null,
   trackPlayNonce: 0,
   activeAccount: null,
   autoplayRadio: loadStoredAutoplay(),
@@ -486,4 +490,5 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
     try { localStorage.setItem(STORAGE_QUALITY, quality); } catch {}
     set({ audioQuality: quality });
   },
+  setActiveStreamInfo: (info) => set({ activeStreamInfo: info }),
 }));
