@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Users, Copy, Check, Radio, Play, Pause, LogOut, Sparkles } from 'lucide-react';
-import { listenTogetherClient } from '../api/listenTogether';
+import { X, Users, Copy, Check, Play, LogOut, Sparkles, Crown, AlertTriangle } from 'lucide-react';
+import { listenTogetherClient, isPartyBackendConfigured } from '../api/listenTogether';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
 interface ListenTogetherModalProps {
@@ -8,28 +8,49 @@ interface ListenTogetherModalProps {
   onClose: () => void;
 }
 
+interface Member {
+  id: string;
+  name: string;
+  isHost?: boolean;
+}
+
+const NAME_KEY = 'xainy_party_name';
+
 export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
   isOpen,
   onClose,
 }) => {
   const [activeCode, setActiveCode] = useState<string | null>(listenTogetherClient.currentPartyCode);
+  const [isHost, setIsHost] = useState(listenTogetherClient.isCurrentHost);
   const [inputCode, setInputCode] = useState('');
-  const [userName, setUserName] = useState('anas');
+  const [userName, setUserName] = useState(() => {
+    try { return localStorage.getItem(NAME_KEY) || 'Listener'; } catch { return 'Listener'; }
+  });
   const [copied, setCopied] = useState(false);
-  const [isJoining, setIsJoining] = useState(false);
-  const [members, setMembers] = useState<{ id: string; name: string; isHost?: boolean }[]>([
-    { id: '1', name: 'anas (You)', isHost: true }
-  ]);
+  const [isBusy, setIsBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [hostLeft, setHostLeft] = useState(false);
 
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
 
   useEffect(() => {
     const unsub = listenTogetherClient.subscribe((type, payload) => {
-      if (type === 'welcome' || type === 'members') {
-        if (payload?.members) setMembers(payload.members);
+      if (type === 'members' && payload?.members) {
+        setMembers(payload.members);
+      } else if (type === 'welcome') {
+        setActiveCode(payload.code);
+        setIsHost(payload.role === 'host');
+        setError(null);
+        setHostLeft(false);
       } else if (type === 'bye') {
         setActiveCode(null);
+        setMembers([]);
+      } else if (type === 'host_left') {
+        setHostLeft(true);
+      } else if (type === 'error' && payload?.message) {
+        setError(payload.message);
       }
     });
     return unsub;
@@ -37,23 +58,34 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
 
   if (!isOpen) return null;
 
+  const persistName = (name: string) => {
+    setUserName(name);
+    try { localStorage.setItem(NAME_KEY, name); } catch {}
+  };
+
   const handleCreateParty = async () => {
-    setIsJoining(true);
-    const { code } = await listenTogetherClient.createParty(userName);
-    setActiveCode(code);
-    setIsJoining(false);
+    setIsBusy(true);
+    setError(null);
+    const res = await listenTogetherClient.createParty(userName.trim() || 'Host');
+    if (res.error) setError(res.error);
+    setIsBusy(false);
   };
 
   const handleJoinParty = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputCode.trim()) return;
-    setIsJoining(true);
-    const res = await listenTogetherClient.joinParty(inputCode.trim(), userName);
+    setIsBusy(true);
+    setError(null);
+    const res = await listenTogetherClient.joinParty(inputCode.trim(), userName.trim() || 'Guest');
     if (res.success) {
       setActiveCode(inputCode.trim().toUpperCase());
+      setIsHost(false);
       setInputCode('');
+      setHostLeft(false);
+    } else {
+      setError(res.error || 'Could not join that room.');
     }
-    setIsJoining(false);
+    setIsBusy(false);
   };
 
   const handleCopyCode = () => {
@@ -66,12 +98,17 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
   const handleLeaveParty = () => {
     listenTogetherClient.leaveParty();
     setActiveCode(null);
+    setMembers([]);
+    setHostLeft(false);
   };
+
+  const initials = (name: string) =>
+    name.split(/\s+/).map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in select-none">
       <div className="w-full max-w-md bg-[#18181b] border border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-        
+
         {/* Header */}
         <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between bg-[#1f1f23]">
           <div className="flex items-center gap-2.5">
@@ -83,7 +120,7 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
                 Listen Together
               </h3>
               <p className="text-[11px] text-white/50">
-                Synchronized live listening with friends
+                Synchronized listening with friends
               </p>
             </div>
           </div>
@@ -98,11 +135,21 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
 
         {/* Content */}
         <div className="p-6 space-y-6">
-          
+
+          {!isPartyBackendConfigured && (
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-amber-200/80 leading-relaxed">
+                Listen Together isn't configured on this deployment yet — the realtime backend
+                keys are missing. Ask the site owner to add them.
+              </p>
+            </div>
+          )}
+
           {activeCode ? (
             /* Active Room View */
             <div className="space-y-5">
-              
+
               {/* Room Code Card */}
               <div className="p-4 rounded-2xl bg-[#141416] border border-white/10 flex items-center justify-between">
                 <div>
@@ -123,22 +170,52 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
                 </button>
               </div>
 
-              {/* Status Indicator */}
-              <div className="flex items-center justify-between text-xs font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2 rounded-xl">
+              {/* Status + role */}
+              <div className="flex items-center justify-between text-xs font-mono px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
                 <span className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  Party Sync Active (Clock offset &lt; 20ms)
+                  {isHost ? 'You are hosting' : 'Synced to host'}
                 </span>
-                <span>{members.length} listening</span>
+                <span>{members.length || 1} listening</span>
+              </div>
+
+              {hostLeft && (
+                <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-[11px] text-red-300">
+                  The host ended the party.
+                </div>
+              )}
+
+              {/* Members */}
+              <div className="space-y-2">
+                <span className="text-[10px] font-mono text-white/40 uppercase tracking-wider font-semibold">
+                  In this room
+                </span>
+                <div className="space-y-1.5">
+                  {(members.length ? members : [{ id: 'me', name: `${userName} (You)`, isHost }]).map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/5 border border-white/5"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500/40 to-indigo-500/40 border border-white/10 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                        {initials(m.name)}
+                      </div>
+                      <span className="text-xs font-semibold text-white/80 truncate flex-1">
+                        {m.name}
+                        {m.id === listenTogetherClient.myMemberId || m.name.includes('(You)') ? ' (You)' : ''}
+                      </span>
+                      {m.isHost && <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Now Playing in Room */}
               {currentTrack && (
                 <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-center gap-3">
-                  <img 
-                    src={currentTrack.artwork} 
-                    alt="" 
-                    className="w-10 h-10 rounded-lg object-cover shrink-0" 
+                  <img
+                    src={currentTrack.artwork}
+                    alt=""
+                    className="w-10 h-10 rounded-lg object-cover shrink-0"
                   />
                   <div className="min-w-0 flex-1">
                     <h5 className="text-xs font-bold text-white truncate">
@@ -148,10 +225,17 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
                       {currentTrack.artist}
                     </p>
                   </div>
-                  <span className="text-[11px] font-mono font-bold text-purple-400">
-                    {playbackStatus === 'playing' ? 'Playing' : 'Paused'}
+                  <span className="text-[11px] font-mono font-bold text-purple-400 flex items-center gap-1">
+                    <Play className="w-3 h-3" />
+                    {playbackStatus === 'playing' ? 'Live' : 'Paused'}
                   </span>
                 </div>
+              )}
+
+              {!isHost && (
+                <p className="text-[10px] text-white/35 text-center font-mono">
+                  Guests follow the host's playback — only the host can change music.
+                </p>
               )}
 
               {/* Leave Button */}
@@ -167,7 +251,7 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
           ) : (
             /* Create or Join View */
             <div className="space-y-6">
-              
+
               {/* Display Name Input */}
               <div className="space-y-1.5">
                 <label className="text-[11px] font-semibold text-white/60">
@@ -176,26 +260,32 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
                 <input
                   type="text"
                   value={userName}
-                  onChange={(e) => setUserName(e.target.value)}
+                  onChange={(e) => persistName(e.target.value)}
                   placeholder="Enter your name..."
                   className="w-full bg-[#141416] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-purple-500"
                 />
               </div>
 
+              {error && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-[11px] text-red-300">
+                  {error}
+                </div>
+              )}
+
               {/* Create Party Button */}
               <button
                 onClick={handleCreateParty}
-                disabled={isJoining}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-xl flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02]"
+                disabled={isBusy || !isPartyBackendConfigured}
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 text-white text-xs font-bold shadow-xl flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02]"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>Start New Party Session</span>
+                <span>{isBusy ? 'Creating room…' : 'Start New Party'}</span>
               </button>
 
               <div className="relative flex items-center justify-center">
                 <div className="border-t border-white/10 w-full" />
                 <span className="bg-[#18181b] px-3 text-[10px] font-mono text-white/40 uppercase">
-                  or join friend
+                  or join with a code
                 </span>
               </div>
 
@@ -206,17 +296,21 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
                   value={inputCode}
                   onChange={(e) => setInputCode(e.target.value.toUpperCase())}
                   placeholder="Enter 6-character room code..."
-                  maxLength={8}
+                  maxLength={6}
                   className="w-full bg-[#141416] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-purple-500 font-mono tracking-widest text-center"
                 />
                 <button
                   type="submit"
-                  disabled={!inputCode.trim() || isJoining}
+                  disabled={!inputCode.trim() || isBusy || !isPartyBackendConfigured}
                   className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 disabled:opacity-40 text-white text-xs font-bold transition-colors cursor-pointer"
                 >
-                  Join Room
+                  {isBusy ? 'Joining…' : 'Join Room'}
                 </button>
               </form>
+
+              <p className="text-[10px] text-white/35 text-center leading-relaxed">
+                The host picks the music — everyone stays in sync in real time.
+              </p>
 
             </div>
           )}

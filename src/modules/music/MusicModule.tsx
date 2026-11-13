@@ -17,6 +17,7 @@ import { fetchLyrics } from './api/lyrics';
 import { getResilientAudioFallback } from './api/fallbackAudio';
 import { getAudiusAudioStream } from './api/audiusStream';
 import { ARTWORK_PLACEHOLDER } from './api/ytmParse';
+import { listenTogetherClient } from './api/listenTogether';
 
 // Keep home feed static for 0ms initial render
 import { BrowseRoute } from './routes/BrowseRoute';
@@ -535,6 +536,142 @@ export const MusicModule: React.FC = () => {
     const id = window.setInterval(tick, 5000);
     return () => window.clearInterval(id);
   }, [sleepTimerMode, sleepTimerEndsAt]);
+
+  // 6. Listen Together — host publishes playback state, guests follow it
+  const pendingRemoteRef = useRef<{ trackId: string; positionMs: number; anchorMs: number; isPlaying: boolean } | null>(null);
+  const lastSeekBroadcastRef = useRef(0);
+
+  useEffect(() => {
+    const client = listenTogetherClient;
+
+    const publishCurrentState = (to?: string) => {
+      const st = useMusicPlayerStore.getState();
+      if (!st.currentTrack) return;
+      const start = Math.max(0, st.queueIndex - 2);
+      client.publishState({
+        to,
+        track: st.currentTrack,
+        queue: st.queue.slice(start, start + 50),
+        queueIndex: st.queueIndex - start,
+        positionMs: Math.round((engineRef.current?.getCurrentTime() ?? st.currentTime) * 1000),
+        isPlaying: st.playbackStatus === 'playing',
+      });
+    };
+
+    // --- Guest side: apply remote state & controls ---
+    const unsubEvents = client.subscribe((type, payload) => {
+      const st = useMusicPlayerStore.getState();
+
+      if (type === 'state' && payload?.track) {
+        const sameTrack = st.currentTrack?.id === payload.track.id;
+        if (!sameTrack) {
+          st.playTrack(
+            payload.track,
+            Array.isArray(payload.queue) && payload.queue.length ? payload.queue : undefined
+          );
+        } else if (st.playbackStatus === 'playing' || st.playbackStatus === 'paused') {
+          // Same song — correct drift immediately if we're off by >2s
+          const posSec = client.computePlayheadMs(payload.positionMs, payload.anchorMs, payload.isPlaying) / 1000;
+          if (Math.abs(posSec - st.currentTime) > 2) handleSeek(posSec);
+        }
+        pendingRemoteRef.current = {
+          trackId: payload.track.id,
+          positionMs: payload.positionMs,
+          anchorMs: payload.anchorMs,
+          isPlaying: payload.isPlaying,
+        };
+      } else if (type === 'control' && payload?.action) {
+        if (payload.action === 'pause') {
+          if (typeof payload.positionMs === 'number' && payload.anchorMs) {
+            const posSec = client.computePlayheadMs(payload.positionMs, payload.anchorMs, false) / 1000;
+            handleSeek(posSec);
+          }
+          st.pause();
+        } else if (payload.action === 'play') {
+          if (st.playbackStatus !== 'playing' && st.currentTrack) {
+            pendingRemoteRef.current = {
+              trackId: st.currentTrack.id,
+              positionMs: payload.positionMs ?? st.currentTime * 1000,
+              anchorMs: payload.anchorMs ?? Date.now(),
+              isPlaying: true,
+            };
+            st.play();
+          }
+        } else if (payload.action === 'seek' && typeof payload.positionMs === 'number') {
+          handleSeek(payload.positionMs / 1000);
+        }
+      } else if (type === 'member_joined' && payload?.hello && client.isCurrentHost) {
+        // A guest just announced themselves — send the snapshot addressed to them
+        publishCurrentState(payload.hello.memberId);
+      }
+    });
+
+    // --- Host side: mirror local playback into broadcasts ---
+    const unsubStore = useMusicPlayerStore.subscribe((state, prev) => {
+      if (!client.isCurrentHost || !client.currentPartyCode) return;
+
+      // New track → full state snapshot
+      if (state.trackPlayNonce !== prev.trackPlayNonce && state.currentTrack) {
+        publishCurrentState();
+        return;
+      }
+
+      // Play/pause transitions → transport control with live position
+      if (state.playbackStatus !== prev.playbackStatus) {
+        if (state.playbackStatus === 'playing' && prev.playbackStatus !== 'playing') {
+          client.publishControl({
+            action: 'play',
+            positionMs: Math.round((engineRef.current?.getCurrentTime() ?? state.currentTime) * 1000),
+          });
+        } else if (state.playbackStatus === 'paused' && prev.playbackStatus === 'playing') {
+          client.publishControl({
+            action: 'pause',
+            positionMs: Math.round((engineRef.current?.getCurrentTime() ?? state.currentTime) * 1000),
+          });
+        }
+        return;
+      }
+
+      // Queue edits → re-publish snapshot so guests' queue views stay fresh
+      if (state.queue !== prev.queue && state.currentTrack) {
+        publishCurrentState();
+        return;
+      }
+
+      // Seek jumps (>1.2s in one tick can't be a timeupdate) → seek control, debounced
+      if (
+        state.currentTrack &&
+        Math.abs(state.currentTime - prev.currentTime) > 1.2 &&
+        Date.now() - lastSeekBroadcastRef.current > 400
+      ) {
+        lastSeekBroadcastRef.current = Date.now();
+        client.publishControl({ action: 'seek', positionMs: Math.round(state.currentTime * 1000) });
+      }
+    });
+
+    return () => {
+      unsubEvents();
+      unsubStore();
+      client.leaveParty();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-check pending remote position whenever playback state flips to playing
+  useEffect(() => {
+    if (playbackStatus !== 'playing') return;
+    const p = pendingRemoteRef.current;
+    if (!p) return;
+    const st = useMusicPlayerStore.getState();
+    if (st.currentTrack?.id !== p.trackId) return;
+    pendingRemoteRef.current = null;
+    const posSec = listenTogetherClient.computePlayheadMs(p.positionMs, p.anchorMs, p.isPlaying) / 1000;
+    if (posSec > 0.5) {
+      engineRef.current?.seek(posSec);
+      st.seek(posSec);
+    }
+    if (!p.isPlaying) st.pause();
+  }, [playbackStatus]);
 
   // Keep similar songs queued ahead of time so the next song starts without a gap
   useEffect(() => {
