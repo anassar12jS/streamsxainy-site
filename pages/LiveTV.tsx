@@ -9,6 +9,7 @@ import Hls from 'hls.js';
 import { getRecentChannels, addRecentChannel, isFavoriteChannel, toggleFavoriteChannel } from '../services/storage';
 import { initializeIPTVOrgData, getCountryInfo, enrichChannelMetadata, fetchIPTVOrgChannels } from '../services/iptv';
 import type { IPTVOrgChannel } from '../services/iptv';
+import { Skeleton } from '../components/Skeleton';
 
 // --- Virtual List Component ---
 interface ListChildComponentProps {
@@ -518,9 +519,16 @@ export const LiveTV: React.FC = () => {
           {/* List Content */}
           <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
             {loading ? (
-              <div className="p-8 text-center text-[var(--text-muted)] flex flex-col items-center justify-center h-full">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[rgb(var(--primary-color))] mb-3" />
-                <p className="text-sm font-medium">Loading Channels...</p>
+              <div className="p-4 space-y-2">
+                {[...Array(12)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 p-2">
+                    <Skeleton className="w-10 h-10 rounded-lg shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <Skeleton width="60%" height={13} className="rounded" />
+                      <Skeleton width="35%" height={11} className="rounded" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : filteredChannels.length === 0 ? (
               <div className="p-8 text-center text-[var(--text-muted)] flex flex-col items-center justify-center h-full">

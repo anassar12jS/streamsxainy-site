@@ -4,6 +4,7 @@ import { getPerson, getPersonCredits } from '../services/tmdb';
 import { TMDBResult, PersonDetail } from '../types';
 import { TMDB_POSTER_BASE, AVATAR_FALLBACK_SVG } from '../constants';
 import { MediaCard } from '../components/MediaCard';
+import { Skeleton } from '../components/Skeleton';
 import { ArrowLeft, Calendar, MapPin } from 'lucide-react';
 
 interface PersonProps {
@@ -42,7 +43,35 @@ export const Person: React.FC<PersonProps> = ({ onSelect }) => {
   }, [personId]);
 
   if (loading || !detail) {
-    return <div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[rgb(var(--primary-color))]"></div></div>;
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-8 min-h-screen">
+        <Skeleton width={100} height={20} className="mb-6 rounded-md" />
+        <div className="flex flex-col md:flex-row gap-8 mb-12">
+          <Skeleton className="w-48 md:w-72 aspect-[2/3] rounded-xl shrink-0 mx-auto md:mx-0" />
+          <div className="flex-1 space-y-4">
+            <Skeleton width="55%" height={44} className="rounded-lg" />
+            <div className="flex gap-6">
+              <Skeleton width={140} height={18} className="rounded-md" />
+              <Skeleton width={180} height={18} className="rounded-md" />
+            </div>
+            <Skeleton width="30%" height={18} className="rounded-md" />
+            <Skeleton height={16} className="rounded-md" />
+            <Skeleton height={16} className="rounded-md" />
+            <Skeleton height={16} width="70%" className="rounded-md" />
+          </div>
+        </div>
+        <Skeleton width={160} height={30} className="mb-6 rounded-md" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+          {[...Array(10)].map((_, i) => (
+            <div key={i}>
+              <Skeleton className="aspect-[2/3] w-full rounded-2xl mb-2" />
+              <Skeleton width="80%" height={14} className="rounded-md" />
+              <Skeleton width="50%" height={12} className="rounded-md mt-1" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   const profileUrl = detail.profile_path ? `${TMDB_POSTER_BASE}${detail.profile_path}` : AVATAR_FALLBACK_SVG;
