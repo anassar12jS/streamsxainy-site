@@ -39,7 +39,7 @@ const SpotifyPlaylistRoute = lazy(() => import('./routes/SpotifyPlaylistRoute').
 
 // Lazy-load secondary overlay modals
 const ListenTogetherModal = lazy(() => import('./components/ListenTogetherModal').then(m => ({ default: m.ListenTogetherModal })));
-const MusicSettingsModal = lazy(() => import('./components/MusicSettingsModal').then(m => ({ default: m.MusicSettingsModal })));
+
 const YouTubeAccountModal = lazy(() => import('./components/YouTubeAccountModal').then(m => ({ default: m.YouTubeAccountModal })));
 
 const RouteLoadingSkeleton = () => (
@@ -59,7 +59,6 @@ export const MusicModule: React.FC = () => {
   const engineRef = useRef<MusicAudioEngine | null>(null);
 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isListenTogetherOpen, setIsListenTogetherOpen] = useState(false);
   const [isYtLinkOpen, setIsYtLinkOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -777,7 +776,6 @@ export const MusicModule: React.FC = () => {
       <Sidebar
         isOpenOnMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
-        onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenListenTogether={() => setIsListenTogetherOpen(true)}
         onOpenYouTubeLink={() => setIsYtLinkOpen(true)}
       />
@@ -860,16 +858,6 @@ export const MusicModule: React.FC = () => {
           <ListenTogetherModal
             isOpen={isListenTogetherOpen}
             onClose={() => setIsListenTogetherOpen(false)}
-          />
-        </Suspense>
-      )}
-
-      {/* Preferences & Addons Settings Modal (Lazy) */}
-      {isSettingsOpen && (
-        <Suspense fallback={null}>
-          <MusicSettingsModal
-            isOpen={isSettingsOpen}
-            onClose={() => setIsSettingsOpen(false)}
           />
         </Suspense>
       )}

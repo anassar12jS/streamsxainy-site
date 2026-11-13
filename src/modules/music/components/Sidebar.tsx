@@ -266,17 +266,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Settings */}
         <div className="pt-1">
-          <button
-            type="button"
-            onClick={() => {
-              onOpenSettings?.();
-              onCloseMobile?.();
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-[#a3a3a3] hover:text-white hover:bg-[#1a1a1a] transition-colors cursor-pointer"
+          <Link
+            to="/music/settings"
+            onClick={onCloseMobile}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+              location.pathname === '/music/settings'
+                ? 'bg-[#282828] text-white'
+                : 'text-[#a3a3a3] hover:text-white hover:bg-[#1a1a1a]'
+            }`}
           >
             <Settings className="w-4 h-4 shrink-0" />
             <span className="truncate">Settings</span>
-          </button>
+          </Link>
         </div>
 
         {/* Library Section */}
@@ -514,14 +515,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <Terminal className="w-3.5 h-3.5" />
             </Link>
-            <button
-              type="button"
-              onClick={() => { onOpenSettings?.(); onCloseMobile?.(); }}
+            <Link
+              to="/music/settings"
+              onClick={onCloseMobile}
               className="p-1 rounded-lg text-[#777777] hover:text-white transition-colors cursor-pointer"
-              title="Music Settings"
+              title="Settings"
             >
               <Settings className="w-3.5 h-3.5" />
-            </button>
+            </Link>
           </div>
         </div>
 
