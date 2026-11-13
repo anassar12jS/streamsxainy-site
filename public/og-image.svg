@@ -81,27 +81,6 @@
     <rect x="52" y="306" width="96" height="12" rx="6" fill="#F8FAFC" fill-opacity="0.3"/>
   </g>
 
-  <!-- ===== RIGHT: floating music card ===== -->
-  <g filter="url(#cardShadow)" transform="translate(1010 400) rotate(5 60 60)">
-    <rect x="0" y="0" width="150" height="150" rx="28" fill="url(#musicGrad)"/>
-    <rect x="14" y="14" width="122" height="122" rx="20" fill="#0B1120" fill-opacity="0.25" stroke="#FFFFFF" stroke-opacity="0.25"/>
-    <!-- music note -->
-    <g fill="#FFFFFF">
-      <ellipse cx="66" cy="102" rx="14" ry="10" transform="rotate(-18 66 102)"/>
-      <rect x="76" y="46" width="7" height="56" rx="3.5"/>
-      <path d="M76 46c10 2 18 8 20 18l-8 3c-2-7-7-11-12-12z"/>
-    </g>
-    <rect x="30" y="118" width="60" height="10" rx="5" fill="#FFFFFF" fill-opacity="0.6"/>
-  </g>
-  <!-- small live dot on music card -->
-  <circle cx="1045" cy="392" r="7" fill="#34D399">
-    <animate attributeName="opacity" values="1;0.3;1" dur="1.6s" repeatCount="indefinite"/>
-  </circle>
-  <circle cx="1045" cy="392" r="12" fill="none" stroke="#34D399" stroke-opacity="0.5">
-    <animate attributeName="r" values="8;16" dur="1.6s" repeatCount="indefinite"/>
-    <animate attributeName="stroke-opacity" values="0.5;0" dur="1.6s" repeatCount="indefinite"/>
-  </circle>
-
   <!-- ===== CENTER: text ===== -->
   <g transform="translate(450 168)">
     <!-- logo mark -->
