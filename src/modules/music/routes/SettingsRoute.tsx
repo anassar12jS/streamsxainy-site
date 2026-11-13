@@ -25,7 +25,7 @@ const MUSIC_DATA_KEYS = [
 const QUALITY_OPTIONS = [
   { id: 'auto' as const, name: 'Auto', desc: 'Balanced quality & data usage' },
   { id: 'high' as const, name: 'High', desc: 'High-bitrate Opus/AAC stream' },
-  { id: 'lossless' as const, name: 'Lossless', desc: 'Best available audio rendition' },
+  { id: 'lossless' as const, name: 'Lossless', desc: 'Real FLAC (24-bit) when available, else best stream' },
 ];
 
 const Toggle: React.FC<{ on: boolean; onChange: (v: boolean) => void }> = ({ on, onChange }) => (

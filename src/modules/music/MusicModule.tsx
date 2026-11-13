@@ -5,6 +5,7 @@ import './styles/tokens.css';
 import { useMusicPlayerStore } from './store/useMusicPlayerStore';
 import { MusicAudioEngine } from './player/AudioEngine';
 import { resolveStreamUrl, resolveVideoId, resolveAlternateVideoId, getRadioTracks, prefetchStreamUrl } from './api/innertube';
+import { tryHiresStream } from './api/hiresStream';
 import type { MusicTrack } from './types';
 import { extensionBridge } from './extension/bridge';
 import { Sidebar } from './components/Sidebar';
@@ -382,7 +383,27 @@ export const MusicModule: React.FC = () => {
           return;
         }
 
-        // 2. Direct stream URL if available (e.g. companion extension or cached format)
+        // 2. HI-RES: real FLAC from multi-source lossless resolver (Monochrome/Netease/Archive)
+        //    Only attempted when the user picked "lossless" quality — adds latency, so opt-in.
+        if (useMusicPlayerStore.getState().audioQuality === 'lossless'
+            && currentTrack.title && currentTrack.artist && !currentTrack.isLive) {
+          try {
+            const hires = await tryHiresStream(currentTrack.title, currentTrack.artist, currentTrack.duration);
+            if (hires?.url && engineRef.current && !isCancelled) {
+              await engineRef.current.loadStream(hires.url, false);
+              if (!isCancelled) {
+                setPlaybackStatus('playing');
+                afterStart();
+                return;
+              }
+            }
+          } catch (hiresErr) {
+            console.debug('Hi-res stream unavailable, falling back:', hiresErr);
+          }
+        }
+        if (isCancelled) return;
+
+        // 3. Direct stream URL if available (e.g. companion extension or cached format)
         let streamUrl = '';
         let isDash = false;
         try {
