@@ -1,7 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { RefreshCw, ThumbsUp, ListMusic, AlertCircle, Loader2 } from 'lucide-react';
+import { RefreshCw, ThumbsUp, ListMusic, AlertCircle } from 'lucide-react';
+import { CardGridSkeleton } from '../components/Skeletons';
 import { getLibraryPlaylists } from '../api/innertube';
 import { getImportedYouTubePlaylists } from '../api/youtubeAuth';
 import { useSessionStore } from '../store/useSessionStore';
@@ -58,15 +59,20 @@ export const PlaylistsRoute: React.FC = () => {
           </div>
         </div>
       ) : isLoading ? (
-        <div className="flex items-center gap-3 text-[#b3b3b3] text-sm py-16 justify-center">
-          <Loader2 className="w-5 h-5 animate-spin" /> Loading your playlists…
-        </div>
+        <CardGridSkeleton count={12} />
       ) : error ? (
         <div className="rounded-2xl bg-[#141414] border border-white/10 p-6 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-white/60 shrink-0 mt-0.5" />
           <div>
             <p className="text-sm text-white font-semibold">Couldn't load your playlists</p>
             <p className="text-xs text-[#b3b3b3] mt-1">{(error as Error).message}</p>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="mt-3 text-xs font-semibold text-white underline underline-offset-4 cursor-pointer hover:text-white/80"
+            >
+              Try again
+            </button>
           </div>
         </div>
       ) : (

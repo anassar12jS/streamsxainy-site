@@ -93,7 +93,41 @@ interface CachedStream {
   isDash: boolean;
   expiresAt: number;
 }
-const streamUrlCache = new Map<string, CachedStream>();
+
+/**
+ * Stream URL cache persisted to sessionStorage so a page refresh doesn't
+ * send every play back through the ~2-4s resolve path. blob:/DASH object URLs
+ * can't survive a reload, so only http(s) results are persisted.
+ */
+const STREAM_CACHE_KEY = 'xainy_stream_cache_v1';
+const STREAM_CACHE_MAX = 400;
+const streamUrlCache = new Map<string, CachedStream>((() => {
+  try {
+    const raw = sessionStorage.getItem(STREAM_CACHE_KEY);
+    if (!raw) return [];
+    const now = Date.now();
+    return (JSON.parse(raw) as Array<[string, CachedStream]>)
+      .filter(([, v]) => v && typeof v.url === 'string' && v.url.startsWith('http') && v.expiresAt > now);
+  } catch {
+    return [];
+  }
+})());
+let streamCacheDirty = false;
+function persistStreamCache() {
+  if (!streamCacheDirty) return;
+  streamCacheDirty = false;
+  try {
+    const entries = [...streamUrlCache.entries()]
+      .filter(([, v]) => v.url.startsWith('http'))
+      .slice(-STREAM_CACHE_MAX);
+    sessionStorage.setItem(STREAM_CACHE_KEY, JSON.stringify(entries));
+  } catch {}
+}
+function cacheStream(cacheKey: string, result: { url: string; isDash: boolean }, ttlMs: number) {
+  streamUrlCache.set(cacheKey, { ...result, expiresAt: Date.now() + ttlMs });
+  streamCacheDirty = true;
+  persistStreamCache();
+}
 
 /**
  * Resolves full-length audio stream for a track from YouTube Music.
@@ -116,14 +150,22 @@ export async function resolveStreamUrl(
 
   const yt = await getInnertube();
 
-  // 2. Fetch stream format and decipher via player
+  // 2. Fetch stream format and decipher via player.
+  //    Race the heavy getInfo against the light getBasicInfo — whichever
+  //    returns usable streaming data first wins, roughly halving cold-start.
   if (videoId) {
     try {
+      const usable = (i: any) =>
+        !!i && !i.__err && (i.streaming_data || typeof i.chooseFormat === 'function' || i.streaming_data?.adaptive_formats);
+      const jobs = [
+        { p: yt.getInfo(videoId).catch(() => null) },
+        { p: yt.getBasicInfo(videoId).catch(() => null) },
+      ];
       let info: any = null;
-      try {
-        info = await yt.getInfo(videoId);
-      } catch {
-        info = await yt.getBasicInfo(videoId);
+      while (jobs.length && !info) {
+        const settled = await Promise.race(jobs.map(j => j.p.then(v => ({ job: j, v }))));
+        jobs.splice(jobs.indexOf(settled.job), 1);
+        if (usable(settled.v)) info = settled.v;
       }
 
       let streamUrl: string | null = null;
@@ -185,7 +227,7 @@ export async function resolveStreamUrl(
 
       if (streamUrl && typeof streamUrl === 'string' && streamUrl.startsWith('http')) {
         const streamResult = { url: streamUrl, isDash: false };
-        streamUrlCache.set(cacheKey, { ...streamResult, expiresAt: Date.now() + 1000 * 60 * 60 * 3 });
+        cacheStream(cacheKey, streamResult, 1000 * 60 * 60 * 3);
         return streamResult;
       }
     } catch (err) {
@@ -210,7 +252,8 @@ export async function prefetchStreamUrl(track: MusicTrack | null | undefined): P
     if (prefetchAttempted.size > 500) {
       prefetchAttempted.delete(prefetchAttempted.values().next().value!);
     }
-    if (streamUrlCache.has(vId)) return;
+    const existing = streamUrlCache.get(vId);
+    if (existing && Date.now() < existing.expiresAt) return;
     resolveStreamUrl(track).catch(() => {});
   } catch {}
 }

@@ -16,7 +16,7 @@ export const ArtistRoute: React.FC = () => {
   const likedTrackIds = useMusicPlayerStore(state => state.likedTrackIds);
   const toggleLike = useMusicPlayerStore(state => state.toggleLike);
 
-  const { data: artist, isLoading, error } = useQuery({
+  const { data: artist, isLoading, error, refetch } = useQuery({
     queryKey: ['music-artist', id],
     queryFn: () => getArtistDetails(id || ''),
     enabled: Boolean(id),
@@ -358,6 +358,13 @@ export const ArtistRoute: React.FC = () => {
           <p className="text-xs text-[#b3b3b3] mt-1">
             {error ? (error as Error).message : `Unable to locate artist profile for "${id}".`}
           </p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="mt-4 text-xs font-semibold text-white underline underline-offset-4 cursor-pointer hover:text-white/80"
+          >
+            Try again
+          </button>
         </div>
       )}
 

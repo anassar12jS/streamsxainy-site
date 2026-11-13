@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { getExploreNewReleases } from '../api/innertube';
 import { MusicTrack, Album } from '../types';
+import { CardGridSkeleton, TrackListSkeleton } from '../components/Skeletons';
 
 export const NewRoute: React.FC = () => {
   const navigate = useNavigate();
@@ -48,9 +49,10 @@ export const NewRoute: React.FC = () => {
       <div className="space-y-6 pb-32 pt-2 px-1 sm:px-4 max-w-7xl mx-auto text-white" style={{ fontFamily: 'var(--bitchord-font)' }}>
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">New</h1>
         {isLoading ? (
-          <p className="text-sm text-[#b3b3b3] flex items-center gap-2 py-10 justify-center">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading new releases…
-          </p>
+          <div className="space-y-8">
+            <CardGridSkeleton count={6} cols="grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4" />
+            <TrackListSkeleton rows={6} />
+          </div>
         ) : (
           <div className="rounded-2xl bg-[#141414] border border-white/10 p-6 space-y-2">
             <p className="text-sm font-semibold">Couldn't load new releases</p>

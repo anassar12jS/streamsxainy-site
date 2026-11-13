@@ -1,13 +1,14 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { RefreshCw, Loader2, AlertCircle, Heart, Radio, History, ListMusic } from 'lucide-react';
+import { RefreshCw, AlertCircle, Heart, Radio, History, ListMusic } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { useSessionStore } from '../store/useSessionStore';
 import { getHomeShelves, resolveTrackDurations } from '../api/innertube';
 import { GlobalSearchBar } from '../components/GlobalSearchBar';
 import { MediaShelf, ShelfItem } from '../components/MediaShelf';
 import { TrackRow } from '../components/TrackRow';
+import { FeedSkeleton } from '../components/Skeletons';
 import type { HomeItem, HomeShelf } from '../api/ytmParse';
 import type { MusicTrack } from '../types';
 
@@ -225,9 +226,7 @@ export const BrowseRoute: React.FC = () => {
       )}
 
       {isLoading ? (
-        <div className="relative flex items-center gap-3 text-[#b3b3b3] text-sm py-16 justify-center">
-          <Loader2 className="w-5 h-5 animate-spin" /> Loading your home feed…
-        </div>
+        <FeedSkeleton />
       ) : error || !shelves?.length ? (
         <div className="relative rounded-2xl bg-[#141414] border border-white/10 p-6 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-white/60 shrink-0 mt-0.5" />

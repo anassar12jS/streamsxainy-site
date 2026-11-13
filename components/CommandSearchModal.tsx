@@ -6,7 +6,8 @@ import { searchAnimeList, mapAniListToTMDB } from '../services/anilist';
 import { rankSearchResults, getSpellCorrection } from '../services/searchUtils';
 import { TMDBResult, MediaType } from '../types';
 import { TMDB_POSTER_BASE, POSTER_FALLBACK_SVG } from '../constants';
-import { Search, Film, Tv, Star, X, Loader2, ArrowRight, CornerDownLeft, Sparkles, Ghost } from 'lucide-react';
+import { Search, Film, Tv, Star, X, Loader2, ArrowRight, CornerDownLeft, Sparkles, Ghost, Music, Play } from 'lucide-react';
+import type { MusicTrack } from '../src/modules/music/types';
 
 interface CommandSearchModalProps {
   isOpen: boolean;
@@ -61,6 +62,25 @@ export const CommandSearchModal: React.FC<CommandSearchModalProps> = ({
     staleTime: 1000 * 60 * 3,
   });
 
+  // Xainy Music song search — lazy-imported so youtubei.js stays out of the main bundle
+  const { data: musicTracks, isLoading: isMusicLoading } = useQuery({
+    queryKey: ['cmd-music-search', query],
+    queryFn: async () => {
+      const { searchInnerTube } = await import('../src/modules/music/api/innertube');
+      return searchInnerTube(query);
+    },
+    enabled: query.trim().length >= 2,
+    staleTime: 1000 * 60 * 3,
+  });
+
+  // Play a song: queue it in the music store, then ensure the music module is mounted
+  const handlePlaySong = async (track: MusicTrack, queue?: MusicTrack[]) => {
+    onClose();
+    const { useMusicPlayerStore } = await import('../src/modules/music/store/useMusicPlayerStore');
+    useMusicPlayerStore.getState().playTrack(track, queue);
+    navigate('/music');
+  };
+
   // Combined hybrid results
   const results = useMemo(() => {
     const combined: TMDBResult[] = [];
@@ -88,7 +108,9 @@ export const CommandSearchModal: React.FC<CommandSearchModalProps> = ({
     return rankSearchResults(combined, query);
   }, [animeResultsRaw, tmdbResults, query]);
 
-  const isLoading = (isTmdbLoading || isAnimeLoading) && results.length === 0;
+  const songResults = musicTracks ?? [];
+  const hasAnyResults = results.length > 0 || songResults.length > 0;
+  const isLoading = (isTmdbLoading || isAnimeLoading || isMusicLoading) && !hasAnyResults;
 
   if (!isOpen) return null;
 
@@ -155,8 +177,54 @@ export const CommandSearchModal: React.FC<CommandSearchModalProps> = ({
               <Loader2 className="w-6 h-6 animate-spin text-[rgb(var(--primary-color))]" />
               <span className="text-xs">Searching database...</span>
             </div>
-          ) : results && results.length > 0 ? (
+          ) : hasAnyResults ? (
             <div className="space-y-1">
+              {songResults.length > 0 && (
+                <>
+                  <div className="text-[11px] font-bold text-white/40 uppercase tracking-wider px-2 py-1 flex items-center gap-1.5">
+                    <Music className="w-3 h-3 text-[rgb(var(--primary-color))]" />
+                    <span>Songs</span>
+                    <span className="normal-case font-medium">· Xainy Music</span>
+                  </div>
+
+                  {songResults.slice(0, 4).map((track) => {
+                    const fmtDur = (s?: number) => {
+                      if (!s || s <= 0) return '';
+                      const m = Math.floor(s / 60);
+                      const sec = Math.floor(s % 60);
+                      return `${m}:${sec < 10 ? '0' : ''}${sec}`;
+                    };
+                    return (
+                      <div
+                        key={`song-${track.id}`}
+                        onClick={() => handlePlaySong(track, songResults)}
+                        className="flex items-center gap-3.5 p-2 rounded-xl hover:bg-white/10 cursor-pointer transition-all group border border-transparent hover:border-white/10"
+                      >
+                        <img
+                          src={track.artwork}
+                          alt=""
+                          className="w-10 h-10 rounded-lg object-cover bg-zinc-800 shrink-0 shadow group-hover:scale-105 transition-transform"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-sm font-bold text-white truncate group-hover:text-[rgb(var(--primary-color))] transition-colors">
+                            {track.title}
+                          </h4>
+                          <p className="text-xs text-white/50 truncate mt-0.5">
+                            {track.artist}{track.album ? ` · ${track.album}` : ''}
+                          </p>
+                        </div>
+                        {track.duration ? (
+                          <span className="text-[11px] font-mono text-white/40 shrink-0">{fmtDur(track.duration)}</span>
+                        ) : null}
+                        <Play className="w-4 h-4 text-white/30 group-hover:text-white shrink-0 ml-1" />
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+
+              {results.length > 0 && (
+              <>
               <div className="text-[11px] font-bold text-white/40 uppercase tracking-wider px-2 py-1 flex items-center justify-between">
                 <span>Top Results</span>
                 <span>{results.length} found</span>
@@ -208,6 +276,8 @@ export const CommandSearchModal: React.FC<CommandSearchModalProps> = ({
                   </div>
                 );
               })}
+              </>
+              )}
 
               {/* View all button */}
               <button

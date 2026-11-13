@@ -402,6 +402,23 @@ export class XainyMusicBridge {
           });
         }
       } catch (extError: any) {
+        // Extension not installed at all → last resort: try a direct browser fetch.
+        // youtubei.googleapis.com endpoints may allow CORS; if not, this fails cleanly
+        // and the caller surfaces a normal network error instead of NO_EXTENSION.
+        if (extError instanceof BridgeError && extError.code === 'NO_EXTENSION') {
+          try {
+            const directInit: RequestInit = { method, headers };
+            if (!isGetOrHead && body !== undefined) {
+              directInit.body = typeof body === 'string' ? body
+                : (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) ? body as BodyInit
+                : JSON.stringify(body);
+            }
+            return await fetch(url, directInit);
+          } catch (directErr: any) {
+            console.debug(`[Xainy Music Bridge] Direct fetch failed for ${url}:`, directErr?.message);
+          }
+        }
+
         // If extension says it doesn't serve this static URL (e.g. static player script or asset), try direct fetch
         const errMsg = extError?.message || String(extError);
         if (errMsg.includes("doesn't serve") || url.includes('/s/player/') || url.endsWith('.js') || url.endsWith('.css')) {

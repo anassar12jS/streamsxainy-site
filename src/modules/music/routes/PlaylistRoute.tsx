@@ -11,7 +11,7 @@ export const PlaylistRoute: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const playTrack = useMusicPlayerStore(state => state.playTrack);
 
-  const { data: playlist, isLoading, error } = useQuery<Playlist | null>({
+  const { data: playlist, isLoading, error, refetch } = useQuery<Playlist | null>({
     queryKey: ['music-playlist', id],
     queryFn: () => getPlaylistDetails(id || ''),
     enabled: Boolean(id),
@@ -161,6 +161,13 @@ export const PlaylistRoute: React.FC = () => {
           <p className="text-xs text-[#b3b3b3] mt-1">
             {error ? (error as Error).message : `Unable to locate playlist "${id}".`}
           </p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="mt-4 text-xs font-semibold text-white underline underline-offset-4 cursor-pointer hover:text-white/80"
+          >
+            Try again
+          </button>
         </div>
       )}
     </div>

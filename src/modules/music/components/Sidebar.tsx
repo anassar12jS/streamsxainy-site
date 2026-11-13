@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
-  Search, Home, LayoutGrid, Clock, Mic2, Disc, Music2, 
+  Search, Home, LayoutGrid, Clock, Mic2, Disc, Music2, Heart,
   UserCheck, Sparkles, Settings, ExternalLink, ChevronsUpDown,
   Film, Users, Youtube, Radio, LogOut, Check, Music, Terminal, ListMusic, LayoutList
 } from 'lucide-react';
@@ -175,6 +175,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const libraryLinks = [
+    { path: '/music/library/liked', label: 'Liked Songs', icon: Heart },
     { path: '/music/library/recent', label: 'Recently Played', icon: Clock },
     { path: '/music/library/artists', label: 'Artists', icon: Mic2 },
     { path: '/music/library/albums', label: 'Albums', icon: Disc },

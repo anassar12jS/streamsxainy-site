@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { 
-  Search as SearchIcon, X, Play, Disc, Mic2, Compass, 
+  Search as SearchIcon, X, Play, Mic2, Compass, 
   ChevronRight, ArrowUpRight, Music2
 } from 'lucide-react';
 import { 
@@ -10,6 +10,7 @@ import {
 } from '../api/innertube';
 import { MusicTrack } from '../types';
 import { TrackRow } from '../components/TrackRow';
+import { CardGridSkeleton, TrackListSkeleton } from '../components/Skeletons';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
 const QUICK_TRENDING_TAGS = [
@@ -325,9 +326,9 @@ const searchCache = new Map<string, FullCatalogSearchResult>();
       {/* 2. SEARCH RESULTS VIEW                                                    */}
       {/* ========================================================================= */}
       {isSearching ? (
-        <div className="py-24 flex flex-col items-center justify-center text-white/50 gap-3">
-          <Disc className="w-8 h-8 animate-spin text-white/60" />
-          <p className="text-sm font-semibold text-white">Searching catalog...</p>
+        <div className="space-y-8">
+          <CardGridSkeleton count={6} cols="grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" />
+          <TrackListSkeleton rows={6} />
         </div>
       ) : catalogResults && catalogResults.topResults.length > 0 ? (
         <div className="space-y-10 animate-fade-in">

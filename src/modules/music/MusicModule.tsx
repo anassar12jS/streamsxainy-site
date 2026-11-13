@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, Suspense, lazy } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import './styles/tokens.css';
 import { useMusicPlayerStore } from './store/useMusicPlayerStore';
@@ -51,6 +51,7 @@ const RouteLoadingSkeleton = () => (
 );
 
 export const MusicModule: React.FC = () => {
+  const location = useLocation();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const engineRef = useRef<MusicAudioEngine | null>(null);
 
@@ -664,8 +665,9 @@ export const MusicModule: React.FC = () => {
         {/* Extension Detection Banner */}
         <ExtensionBanner />
 
-        {/* Subroutes with Suspense */}
+        {/* Subroutes with Suspense + per-route fade transition */}
         <Suspense fallback={<RouteLoadingSkeleton />}>
+          <div key={location.pathname} className="animate-route-fade">
           <Routes>
             <Route path="/" element={<BrowseRoute />} />
             <Route path="/browse" element={<BrowseRoute />} />
@@ -690,6 +692,7 @@ export const MusicModule: React.FC = () => {
             <Route path="/library/*" element={<LibraryRoute />} />
             <Route path="*" element={<Navigate to="/music" replace />} />
           </Routes>
+          </div>
         </Suspense>
       </main>
 
