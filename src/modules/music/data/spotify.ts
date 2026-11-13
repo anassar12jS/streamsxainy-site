@@ -24,15 +24,25 @@ export interface SpotifyPlaylist {
   };
 }
 
+export interface SpotifyPlaylistInfo {
+  id: string;
+  name: string;
+  owner?: string | null;
+  imageUrl?: string | null;
+  total?: number;
+}
+
 /**
- * Checks Spotify authentication state via companion extension
+ * Checks Spotify authentication state via companion extension.
+ * Extension returns { browserSignedIn, connected, signedIn, user, problem }.
  */
-export async function getSpotifyAuthState(): Promise<{ authenticated: boolean; user?: any }> {
+export async function getSpotifyAuthState(): Promise<{ authenticated: boolean; user?: any; browserSignedIn?: boolean; problem?: string | null }> {
   try {
-    const res = await extensionBridge.call<any>('spotify.authState', {}, { timeoutMs: 4000, retryOnWakeup: false });
-    if (res && (res.authenticated || res.signedIn || res.user || res.accessToken)) {
-      return { authenticated: true, user: res.user };
+    const res = await extensionBridge.call<any>('spotify.authState', { refresh: true }, { timeoutMs: 6000, retryOnWakeup: false });
+    if (res?.signedIn) {
+      return { authenticated: true, user: res.user, browserSignedIn: res.browserSignedIn, problem: res.problem };
     }
+    return { authenticated: false, browserSignedIn: res?.browserSignedIn, problem: res?.problem };
   } catch (e) {
     console.debug('Spotify auth check:', e);
   }
@@ -71,21 +81,66 @@ export async function getSpotifyPlaylists(offset = 0, limit = 20): Promise<Spoti
 }
 
 /**
- * Fetches tracks from a Spotify playlist
+ * Fetches tracks from a Spotify playlist (single page).
  */
-export async function getSpotifyPlaylistTracks(playlistId: string): Promise<SpotifyTrack[]> {
+export async function getSpotifyPlaylistTracks(playlistId: string, offset = 0): Promise<{ tracks: SpotifyTrack[]; total: number }> {
   try {
-    const res = await extensionBridge.call<any>('spotify.tracks', { playlistId });
-    if (res?.items && Array.isArray(res.items)) {
-      return res.items.map((item: any) => item.track || item).filter(Boolean);
-    }
-    if (Array.isArray(res)) {
-      return res.map((item: any) => item.track || item).filter(Boolean);
-    }
+    const res = await extensionBridge.call<any>('spotify.tracks', { playlistId, offset });
+    const rawItems: any[] = Array.isArray(res) ? res : (res?.items || res?.tracks || []);
+    const tracks = rawItems.map((item: any) => item?.track || item).filter(Boolean) as SpotifyTrack[];
+    const total = typeof res?.total === 'number' ? res.total : tracks.length;
+    return { tracks, total };
   } catch (e) {
     console.debug(`Failed to fetch tracks for Spotify playlist ${playlistId}:`, e);
   }
-  return [];
+  return { tracks: [], total: 0 };
+}
+
+/**
+ * Fetches every page of a Spotify playlist's tracks (capped at ~500).
+ */
+export async function getAllSpotifyPlaylistTracks(playlistId: string): Promise<SpotifyTrack[]> {
+  const all: SpotifyTrack[] = [];
+  let offset = 0;
+  // The extension pages 100 at a time; stop when a page comes back short or we hit the cap
+  for (let page = 0; page < 5; page++) {
+    const { tracks, total } = await getSpotifyPlaylistTracks(playlistId, offset);
+    all.push(...tracks);
+    offset += tracks.length;
+    if (tracks.length === 0 || (total > 0 && all.length >= total) || tracks.length < 100) break;
+  }
+  return all;
+}
+
+/** Playlist metadata (name, owner art, track count). 'liked' is supported for Liked Songs. */
+export async function getSpotifyPlaylistInfo(playlistId: string): Promise<SpotifyPlaylistInfo | null> {
+  try {
+    const res = await extensionBridge.call<any>('spotify.playlist', { playlistId }, { timeoutMs: 8000, retryOnWakeup: false });
+    if (!res) return null;
+    return {
+      id: playlistId,
+      name: res.name || 'Playlist',
+      owner: res.owner ?? null,
+      imageUrl: res.imageUrl || null,
+      total: typeof res.total === 'number' ? res.total : undefined,
+    };
+  } catch (e) {
+    console.debug('Spotify playlist info failed:', e);
+    return null;
+  }
+}
+
+/** Maps a Spotify track into the site's MusicTrack shape so the normal playback pipeline resolves it on YouTube. */
+export function spotifyToMusicTrack(t: SpotifyTrack): import('../types').MusicTrack {
+  return {
+    id: `sp_${t.id}`,
+    title: t.name || 'Unknown track',
+    artist: t.artists?.map(a => a.name).filter(Boolean).join(', ') || 'Various Artists',
+    album: t.album?.name || '',
+    artwork: t.album?.images?.[0]?.url || '',
+    duration: Math.round((t.duration_ms || 0) / 1000),
+    source: 'curated',
+  };
 }
 
 /**

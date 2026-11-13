@@ -3,6 +3,7 @@ import { MusicTrack, Album, Artist, Playlist } from '../types';
 import { extensionBridge } from '../extension/bridge';
 import { YTNodes } from 'youtubei.js';
 import { txt, thumbOf, artworkOr, durationSeconds, ARTWORK_PLACEHOLDER, parsePanelVideo, parseSong, parseAlbumCard, parseArtistCard, parsePlaylistCard, parseCard, parseShelf, parseAlbumHeader, type HomeShelf, type HomeItem } from './ytmParse';
+import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
 let ytInstance: Innertube | null = null;
 let isInitializing = false;
@@ -141,7 +142,8 @@ export async function resolveStreamUrl(
     : trackOrId;
 
   let videoId = await resolveVideoId(track);
-  const cacheKey = videoId || (typeof trackOrId === 'string' ? trackOrId : `${track.title}|${track.artist}`.toLowerCase());
+  const qualityPref = useMusicPlayerStore.getState().audioQuality;
+  const cacheKey = `${videoId || (typeof trackOrId === 'string' ? trackOrId : `${track.title}|${track.artist}`.toLowerCase())}|${qualityPref}`;
 
   const cached = streamUrlCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) {
@@ -170,9 +172,11 @@ export async function resolveStreamUrl(
 
       let streamUrl: string | null = null;
 
-      // Get the best audio-only format (Opus 251 or AAC 140)
+      // Get the best audio-only format — quality preference maps to
+      // youtubei.js tiers: lossless→best, high→high, auto→besteffort
+      const ytQuality = qualityPref === 'lossless' ? 'best' : qualityPref === 'high' ? 'high' : 'besteffort';
       if (info?.streaming_data) {
-        const bestAudio = info.chooseFormat({ type: 'audio', quality: 'best' });
+        const bestAudio = info.chooseFormat({ type: 'audio', quality: ytQuality });
 
         if (bestAudio) {
           if (typeof bestAudio.url === 'string' && bestAudio.url.startsWith('http')) {

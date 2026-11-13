@@ -34,6 +34,8 @@ const LibraryRoute = lazy(() => import('./routes/LibraryRoute').then(m => ({ def
 const ReplayRoute = lazy(() => import('./routes/ReplayRoute').then(m => ({ default: m.ReplayRoute })));
 const SettingsRoute = lazy(() => import('./routes/SettingsRoute').then(m => ({ default: m.SettingsRoute })));
 const DebugInspectorRoute = lazy(() => import('./routes/DebugInspectorRoute').then(m => ({ default: m.DebugInspectorRoute })));
+const SpotifyRoute = lazy(() => import('./routes/SpotifyRoute').then(m => ({ default: m.SpotifyRoute })));
+const SpotifyPlaylistRoute = lazy(() => import('./routes/SpotifyPlaylistRoute').then(m => ({ default: m.SpotifyPlaylistRoute })));
 
 // Lazy-load secondary overlay modals
 const ListenTogetherModal = lazy(() => import('./components/ListenTogetherModal').then(m => ({ default: m.ListenTogetherModal })));
@@ -813,6 +815,8 @@ export const MusicModule: React.FC = () => {
             <Route path="/album/:id" element={<AlbumRoute />} />
             <Route path="/artist/:id" element={<ArtistRoute />} />
             <Route path="/playlist/:id" element={<PlaylistRoute />} />
+            <Route path="/spotify" element={<SpotifyRoute />} />
+            <Route path="/spotify/:id" element={<SpotifyPlaylistRoute />} />
             <Route path="/radio" element={<RadioRoute />} />
             <Route path="/replay" element={<ReplayRoute />} />
             <Route path="/settings" element={<SettingsRoute />} />

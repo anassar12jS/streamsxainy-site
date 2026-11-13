@@ -232,6 +232,25 @@ export const saveStreamProviders = (providers: StreamProvider[]) => {
 // --- Settings & Data ---
 export const getTheme = (): string => localStorage.getItem(THEME_KEY) || 'purple';
 export const setTheme = (color: string) => localStorage.setItem(THEME_KEY, color);
+
+/** Preset id or "#rrggbb" custom hex → "r, g, b" string for rgb(var(--primary-color)) */
+export const THEME_RGB: Record<string, string> = {
+  purple: '147, 51, 234',
+  red: '220, 38, 38',
+  blue: '37, 99, 235',
+  green: '22, 163, 74',
+  orange: '234, 88, 12',
+};
+
+export const themeToRgb = (theme: string): string => {
+  if (THEME_RGB[theme]) return THEME_RGB[theme];
+  const hex = theme.startsWith('#') ? theme : theme.startsWith('custom:') ? theme.slice(7) : null;
+  if (hex && /^#[0-9a-fA-F]{6}$/.test(hex)) {
+    const n = parseInt(hex.slice(1), 16);
+    return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+  }
+  return THEME_RGB['purple'];
+};
 export const getMode = (): 'dark' | 'light' => (localStorage.getItem(MODE_KEY) as 'dark' | 'light') || 'dark';
 export const setMode = (mode: 'dark' | 'light') => localStorage.setItem(MODE_KEY, mode);
 

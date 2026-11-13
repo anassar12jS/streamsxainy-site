@@ -5,7 +5,7 @@ import { Footer } from './components/Footer';
 import { Home } from './pages/Home';
 import { SettingsModal } from './components/SettingsModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { getTheme, getMode, setMode as setStorageMode } from './services/storage';
+import { getTheme, getMode, setMode as setStorageMode, themeToRgb } from './services/storage';
 import { Film, Loader2 } from 'lucide-react';
 import { TMDBResult } from './types';
 import { warmIdleRoutes } from './services/routePreloader';
@@ -84,15 +84,14 @@ const App: React.FC = () => {
   }, [mode]);
 
   useEffect(() => {
-    const theme = getTheme();
-    const colorMap: Record<string, string> = {
-        'purple': '147, 51, 234',
-        'red': '220, 38, 38',
-        'blue': '37, 99, 235',
-        'green': '22, 163, 74',
-        'orange': '234, 88, 12'
+    const applyStored = () => {
+      setThemeColor(themeToRgb(getTheme()));
+      setMode(getMode());
     };
-    setThemeColor(colorMap[theme] || colorMap['purple']);
+    applyStored();
+    // Settings modal applies changes live via this event — no reload needed
+    window.addEventListener('streamhub:settings-changed', applyStored);
+    return () => window.removeEventListener('streamhub:settings-changed', applyStored);
   }, [isSettingsOpen]);
 
   useEffect(() => {

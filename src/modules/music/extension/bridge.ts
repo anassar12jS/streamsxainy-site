@@ -537,6 +537,9 @@ export class XainyMusicBridge {
   public updateDiscordRpc(track: { title: string; artist: string; duration: number; artwork?: string }) {
     if (!this.status.available) return;
     try {
+      if (localStorage.getItem('xainy_music_discord_rpc') === '0') return;
+    } catch {}
+    try {
       this.call('discord.presence', { track, options: {} }, { timeoutMs: 3000, retryOnWakeup: false }).catch(() => {});
     } catch {}
   }

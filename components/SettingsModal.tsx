@@ -38,6 +38,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [activeTab, setActiveTab] = useState<'appearance' | 'streaming' | 'data' | 'providers'>('appearance');
   
   const [activeTheme, setActiveTheme] = useState('purple');
+  const [customHex, setCustomHex] = useState('#a855f7');
   const [currentMode, setCurrentMode] = useState<'dark' | 'light'>('dark');
   const [defaultServer, setDefServerState] = useState('ishowstream');
   const [autoplayNext, setAutoplayState] = useState(true);
@@ -54,6 +55,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   useEffect(() => {
     if (isOpen) {
       setActiveTheme(getTheme());
+      const stored = getTheme();
+      setCustomHex(stored.startsWith('#') ? stored : '#a855f7');
       setCurrentMode(getMode());
       setDefServerState(getDefaultServer());
       setAutoplayState(getAutoplayNext());
@@ -72,14 +75,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     setAutoplayNext(autoplayNext);
     saveStreamProviders(providers);
 
-    // Apply mode to root DOM
+    // Apply instantly — App listens for this event and re-reads stored prefs
     document.documentElement.setAttribute('data-theme', currentMode);
+    window.dispatchEvent(new Event('streamhub:settings-changed'));
 
     setSaved(true);
     setTimeout(() => {
       setSaved(false);
       onClose();
-      window.location.reload();
     }, 600);
   };
 
@@ -278,6 +281,51 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Custom Accent Color */}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] block mb-3">
+                  Custom Accent Color
+                </label>
+                <div
+                  className={`p-3 rounded-2xl border flex items-center gap-3 transition-all ${
+                    activeTheme.startsWith('#')
+                      ? 'border-[rgb(var(--primary-color))] bg-[rgb(var(--primary-color))]/10 ring-1 ring-[rgb(var(--primary-color))]'
+                      : 'border-[var(--border-subtle)] bg-[var(--bg-input)]'
+                  }`}
+                >
+                  <input
+                    type="color"
+                    value={customHex}
+                    onChange={(e) => {
+                      const hex = e.target.value;
+                      setCustomHex(hex);
+                      setActiveTheme(hex);
+                    }}
+                    className="w-9 h-9 rounded-xl cursor-pointer border border-white/10 bg-transparent p-0.5 shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={customHex}
+                    onChange={(e) => {
+                      let v = e.target.value.trim();
+                      if (!v.startsWith('#')) v = '#' + v;
+                      setCustomHex(v);
+                      if (/^#[0-9a-fA-F]{6}$/.test(v)) setActiveTheme(v);
+                    }}
+                    placeholder="#a855f7"
+                    maxLength={7}
+                    className="flex-1 bg-transparent text-xs font-mono font-bold text-[var(--text-main)] uppercase focus:outline-none"
+                  />
+                  <span
+                    className="w-6 h-6 rounded-full border border-white/20 shrink-0 shadow-inner"
+                    style={{ backgroundColor: activeTheme.startsWith('#') ? activeTheme : customHex }}
+                  />
+                </div>
+                <p className="text-[11px] text-[var(--text-muted)] mt-2">
+                  Pick any color — applied instantly across the whole site on save.
+                </p>
               </div>
 
             </div>

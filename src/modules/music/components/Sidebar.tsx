@@ -333,6 +333,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
+        {/* Spotify Playlists entry */}
+        <div className="space-y-1 pt-2 border-t border-white/5">
+          <Link
+            to="/music/spotify"
+            onClick={onCloseMobile}
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors duration-150 cursor-pointer ${
+              location.pathname.startsWith('/music/spotify')
+                ? 'bg-[#282828] text-white'
+                : 'text-[#a3a3a3] hover:text-white hover:bg-[#1a1a1a]'
+            }`}
+          >
+            <Music2 className="w-4 h-4 shrink-0 text-emerald-400" />
+            <span className="truncate">Spotify Playlists</span>
+          </Link>
+        </div>
+
         {/* Phase 3: Spotify Playlists in Sidebar */}
         {spotifyPlaylists && spotifyPlaylists.length > 0 && (
           <div className="space-y-1 pt-2 border-t border-white/5">
@@ -345,7 +361,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Link 
                   className="text-[#a3a3a3] hover:text-white hover:bg-[#1a1a1a] px-3 py-2 rounded-md truncate text-xs transition-colors" 
                   key={playlist.id} 
-                  to={`/music/playlist/${playlist.id}`}
+                  to={`/music/spotify/${playlist.id}`}
                   onClick={onCloseMobile}
                 >
                   {playlist.name}

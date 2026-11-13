@@ -15,6 +15,8 @@ const STORAGE_VOLUME = 'bitchord_music_volume';
 const STORAGE_MUTED = 'bitchord_music_muted';
 const STORAGE_SESSION = 'bitchord_music_session_v1';
 const STORAGE_AUTOPLAY = 'bitchord_music_autoplay_radio';
+const STORAGE_QUALITY = 'bitchord_music_quality';
+const STORAGE_DISCORD_RPC = 'xainy_music_discord_rpc';
 
 interface StoredSession { currentTrack: MusicTrack | null; queue: MusicTrack[]; queueIndex: number; }
 
@@ -93,6 +95,29 @@ const loadStoredMuted = (): boolean => {
   }
 };
 
+const loadStoredQuality = (): 'auto' | 'high' | 'lossless' => {
+  try {
+    const v = localStorage.getItem(STORAGE_QUALITY);
+    return v === 'auto' || v === 'high' ? v : 'lossless';
+  } catch {
+    return 'lossless';
+  }
+};
+
+export const isDiscordRpcEnabled = (): boolean => {
+  try {
+    return localStorage.getItem(STORAGE_DISCORD_RPC) !== '0';
+  } catch {
+    return true;
+  }
+};
+
+export const setDiscordRpcEnabled = (on: boolean) => {
+  try {
+    localStorage.setItem(STORAGE_DISCORD_RPC, on ? '1' : '0');
+  } catch {}
+};
+
 const saveMuted = (muted: boolean) => {
   try {
     localStorage.setItem(STORAGE_MUTED, muted ? '1' : '0');
@@ -161,6 +186,7 @@ export interface MusicPlayerState {
   setLyrics: (lyrics: LyricsData | null) => void;
   setIsLoadingLyrics: (loading: boolean) => void;
   setExtensionConnected: (connected: boolean) => void;
+  setAudioQuality: (quality: 'auto' | 'high' | 'lossless') => void;
 }
 
 const initialSession = loadStoredSession();
@@ -179,7 +205,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   showLyrics: false,
   showQueue: false,
   immersiveTab: 'lyrics',
-  audioQuality: 'lossless',
+  audioQuality: loadStoredQuality(),
   extensionConnected: false,
   likedTrackIds: loadStoredLikes(),
   recentlyPlayed: loadStoredRecent(),
@@ -456,4 +482,8 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   setLyrics: (lyrics) => set({ activeLyrics: lyrics, isLoadingLyrics: false }),
   setIsLoadingLyrics: (loading) => set({ isLoadingLyrics: loading }),
   setExtensionConnected: (connected) => set({ extensionConnected: connected }),
+  setAudioQuality: (quality) => {
+    try { localStorage.setItem(STORAGE_QUALITY, quality); } catch {}
+    set({ audioQuality: quality });
+  },
 }));
