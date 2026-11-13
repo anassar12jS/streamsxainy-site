@@ -34,6 +34,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
   const queue = useMusicPlayerStore(state => state.queue);
   const queueIndex = useMusicPlayerStore(state => state.queueIndex);
   const likedTrackIds = useMusicPlayerStore(state => state.likedTrackIds);
+  const audioQuality = useMusicPlayerStore(state => state.audioQuality);
 
   const playTrack = useMusicPlayerStore(state => state.playTrack);
   const togglePlayPause = useMusicPlayerStore(state => state.togglePlayPause);
@@ -412,6 +413,16 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
               {currentTrack.artist} {currentTrack.album ? `— ${currentTrack.album}` : ''}
             </p>
 
+            {/* Quality badge — hi-fi player style */}
+            {audioQuality !== 'auto' && (
+              <div className="flex items-center gap-1.5 -mt-1">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-[9px] font-bold uppercase tracking-wider text-white/70">
+                  <span className={`w-1.5 h-1.5 rounded-full ${audioQuality === 'lossless' ? 'bg-emerald-400' : 'bg-sky-400'}`} />
+                  {audioQuality === 'lossless' ? 'Lossless' : 'High quality'}
+                </span>
+              </div>
+            )}
+
             {/* Scrubber Timeline */}
             <div className="w-full pt-1">
               <div className="relative group w-full flex items-center">
@@ -634,7 +645,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                               e.stopPropagation();
                               removeFromQueue(actualQueueIndex);
                             }}
-                            className="p-1 text-white/30 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                            className="p-1.5 -m-1 text-white/50 hover:text-white opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity cursor-pointer"
                             title="Remove from queue"
                           >
                             <Trash2 className="w-4 h-4" />

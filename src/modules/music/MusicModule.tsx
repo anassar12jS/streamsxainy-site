@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
-import { Menu, Home, Search, Heart, Settings } from 'lucide-react';
+import { Menu, Home, Compass, Library, Search } from 'lucide-react';
 import './styles/tokens.css';
 import { useMusicPlayerStore } from './store/useMusicPlayerStore';
 import { MusicAudioEngine } from './player/AudioEngine';
@@ -840,9 +840,9 @@ export const MusicModule: React.FC = () => {
         <div className="flex items-stretch justify-around h-14">
           {([
             { to: '/music', label: 'Home', icon: Home, exact: true },
+            { to: '/music/new', label: 'Explore', icon: Compass, exact: false },
+            { to: '/music/library', label: 'Library', icon: Library, exact: false },
             { to: '/music/search', label: 'Search', icon: Search, exact: false },
-            { to: '/music/library/liked', label: 'Liked', icon: Heart, exact: false },
-            { to: '/music/settings', label: 'Settings', icon: Settings, exact: false },
           ] as const).map(tab => {
             const Icon = tab.icon;
             const active = tab.exact ? location.pathname === tab.to : location.pathname.startsWith(tab.to);

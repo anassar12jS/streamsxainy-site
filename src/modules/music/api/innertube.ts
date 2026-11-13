@@ -152,23 +152,13 @@ export async function resolveStreamUrl(
 
   const yt = await getInnertube();
 
-  // 2. Fetch stream format and decipher via player.
-  //    Race the heavy getInfo against the light getBasicInfo — whichever
-  //    returns usable streaming data first wins, roughly halving cold-start.
+  // 2. Fetch stream format via getInfo — it loads the player needed to
+  //    decipher signature_cipher formats. getBasicInfo races faster but
+  //    returns undecipherable formats, which silently pushed playback into
+  //    the slow YouTube-player fallback (~4s → ~8s regression).
   if (videoId) {
     try {
-      const usable = (i: any) =>
-        !!i && !i.__err && (i.streaming_data || typeof i.chooseFormat === 'function' || i.streaming_data?.adaptive_formats);
-      const jobs = [
-        { p: yt.getInfo(videoId).catch(() => null) },
-        { p: yt.getBasicInfo(videoId).catch(() => null) },
-      ];
-      let info: any = null;
-      while (jobs.length && !info) {
-        const settled = await Promise.race(jobs.map(j => j.p.then(v => ({ job: j, v }))));
-        jobs.splice(jobs.indexOf(settled.job), 1);
-        if (usable(settled.v)) info = settled.v;
-      }
+      const info: any = await yt.getInfo(videoId);
 
       let streamUrl: string | null = null;
 
@@ -256,7 +246,8 @@ export async function prefetchStreamUrl(track: MusicTrack | null | undefined): P
     if (prefetchAttempted.size > 500) {
       prefetchAttempted.delete(prefetchAttempted.values().next().value!);
     }
-    const existing = streamUrlCache.get(vId);
+    const qualityPref = useMusicPlayerStore.getState().audioQuality;
+    const existing = streamUrlCache.get(`${vId}|${qualityPref}`);
     if (existing && Date.now() < existing.expiresAt) return;
     resolveStreamUrl(track).catch(() => {});
   } catch {}

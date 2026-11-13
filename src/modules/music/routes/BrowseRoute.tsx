@@ -105,13 +105,27 @@ export const BrowseRoute: React.FC = () => {
     const tracks = shelf.items.flatMap(i => (i.kind === 'track' ? [i.track] : []));
     const allTracks = tracks.length === shelf.items.length;
 
-    // A shelf made only of songs reads best as a list ("Quick picks", "Listen again")
+    // A shelf made only of songs: big art tiles on mobile (reference layout),
+    // dense TrackRow list on desktop where there's room for durations/menus.
     if (allTracks && tracks.length >= 4) {
       const rows = tracks.slice(0, 8);
       return (
         <section key={shelf.id} className="space-y-3">
           <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight px-1">{shelf.title}</h3>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6">
+          <div className="lg:hidden">
+            <MediaShelf
+              title=""
+              items={tracks.slice(0, 12).map(t => ({
+                id: `qt-${t.id}`,
+                title: t.title,
+                subtitle: t.artist,
+                artwork: t.artwork,
+                tracks: [t],
+                onClick: () => playTrack(t, tracks),
+              }))}
+            />
+          </div>
+          <div className="hidden lg:grid lg:grid-cols-2 gap-x-6">
             {rows.map(t => (
               <TrackRow key={t.id} track={t} showAlbum={false} playlistContext={tracks} />
             ))}
