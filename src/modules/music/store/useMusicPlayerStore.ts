@@ -137,7 +137,7 @@ export interface MusicPlayerState {
   repeatMode: RepeatMode;
   showLyrics: boolean;
   showQueue: boolean;
-  immersiveTab: 'lyrics' | 'queue';
+  immersiveTab: 'lyrics' | 'queue' | 'none';
   audioQuality: 'auto' | 'high' | 'lossless';
   extensionConnected: boolean;
   likedTrackIds: string[];
@@ -171,7 +171,7 @@ export interface MusicPlayerState {
   toggleLyrics: () => void;
   setShowQueue: (show: boolean) => void;
   toggleQueue: () => void;
-  setImmersiveTab: (tab: 'lyrics' | 'queue') => void;
+  setImmersiveTab: (tab: 'lyrics' | 'queue' | 'none') => void;
   toggleLike: (trackId: string) => void;
   isLiked: (trackId: string) => boolean;
   addToQueue: (track: MusicTrack, playNext?: boolean) => void;

@@ -291,7 +291,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
         {/* ======================================================================= */}
         {/* LEFT COLUMN: PLAYER HERO & CONTROLS STACK                              */}
         {/* ======================================================================= */}
-        <div className="lg:col-span-5 flex flex-col justify-start lg:justify-center items-center lg:items-start w-full shrink-0 lg:h-full lg:max-w-[400px] mx-auto min-h-0">
+        <div className={`${immersiveTab === 'none' ? 'lg:col-span-12' : 'lg:col-span-5'} flex flex-col ${immersiveTab === 'none' ? 'justify-center' : 'justify-start lg:justify-center'} items-center lg:items-start w-full shrink-0 lg:h-full lg:max-w-[400px] mx-auto min-h-0`}>
           
           {/* Album Artwork with smooth rounded corners & subtle shadow */}
           <div 
@@ -538,7 +538,10 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
         {/* ======================================================================= */}
         {/* RIGHT COLUMN: CRISP SYNCHRONIZED LYRICS (ZERO GLOW) OR UP-NEXT QUEUE   */}
         {/* ======================================================================= */}
-        <div className="lg:col-span-7 flex flex-col flex-1 lg:h-full min-h-0 overflow-hidden pl-0 lg:pl-12 pt-2 lg:pt-0">
+        <div className={immersiveTab === 'none'
+          ? 'hidden'
+          : 'lg:col-span-7 flex flex-col flex-1 lg:h-full min-h-0 overflow-hidden pl-0 lg:pl-12 pt-2 lg:pt-0'
+        }>
           
           {/* VIEW A: LYRICS */}
           {immersiveTab === 'lyrics' && (
@@ -678,13 +681,13 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
         {/* Lyrics toggle button (Apple Music speech bubble with quote mark) */}
         <button
           type="button"
-          onClick={() => setImmersiveTab('lyrics')}
+          onClick={() => setImmersiveTab(immersiveTab === 'lyrics' ? 'none' : 'lyrics')}
           className={`p-2.5 rounded-xl transition-all cursor-pointer ${
             immersiveTab === 'lyrics'
               ? 'text-white bg-white/15'
               : 'text-white/40 hover:text-white hover:bg-white/5'
           }`}
-          title="Lyrics"
+          title="Lyrics — tap again to focus player"
         >
           <MessageSquareQuote className="w-5 h-5" />
         </button>
@@ -692,13 +695,13 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
         {/* Queue toggle button */}
         <button
           type="button"
-          onClick={() => setImmersiveTab('queue')}
+          onClick={() => setImmersiveTab(immersiveTab === 'queue' ? 'none' : 'queue')}
           className={`p-2.5 rounded-xl transition-all cursor-pointer ${
             immersiveTab === 'queue'
               ? 'text-white bg-white/15'
               : 'text-white/40 hover:text-white hover:bg-white/5'
           }`}
-          title="Up Next"
+          title="Up Next — tap again to focus player"
         >
           <ListMusic className="w-5 h-5" />
         </button>
