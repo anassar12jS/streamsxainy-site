@@ -198,6 +198,25 @@ function decodeManifest(rawManifestBase64, manifestMimeType = '', quality = 'LOS
     }
     return null;
 }
+async function servesFlac(url, timeoutMs = 8000) {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), timeoutMs);
+    try {
+        const res = await fetch(url, {
+            headers: { ...UPSTREAM_HEADERS, Range: 'bytes=0-3' },
+            signal: ac.signal,
+            redirect: 'follow',
+        });
+        if (!res.ok && res.status !== 206) return false;
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        return bytes.length >= 4 && bytes[0] === 0x66 && bytes[1] === 0x4c && bytes[2] === 0x61 && bytes[3] === 0x43;
+    } catch {
+        return false;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 export async function resolve(id, quality) {
     const trackId = String(id).replace(/^mc:/, '');
     if (!/^\d+$/.test(trackId))
@@ -206,7 +225,8 @@ export async function resolve(id, quality) {
     const upstreamQuality = tier.includes('LOW') ? 'LOW' : tier.includes('HIGH') ? 'HIGH' : 'LOSSLESS';
     return streamCache.wrap(`mc:${trackId}:${upstreamQuality}`, async () => {
         if (trackId.length >= 15) {
-            const modern = await tryFetch(`${MODERN}/track/${trackId}?quality=${upstreamQuality}`, 8000);
+            const modernUrl = `${MODERN}/track/${trackId}?quality=${upstreamQuality}`;
+            const modern = await tryFetch(modernUrl, 8000);
             if (modern && typeof modern === 'object' && !modern.error && (modern.url || modern.manifest)) {
                 if (modern.url && /^https:\/\//i.test(modern.url)) {
                     const sampleRate = Number(modern.sampleRate) || 44100;
@@ -225,6 +245,19 @@ export async function resolve(id, quality) {
                         provider: 'Monochrome',
                     };
                 }
+            }
+            // tracks.monochrome.st serves the FLAC file directly (non-JSON).
+            // Probe the first bytes for the fLaC magic and use the URL itself.
+            if (await servesFlac(modernUrl)) {
+                return {
+                    url: modernUrl,
+                    codec: 'flac',
+                    container: 'flac',
+                    manifest: 'none',
+                    encrypted: false,
+                    format: 'flac',
+                    provider: 'Monochrome',
+                };
             }
         }
         const urls = await instances();
