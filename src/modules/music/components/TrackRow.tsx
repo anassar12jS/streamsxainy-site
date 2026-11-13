@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Pause, Heart, MoreHorizontal, Plus, Disc, Loader2 } from 'lucide-react';
+import { Play, Pause, Heart, MoreHorizontal, Plus, Disc, Loader2, ListPlus } from 'lucide-react';
 import { MusicTrack } from '../types';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
+import { prefetchStreamUrl } from '../api/innertube';
 
 interface TrackRowProps {
   track: MusicTrack;
@@ -56,6 +57,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
   return (
     <div
       onClick={handlePlayClick}
+      onMouseEnter={() => { if (!isCurrent && track.youtubeId) prefetchStreamUrl(track); }}
       className={`group grid grid-cols-12 items-center px-3 sm:px-4 py-2 rounded-[6px] transition-colors duration-150 cursor-pointer select-none relative ${
         isCurrent
           ? 'bg-white/[0.08] text-white'
@@ -64,7 +66,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
       style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       {/* 1. Song Column (Cover + Title) */}
-      <div className="col-span-12 sm:col-span-6 md:col-span-5 flex items-center gap-3 min-w-0 pr-2">
+      <div className={`col-span-12 sm:col-span-6 ${showAlbum ? 'md:col-span-5' : 'md:col-span-6'} flex items-center gap-3 min-w-0 pr-2`}>
         {/* Play indicator / Index */}
         <div className="w-5 text-center flex items-center justify-center shrink-0">
           {isLoading ? (
@@ -122,11 +124,15 @@ export const TrackRow: React.FC<TrackRowProps> = ({
               LIVE
             </span>
           )}
+          {/* Duration on mobile (the actions cell is hidden below sm) */}
+          <span className="sm:hidden ml-auto text-[11px] text-[#98989d] font-mono shrink-0">
+            {track.isLive ? 'LIVE' : formatTime(track.duration)}
+          </span>
         </div>
       </div>
 
       {/* 2. Artist Column */}
-      <div className="hidden sm:block sm:col-span-3 md:col-span-3 text-left truncate pr-2">
+      <div className={`hidden sm:block sm:col-span-3 ${showAlbum ? 'md:col-span-3' : 'md:col-span-4'} text-left truncate pr-2`}>
         <p className="text-[13px] text-[#98989d] hover:text-white truncate font-normal">
           {track.artistId ? (
             <Link
@@ -143,6 +149,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
       </div>
 
       {/* 3. Album Column */}
+      {showAlbum && (
       <div className="hidden md:block md:col-span-3 text-left truncate pr-2">
         <p className="text-[13px] text-[#98989d] hover:text-white truncate font-normal">
           {track.album && (
@@ -160,12 +167,38 @@ export const TrackRow: React.FC<TrackRowProps> = ({
           )}
         </p>
       </div>
+      )}
 
       {/* 4. Duration & Actions Column */}
-      <div className="hidden sm:flex sm:col-span-3 md:col-span-1 items-center justify-end gap-2 text-right">
-        <span className="text-[12px] text-[#98989d] font-normal font-mono">
+      <div className={`hidden sm:flex sm:col-span-3 ${showAlbum ? 'md:col-span-1' : 'md:col-span-2'} items-center justify-end gap-1.5 text-right`}>
+        {/* Duration swaps out for action icons on hover so nothing collides */}
+        <span className="text-[12px] text-[#98989d] font-normal font-mono group-hover:hidden">
           {track.isLive ? 'LIVE' : formatTime(track.duration)}
         </span>
+
+        {/* Quick queue actions (hover) */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            addToQueue(track, true);
+          }}
+          className="hidden group-hover:flex p-1 text-white/60 hover:text-white rounded-lg hover:bg-white/10 cursor-pointer"
+          title="Play Next"
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            addToQueue(track, false);
+          }}
+          className="hidden group-hover:flex p-1 text-white/60 hover:text-white rounded-lg hover:bg-white/10 cursor-pointer"
+          title="Add to Queue"
+        >
+          <ListPlus className="w-3.5 h-3.5" />
+        </button>
 
         {/* More Actions Menu */}
         <div className="relative">

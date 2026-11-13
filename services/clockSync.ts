@@ -7,7 +7,7 @@
  * regardless of local device OS clock skew or timezone offsets.
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { REGIONS, RegionOption } from '../constants/regions';
 
 export interface ClockAnchor {
@@ -110,8 +110,19 @@ export const getClockAnchor = (): ClockAnchor | null => globalAnchor;
 /**
  * Sync the global anchor with the official time.now API
  */
+// Throttle redundant syncs: multiple useSyncedClock instances (page + isolated
+// clock display) share the same global anchor, so only one network call per
+// timezone per ~45s is needed.
+let lastSyncKey = '';
+let lastSyncAt = 0;
+
 export const syncClockWithApi = async (timezone = 'Africa/Casablanca'): Promise<ClockAnchor | null> => {
   const safeTz = normalizeTimezone(timezone);
+  if (globalAnchor && safeTz === lastSyncKey && Date.now() - lastSyncAt < 45_000) {
+    return globalAnchor;
+  }
+  lastSyncKey = safeTz;
+  lastSyncAt = Date.now();
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 7000);
 
@@ -166,18 +177,32 @@ export const syncClockWithApi = async (timezone = 'Africa/Casablanca'): Promise<
 /**
  * High-precision React hook for live clock and synchronized match countdowns
  */
-export const useSyncedClock = (selectedRegion: RegionOption) => {
+export const useSyncedClock = (
+  selectedRegion: RegionOption,
+  opts?: { nowStepMs?: number; clockStrings?: boolean }
+) => {
+  const nowStepMs = opts?.nowStepMs ?? 1000;
+  const wantClockStrings = opts?.clockStrings !== false;
   const [syncedNow, setSyncedNow] = useState(() => getSyncedNow());
   const [anchor, setAnchor] = useState<ClockAnchor | null>(() => globalAnchor);
   const [timeStr, setTimeStr] = useState('');
   const [dateStr, setDateStr] = useState('');
+  const lastNowStepRef = useRef(-1);
 
   const targetTz = useMemo(() => normalizeTimezone(selectedRegion.tz), [selectedRegion.tz]);
 
   // Recalculate formatted time strings
   const updateTick = useCallback(() => {
     const now = getSyncedNow();
-    setSyncedNow(now);
+    // Only re-render consumers when the quantized step changes — countdowns and
+    // live-match logic only need coarse granularity, while the 1s ticker keeps
+    // running cheaply for the isolated clock display.
+    const step = Math.floor(now / nowStepMs);
+    if (step !== lastNowStepRef.current) {
+      lastNowStepRef.current = step;
+      setSyncedNow(now);
+    }
+    if (!wantClockStrings) return;
 
     const currentAnchor = globalAnchor;
     const offsetMs = currentAnchor ? currentAnchor.offsetMs : undefined;
@@ -203,7 +228,7 @@ export const useSyncedClock = (selectedRegion: RegionOption) => {
       setTimeStr(new Date(now).toLocaleTimeString());
       setDateStr(new Date(now).toLocaleDateString());
     }
-  }, [targetTz]);
+  }, [targetTz, nowStepMs, wantClockStrings]);
 
   useEffect(() => {
     let active = true;

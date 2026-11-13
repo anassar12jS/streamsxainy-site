@@ -44,7 +44,7 @@ export const RadioRoute: React.FC = () => {
             <Radio className="w-3.5 h-3.5 animate-pulse" /> Live Broadcasts
           </span>
           <span className="text-xs text-white/50 font-semibold">
-            BitChord 24/7 Global Audio Streams
+            Xainy Music 24/7 Global Audio Streams
           </span>
         </div>
         <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight mt-1">

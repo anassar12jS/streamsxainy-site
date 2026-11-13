@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { 
   X, Play, Pause, SkipBack, SkipForward, 
   Shuffle, Repeat, Volume2, VolumeX, MessageSquareQuote, ListMusic, 
-  Star, MoreHorizontal, Maximize2, Minimize2, Trash2, Disc
+  Star, MoreHorizontal, Maximize2, Minimize2, Trash2, Disc, Moon, Check
 } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { fetchLyrics } from '../api/lyrics';
@@ -45,6 +45,10 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
   const toggleLike = useMusicPlayerStore(state => state.toggleLike);
   const removeFromQueue = useMusicPlayerStore(state => state.removeFromQueue);
   const clearQueue = useMusicPlayerStore(state => state.clearQueue);
+  const sleepTimerMode = useMusicPlayerStore(state => state.sleepTimerMode);
+  const sleepTimerEndsAt = useMusicPlayerStore(state => state.sleepTimerEndsAt);
+  const sleepTimerMinutes = useMusicPlayerStore(state => state.sleepTimerMinutes);
+  const setSleepTimer = useMusicPlayerStore(state => state.setSleepTimer);
 
   const activeLyrics = useMusicPlayerStore(state => state.activeLyrics);
   const setLyrics = useMusicPlayerStore(state => state.setLyrics);
@@ -52,7 +56,24 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
   const setIsLoadingLyrics = useMusicPlayerStore(state => state.setIsLoadingLyrics);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showSleepMenu, setShowSleepMenu] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const [steeredTime, setSteeredTime] = useState(0);
+
+  useEffect(() => {
+    if (!showSleepMenu) return;
+    const id = window.setInterval(() => setNow(Date.now()), 15000);
+    return () => window.clearInterval(id);
+  }, [showSleepMenu]);
+
+  const sleepTimerLabel = (() => {
+    if (sleepTimerMode === 'trackEnd') return 'End of Song';
+    if (sleepTimerMode === 'time' && sleepTimerEndsAt) {
+      const minsLeft = Math.max(1, Math.ceil((sleepTimerEndsAt - now) / 60000));
+      return `${minsLeft}m left`;
+    }
+    return 'Off';
+  })();
 
   const activeLineRef = useRef<HTMLDivElement | null>(null);
   const lyricsContainerRef = useRef<HTMLDivElement | null>(null);
@@ -229,6 +250,62 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                 >
                   <Star className={`w-4 h-4 ${isLiked ? 'fill-white text-white' : ''}`} />
                 </button>
+                {/* Sleep Timer */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowSleepMenu(prev => !prev)}
+                    className={`p-1.5 transition-colors cursor-pointer rounded-full hover:bg-white/10 ${
+                      sleepTimerMode !== 'off' ? 'text-white' : 'text-white/50 hover:text-white'
+                    }`}
+                    title={`Sleep Timer: ${sleepTimerLabel}`}
+                  >
+                    <Moon className="w-4 h-4" />
+                  </button>
+
+                  {showSleepMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowSleepMenu(false)} />
+                      <div className="absolute right-0 top-full mt-2 w-48 bg-[#1e1e20]/95 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-2xl p-1.5 z-50 text-xs animate-in fade-in slide-in-from-top-1 duration-150">
+                        <div className="px-2.5 py-1.5 flex items-center justify-between text-white/50">
+                          <span className="font-semibold uppercase tracking-wider text-[10px]">Sleep Timer</span>
+                          <span>{sleepTimerLabel}</span>
+                        </div>
+                        <div className="my-1 border-t border-white/10" />
+                        {([
+                          { mode: 'off' as const, label: 'Off' },
+                          { mode: 'time' as const, minutes: 15, label: '15 minutes' },
+                          { mode: 'time' as const, minutes: 30, label: '30 minutes' },
+                          { mode: 'time' as const, minutes: 60, label: '1 hour' },
+                          { mode: 'trackEnd' as const, label: 'End of song' },
+                        ]).map(opt => {
+                          const isActive = opt.mode === 'off'
+                            ? sleepTimerMode === 'off'
+                            : opt.mode === 'trackEnd'
+                              ? sleepTimerMode === 'trackEnd'
+                              : sleepTimerMode === 'time' && sleepTimerMinutes === opt.minutes;
+                          return (
+                            <button
+                              key={opt.label}
+                              type="button"
+                              onClick={() => {
+                                setSleepTimer(opt.mode, opt.mode === 'time' ? opt.minutes : undefined);
+                                setShowSleepMenu(false);
+                              }}
+                              className={`w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between cursor-pointer transition-colors ${
+                                isActive ? 'text-white bg-white/10' : 'text-white/60 hover:text-white hover:bg-white/5'
+                              }`}
+                            >
+                              <span>{opt.label}</span>
+                              {isActive && <Check className="w-3 h-3 text-emerald-400" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 <button
                   type="button"
                   onClick={() => setImmersiveTab(immersiveTab === 'lyrics' ? 'queue' : 'lyrics')}

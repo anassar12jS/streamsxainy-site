@@ -34,6 +34,7 @@ import { getLiveLeagueStandings, getLeagueTopScorers } from '../services/footbal
 import { getTeamLogoUrl, CLUB_BRAND_COLORS } from '../data/clubLogos';
 import { useSyncedClock, formatMatchCountdown, getSyncedNow } from '../services/clockSync';
 import { SportsMultiviewModal } from '../components/SportsMultiviewModal';
+import { Reveal } from '../components/Reveal';
 
 // Team initials / fallback color generator
 const generateColor = (name: string) => {
@@ -293,6 +294,26 @@ const isMoroccanMatch = (m: SportsMatch): boolean => {
 const getEffectiveMatchDate = (dateNum: number) => dateNum;
 
 // Dynamic Countdown Badge
+// Flashes briefly when a match's score changes (goal/point scored)
+const useScoreFlash = (score?: { home: number; away: number } | null): boolean => {
+  const prevRef = useRef(score);
+  const [flash, setFlash] = useState(false);
+  const home = score?.home;
+  const away = score?.away;
+
+  useEffect(() => {
+    const prev = prevRef.current;
+    prevRef.current = score ?? null;
+    if (score && prev && (score.home !== prev.home || score.away !== prev.away)) {
+      setFlash(true);
+      const t = window.setTimeout(() => setFlash(false), 1600);
+      return () => window.clearTimeout(t);
+    }
+  }, [home, away]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return flash;
+};
+
 const MatchCountdown = React.memo(({ date, now }: { date: number; now: number }) => {
   const countdown = useMemo(() => formatMatchCountdown(date, now), [date, now]);
 
@@ -1137,7 +1158,7 @@ const LiveScoresTicker: React.FC<{
 
             return (
               <div
-                key={m.id || m.title}
+                key={getMatchUniqueId(m)}
                 onClick={() => onOpenMatchCenter(m)}
                 className={`group shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] shadow-sm select-none ${
                   isLive
@@ -1237,6 +1258,7 @@ const MatchGridCard = React.memo(({
   const homeBrand = getTeamBrand(match.teams?.home?.name || match.category);
   const awayBrand = getTeamBrand(match.teams?.away?.name || `${match.category} away`);
   const [posterFailed, setPosterFailed] = useState(false);
+  const scoreFlash = useScoreFlash(match.score);
 
   useEffect(() => setPosterFailed(false), [match.poster]);
 
@@ -1255,7 +1277,7 @@ const MatchGridCard = React.memo(({
       aria-label={`Match: ${match.title}. Press Enter to open.`}
       className={`group relative flex flex-col justify-between rounded-2xl bg-[var(--bg-card)] border cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl min-h-[340px] h-full p-4 ${
         isLive 
-          ? 'border-red-500/50 hover:border-red-500 shadow-lg shadow-red-900/20' 
+          ? 'border-red-500/50 hover:border-red-500 shadow-lg shadow-red-900/20 ring-1 ring-red-500/20' 
           : isMorocco
             ? 'border-emerald-500/40 hover:border-emerald-500 shadow-emerald-900/10'
             : 'border-[var(--border-subtle)] hover:border-[rgb(var(--primary-color))]/60'
@@ -1381,7 +1403,7 @@ const MatchGridCard = React.memo(({
             <div className="flex flex-col items-center shrink-0">
               {match.score ? (
                 <div className="flex flex-col items-center">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-black/75 border border-white/10 font-mono text-sm font-black text-white shadow-inner tabular-nums">
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-black/75 border border-white/10 font-mono text-sm font-black text-white shadow-inner tabular-nums ${scoreFlash ? 'score-flash' : ''}`}>
                     <span className={match.score.home > match.score.away ? 'text-emerald-400 font-extrabold' : ''}>
                       {match.score.home}
                     </span>
@@ -1537,6 +1559,7 @@ const MatchListRow = React.memo(({
   const fixtureOffset = getNearTermTimezoneOffset(match.date, now, timezoneOffsetMs);
   const timeFormatted = formatTimeForTz(match.date, getScheduleTimezone(selectedRegion), fixtureOffset);
   const liveMinute = isLive ? getLiveMatchMinute(match.date, match.category, now) : null;
+  const scoreFlash = useScoreFlash(match.score);
 
   return (
     <div
@@ -1606,7 +1629,7 @@ const MatchListRow = React.memo(({
               </div>
 
               {match.score ? (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/70 border border-white/10 font-mono text-xs font-black text-white shadow-inner shrink-0 tabular-nums">
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/70 border border-white/10 font-mono text-xs font-black text-white shadow-inner shrink-0 tabular-nums ${scoreFlash ? 'score-flash' : ''}`}>
                   <span className={match.score.home > match.score.away ? 'text-emerald-400 font-bold' : ''}>
                     {match.score.home}
                   </span>
@@ -1807,6 +1830,21 @@ const SCHEDULE_DAY_OPTIONS = [
   { id: 'results', label: 'Recent FT' },
 ];
 
+// Isolated seconds-precision clock — ticks every second but only re-renders
+// this tiny subtree instead of the whole Sports page.
+const RegionClock: React.FC<{ region: RegionOption }> = React.memo(({ region }) => {
+  const { timeStr, dateStr } = useSyncedClock(region);
+  return (
+    <div className="flex items-center gap-2 font-mono font-bold text-white text-sm">
+      <Clock className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+      <span>{timeStr || '00:00:00'}</span>
+      <span className="text-[var(--text-muted)] hidden md:inline font-medium font-sans">
+        · {dateStr}
+      </span>
+    </div>
+  );
+});
+
 // --- Main Sports Component ---
 export const Sports: React.FC = () => {
   const navigate = useNavigate();
@@ -1918,14 +1956,15 @@ export const Sports: React.FC = () => {
   // Match Center Modal State
   const [previewMatch, setPreviewMatch] = useState<SportsMatch | null>(null);
 
-  // Live Digital Clock Ticker in Selected Region via Centralized Synchronized Clock
+  // Live Digital Clock Ticker in Selected Region via Centralized Synchronized Clock.
+  // nowStepMs quantizes syncedNow updates to every 10s so the whole page doesn't
+  // re-render every second; the seconds-precision clock display lives in its own
+  // <RegionClock> component below.
   const {
     syncedNow: clockNow,
-    timeStr: currentRegionTime,
-    dateStr: currentRegionDate,
     offsetMs: apiTimezoneOffsetMs,
     offsetLabel: apiTimezoneOffsetLabel
-  } = useSyncedClock(selectedRegion);
+  } = useSyncedClock(selectedRegion, { nowStepMs: 10_000, clockStrings: false });
 
   const selectedRegionOffset = apiTimezoneOffsetLabel || getScheduleOffsetBadge(selectedRegion);
   const getRegionOffsetLabel = (regionId: string, tz: string) => (
@@ -2215,9 +2254,19 @@ export const Sports: React.FC = () => {
   // Scroll to top button
   const [showScrollTop, setShowScrollTop] = useState(false);
   useEffect(() => {
-    const handleScroll = () => setShowScrollTop(window.scrollY > 400);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    let rafId = 0;
+    const handleScroll = () => {
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        setShowScrollTop(window.scrollY > 400);
+      });
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   return (
@@ -2235,14 +2284,7 @@ export const Sports: React.FC = () => {
               <span className="text-[10px] text-cyan-300 font-mono">(clock · {selectedRegionOffset})</span>
             </span>
 
-            <div className="flex items-center gap-2 font-mono font-bold text-white text-sm">
-              <Clock className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-              <span>{currentRegionTime || '00:00:00'}</span>
-            </div>
-
-            <span className="text-[var(--text-muted)] hidden md:inline font-medium">
-              · {currentRegionDate}
-            </span>
+            <RegionClock region={selectedRegion} />
           </div>
 
           {/* Region Selector Interactive Button & Dropdown */}
@@ -2376,6 +2418,10 @@ export const Sports: React.FC = () => {
         <div className="relative border-b border-[var(--border-subtle)] bg-[var(--bg-card)] overflow-hidden">
           {/* Ambient Stadium Lighting */}
           <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-[rgb(var(--primary-color))]/10 to-pink-500/10 pointer-events-none" />
+          {/* Animated shine sweep */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="shine-sweep absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
+          </div>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 relative z-10">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
               
@@ -2723,7 +2769,8 @@ export const Sports: React.FC = () => {
         {/* 1. LIVE NOW TAB                                                           */}
         {/* ========================================================================= */}
         {!isLoading && tabMode === 'live' && (
-          live.length > 0 ? (
+          <Reveal>
+          {live.length > 0 ? (
             <div className="space-y-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -2940,7 +2987,8 @@ export const Sports: React.FC = () => {
                 </button>
               </div>
             </div>
-          )
+          )}
+          </Reveal>
         )}
 
 
@@ -2948,7 +2996,8 @@ export const Sports: React.FC = () => {
         {/* 2. UPCOMING SCHEDULE TAB (WITH REGION DAY BOUNDARIES)                     */}
         {/* ========================================================================= */}
         {!isLoading && tabMode === 'upcoming' && (
-          Object.keys(visibleUpcomingGroups).length > 0 ? (
+          <Reveal>
+          {Object.keys(visibleUpcomingGroups).length > 0 ? (
             <div className="space-y-10">
               
               {/* Region Notice & Switcher Header */}
@@ -3085,14 +3134,16 @@ export const Sports: React.FC = () => {
                 </button>
               )}
             </div>
-          )
+          )}
+          </Reveal>
         )}
 
         {/* ========================================================================= */}
         {/* 3. FAVORITES TAB                                                          */}
         {/* ========================================================================= */}
         {!isLoading && tabMode === 'favorites' && (
-          favMatches.length > 0 ? (
+          <Reveal>
+          {favMatches.length > 0 ? (
             <div className="space-y-5">
               <h2 className="text-base font-black uppercase tracking-wider text-[var(--text-main)] flex items-center gap-2">
                 <Heart className="w-4 h-4 fill-red-500 text-red-500" />
@@ -3160,14 +3211,15 @@ export const Sports: React.FC = () => {
                 {favorites.length > 0 && hasActiveFilters ? 'Clear Filters' : 'Explore Live Matches'}
               </button>
             </div>
-          )
+          )}
+          </Reveal>
         )}
 
         {/* ========================================================================= */}
         {/* 4. STANDINGS AND TOP SCORERS */}
         {/* ========================================================================= */}
         {tabMode === 'standings' && (
-          <div className="space-y-6 animate-fade-in">
+          <Reveal className="space-y-6 animate-fade-in">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl sm:text-2xl font-black text-[var(--text-main)] flex items-center gap-2">
@@ -3455,7 +3507,7 @@ export const Sports: React.FC = () => {
                 </div>
               );
             })()}
-          </div>
+          </Reveal>
         )}
 
       </main>

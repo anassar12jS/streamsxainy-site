@@ -1,10 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { RefreshCw, Loader2, AlertCircle } from 'lucide-react';
+import { RefreshCw, Loader2, AlertCircle, Heart, Radio, History, ListMusic } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { useSessionStore } from '../store/useSessionStore';
-import { getHomeShelves } from '../api/innertube';
+import { getHomeShelves, resolveTrackDurations } from '../api/innertube';
 import { GlobalSearchBar } from '../components/GlobalSearchBar';
 import { MediaShelf, ShelfItem } from '../components/MediaShelf';
 import { TrackRow } from '../components/TrackRow';
@@ -12,9 +12,11 @@ import type { HomeItem, HomeShelf } from '../api/ytmParse';
 import type { MusicTrack } from '../types';
 
 /** Home: live YouTube Music home feed (personalised when a session is connected). */
+const SHELVES_CACHE_PREFIX = 'ytm_home_shelves_v4_'; // v4: duration backfill via getBasicInfo — v3 caches hold duration:0
+
 const loadCachedShelves = (channelId: string): HomeShelf[] | undefined => {
   try {
-    const raw = sessionStorage.getItem(`ytm_home_shelves_${channelId}`);
+    const raw = sessionStorage.getItem(`${SHELVES_CACHE_PREFIX}${channelId}`);
     if (raw) return JSON.parse(raw);
   } catch {}
   return undefined;
@@ -22,16 +24,19 @@ const loadCachedShelves = (channelId: string): HomeShelf[] | undefined => {
 
 const saveCachedShelves = (channelId: string, data: HomeShelf[]) => {
   try {
-    sessionStorage.setItem(`ytm_home_shelves_${channelId}`, JSON.stringify(data));
+    sessionStorage.setItem(`${SHELVES_CACHE_PREFIX}${channelId}`, JSON.stringify(data));
   } catch {}
 };
 
 export const BrowseRoute: React.FC = () => {
   const navigate = useNavigate();
   const playTrack = useMusicPlayerStore(state => state.playTrack);
+  const recentlyPlayed = useMusicPlayerStore(state => state.recentlyPlayed);
+  const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const activeChannelId = useSessionStore(state => state.activeChannelId);
   const activeChannel = useSessionStore(state => state.activeChannel);
   const cacheKey = activeChannelId || 'default';
+  const [, setDurationTick] = React.useState(0);
 
   const { data: shelves, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['ytm-home', cacheKey],
@@ -39,6 +44,13 @@ export const BrowseRoute: React.FC = () => {
       const data = await getHomeShelves();
       if (data && data.length > 0) {
         saveCachedShelves(cacheKey, data);
+        // MusicTwoRowItem carries no duration — backfill in the background, then re-render + re-cache
+        void resolveTrackDurations(
+          data.flatMap(s => s.items.flatMap(i => (i.kind === 'track' ? [i.track] : [])))
+        ).then(() => {
+          saveCachedShelves(cacheKey, data);
+          setDurationTick(t => t + 1);
+        });
       }
       return data;
     },
@@ -120,16 +132,45 @@ export const BrowseRoute: React.FC = () => {
 
   return (
     <div
-      className="space-y-10 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4"
+      className="relative space-y-10 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4 overflow-x-hidden"
       style={{ fontFamily: 'var(--bitchord-font)' }}
     >
-      <GlobalSearchBar />
+      {/* Ambient tint: now-playing artwork washed over the whole page, feathered on all edges */}
+      {currentTrack?.artwork && (
+        <div
+          className="fixed inset-0 pointer-events-none z-0"
+          aria-hidden="true"
+        >
+          <img
+            src={currentTrack.artwork}
+            alt=""
+            className="w-full h-full object-cover opacity-[0.38] blur-[120px] scale-110"
+            style={{
+              maskImage:
+                'linear-gradient(to bottom, black 0%, rgba(0,0,0,0.55) 35%, rgba(0,0,0,0.28) 65%, transparent 90%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
+              WebkitMaskImage:
+                'linear-gradient(to bottom, black 0%, rgba(0,0,0,0.55) 35%, rgba(0,0,0,0.28) 65%, transparent 90%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
+              maskComposite: 'intersect',
+              WebkitMaskComposite: 'source-in',
+            } as React.CSSProperties}
+          />
+        </div>
+      )}
 
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Home</h1>
+      <div className="relative">
+        <GlobalSearchBar />
+
+        <div className="flex items-end justify-between gap-4 relative mt-1">
+        <div className="relative">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+            {(() => {
+              const h = new Date().getHours();
+              return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+            })()}
+          </h1>
           <p className="text-xs text-[#b3b3b3] mt-1">
-            {activeChannel ? `Picks for ${activeChannel.name}` : 'YouTube Music home'}
+            {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+            {activeChannel ? ` • Picks for ${activeChannel.name}` : ' • YouTube Music home'}
           </p>
         </div>
         <button
@@ -141,14 +182,54 @@ export const BrowseRoute: React.FC = () => {
           <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
           Refresh
         </button>
+        </div>
       </div>
 
+      {/* Quick access tiles */}
+      <div className="relative grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {([
+          { to: '/music/library/liked', label: 'Liked Songs', sub: 'Your favorites', icon: Heart, bg: 'from-rose-500/80 to-pink-700/80' },
+          { to: '/music/radio', label: 'Radio', sub: 'Live stations', icon: Radio, bg: 'from-violet-500/80 to-purple-800/80' },
+          { to: '/music/replay', label: 'Replay', sub: 'Your year in music', icon: History, bg: 'from-emerald-500/80 to-teal-800/80' },
+          { to: '/music/library/playlists', label: 'Playlists', sub: 'Your mixes', icon: ListMusic, bg: 'from-sky-500/80 to-blue-800/80' },
+        ] as const).map(({ to, label, sub, icon: Icon, bg }) => (
+          <button
+            key={to}
+            type="button"
+            onClick={() => navigate(to)}
+            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${bg} p-4 sm:p-5 text-left shadow-lg hover:scale-[1.02] active:scale-[0.99] transition-transform cursor-pointer group`}
+          >
+            <Icon className="w-6 h-6 text-white/90 mb-6 sm:mb-8 group-hover:scale-110 transition-transform" />
+            <p className="text-white font-bold text-sm sm:text-base leading-tight">{label}</p>
+            <p className="text-white/70 text-[11px] sm:text-xs mt-0.5">{sub}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* Jump Back In — resume recent listens instantly */}
+      {recentlyPlayed.length > 0 && (
+        <div className="relative">
+        <MediaShelf
+          title="Jump Back In"
+          subtitle="Recently played"
+          items={recentlyPlayed.slice(0, 12).map(t => ({
+            id: `recent-${t.id}`,
+            title: t.title,
+            subtitle: t.artist,
+            artwork: t.artwork,
+            tracks: [t],
+            onClick: () => playTrack(t, recentlyPlayed),
+          }))}
+        />
+        </div>
+      )}
+
       {isLoading ? (
-        <div className="flex items-center gap-3 text-[#b3b3b3] text-sm py-16 justify-center">
+        <div className="relative flex items-center gap-3 text-[#b3b3b3] text-sm py-16 justify-center">
           <Loader2 className="w-5 h-5 animate-spin" /> Loading your home feed…
         </div>
       ) : error || !shelves?.length ? (
-        <div className="rounded-2xl bg-[#141414] border border-white/10 p-6 flex items-start gap-3">
+        <div className="relative rounded-2xl bg-[#141414] border border-white/10 p-6 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-white/60 shrink-0 mt-0.5" />
           <div className="space-y-2">
             <p className="text-sm text-white font-semibold">Couldn't load the YouTube Music home feed</p>
@@ -166,7 +247,17 @@ export const BrowseRoute: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="space-y-10">{shelves.map(renderShelf)}</div>
+        <div className="relative space-y-10">
+          {shelves.map((shelf, i) => (
+            <div
+              key={shelf.id}
+              className="animate-fade-in"
+              style={{ animationDelay: `${Math.min(i, 10) * 60}ms` }}
+            >
+              {renderShelf(shelf)}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

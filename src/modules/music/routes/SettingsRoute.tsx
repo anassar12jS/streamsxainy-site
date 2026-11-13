@@ -5,7 +5,7 @@ import {
   XCircle, ExternalLink, ArrowLeft, RefreshCw, AlertCircle
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { extensionBridge, BitChordExtensionBridge } from '../extension/bridge';
+import { extensionBridge, XainyMusicBridge } from '../extension/bridge';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
 export const SettingsRoute: React.FC = () => {
@@ -16,6 +16,7 @@ export const SettingsRoute: React.FC = () => {
 
   const [isConnectingSpotify, setIsConnectingSpotify] = useState(false);
   const [spotifyUser, setSpotifyUser] = useState<{ name?: string; email?: string } | null>(null);
+  const [spotifyProblem, setSpotifyProblem] = useState<string | null>(null);
 
   // Check Spotify auth state
   useEffect(() => {
@@ -24,8 +25,14 @@ export const SettingsRoute: React.FC = () => {
         const res = await extensionBridge.sendExtensionMessage('spotify.authState');
         if (res && res.user) {
           setSpotifyUser(res.user);
+          setSpotifyProblem(null);
         } else if (res && res.name) {
           setSpotifyUser({ name: res.name });
+          setSpotifyProblem(null);
+        } else if (res && res.problem) {
+          setSpotifyProblem(res.problem);
+        } else if (res && res.browserSignedIn && !res.connected) {
+          setSpotifyProblem('Spotify is disconnected in the extension — click Connect.');
         }
       } catch {}
     };
@@ -35,11 +42,18 @@ export const SettingsRoute: React.FC = () => {
   const handleConnectSpotify = async () => {
     setIsConnectingSpotify(true);
     try {
+      // Make sure the extension's connected pref is on — signIn alone doesn't set it.
+      await extensionBridge.sendExtensionMessage('spotify.setConnected', { connected: true }).catch(() => {});
       await extensionBridge.sendExtensionMessage('spotify.signIn');
-      const res = await extensionBridge.sendExtensionMessage('spotify.authState');
-      if (res && (res.user || res.name)) {
-        setSpotifyUser(res.user || { name: res.name });
-        queryClient.invalidateQueries({ queryKey: ['spotifyPlaylists'] });
+      // The login tab needs a moment — poll authState until the sp_dc cookie lands.
+      for (let i = 0; i < 15; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        const res = await extensionBridge.sendExtensionMessage('spotify.authState').catch(() => null);
+        if (res && (res.user || res.name || res.signedIn)) {
+          setSpotifyUser(res.user || { name: res.name });
+          queryClient.invalidateQueries({ queryKey: ['spotifyPlaylists'] });
+          break;
+        }
       }
     } catch (e) {
       console.warn('Spotify connect error:', e);
@@ -50,7 +64,9 @@ export const SettingsRoute: React.FC = () => {
 
   const handleDisconnectSpotify = async () => {
     try {
-      await extensionBridge.sendExtensionMessage('spotify.signOut');
+      await extensionBridge.sendExtensionMessage('spotify.signOut').catch(() =>
+        extensionBridge.sendExtensionMessage('spotify.setConnected', { connected: false })
+      );
       setSpotifyUser(null);
       queryClient.invalidateQueries({ queryKey: ['spotifyPlaylists'] });
     } catch {}
@@ -80,7 +96,7 @@ export const SettingsRoute: React.FC = () => {
 
         <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-[#a3a3a3]">
           <span>Version</span>
-          <span className="font-mono text-white font-semibold">0.4.4</span>
+          <span className="font-mono text-white font-semibold">0.5.0</span>
         </div>
       </div>
 
@@ -145,7 +161,7 @@ export const SettingsRoute: React.FC = () => {
                 <p className="text-xs text-[#a3a3a3] truncate mt-0.5">
                   {spotifyUser 
                     ? `Signed in as ${spotifyUser.name || 'Spotify User'}` 
-                    : 'Sync your Spotify playlists and Canvas videos'}
+                    : spotifyProblem || 'Sync your Spotify playlists and Canvas videos'}
                 </p>
               </div>
             </div>
@@ -207,7 +223,7 @@ export const SettingsRoute: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-sm text-white">Xainy Music Extension</h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-white/10 text-[#a3a3a3]">
-                    v0.4.4
+                    v0.5.0
                   </span>
                 </div>
                 <p className="text-xs text-[#a3a3a3] truncate mt-0.5">

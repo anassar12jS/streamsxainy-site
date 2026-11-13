@@ -9,6 +9,7 @@ import { TMDBResult, MediaType } from '../types';
 import { getProviderMedia } from '../services/tmdb';
 import { TMDB_IMAGE_BASE, TMDB_BACKDROP_W780 } from '../constants';
 import { addToWatchlist, removeFromWatchlist, isInWatchlist } from '../services/storage';
+import { Reveal } from './Reveal';
 
 export interface StreamingProvider {
   id: number;
@@ -200,7 +201,7 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
   const currentGenres = mediaType === MediaType.MOVIE ? MOVIE_GENRES : TV_GENRES;
 
   return (
-    <section className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 animate-fade-in content-visibility-auto">
+    <Reveal as="section" className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 animate-fade-in">
       
       {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -560,6 +561,6 @@ export const StreamingProvidersShowcase: React.FC<StreamingProvidersShowcaseProp
         </div>
       </div>
 
-    </section>
+    </Reveal>
   );
 };

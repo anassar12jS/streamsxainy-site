@@ -16,6 +16,7 @@ import { replayRecorder } from './api/replay';
 import { fetchLyrics } from './api/lyrics';
 import { getResilientAudioFallback } from './api/fallbackAudio';
 import { getAudiusAudioStream } from './api/audiusStream';
+import { ARTWORK_PLACEHOLDER } from './api/ytmParse';
 
 // Keep home feed static for 0ms initial render
 import { BrowseRoute } from './routes/BrowseRoute';
@@ -57,6 +58,7 @@ export const MusicModule: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isListenTogetherOpen, setIsListenTogetherOpen] = useState(false);
   const [isYtLinkOpen, setIsYtLinkOpen] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Store bindings
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
@@ -72,6 +74,9 @@ export const MusicModule: React.FC = () => {
   const prevTrack = useMusicPlayerStore(state => state.prevTrack);
   const togglePlayPause = useMusicPlayerStore(state => state.togglePlayPause);
   const setExtensionConnected = useMusicPlayerStore(state => state.setExtensionConnected);
+  const sleepTimerMode = useMusicPlayerStore(state => state.sleepTimerMode);
+  const sleepTimerEndsAt = useMusicPlayerStore(state => state.sleepTimerEndsAt);
+  const errorStreakRef = useRef(0);
 
   // --- Endless playback: when the queue runs low, queue songs YouTube Music thinks fit next ---
   const radioSeeds = useRef<Set<string>>(new Set());
@@ -99,6 +104,130 @@ export const MusicModule: React.FC = () => {
     useMusicPlayerStore.getState().nextTrack();
   };
 
+  /** Natural track end: sleep timer "end of song" wins, then repeat-one, else advance. */
+  const handleTrackEnded = () => {
+    const st = useMusicPlayerStore.getState();
+    if (st.sleepTimerMode === 'trackEnd') {
+      st.setSleepTimer('off');
+      st.pause();
+      return;
+    }
+    if (st.repeatMode === 'one') {
+      engineRef.current?.seek(0);
+      engineRef.current?.play().catch(() => {});
+    } else {
+      void advance();
+    }
+  };
+
+  // Broken artwork safety net: any cover/avatar image that fails to load is
+  // swapped for the placeholder tile instead of showing a broken-image icon.
+  useEffect(() => {
+    const ART_HOST_RE = /googleusercontent\.com|ggpht\.com|ytimg\.com|mzstatic\.com|sndcdn\.com|images\.unsplash\.com|i\.scdn\.co|audius\.co/i;
+
+    /** Dedup: the same cover/avatar URL repeats across rows — share one fetch result */
+    const fallbackCache = new Map<string, Promise<string | null>>();
+    /** Circuit breaker: when YouTube's CDN starts 429ing, stop hammering it —
+     *  every fallback attempt is another request against an already-throttled host. */
+    let artworkBlackoutUntil = 0;
+    let consecutiveFailures = 0;
+    /** Hosts that never send CORS headers — fetch() can never succeed, skip straight to proxy */
+    const NO_CORS_HOST_RE = /(^|\.)(i\.ytimg\.com|i\.ggpht\.com)$/i;
+
+    const resolveFallbackUrl = (src: string): Promise<string | null> => {
+      if (Date.now() < artworkBlackoutUntil) return Promise.resolve(null);
+      let p = fallbackCache.get(src);
+      if (!p) {
+        p = (async () => {
+          const toObjectUrl = async (res: Response) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return URL.createObjectURL(await res.blob());
+          };
+          const canCorsFetch = !NO_CORS_HOST_RE.test(src);
+          try {
+            if (canCorsFetch) return await toObjectUrl(await fetch(src));
+          } catch {}
+          try {
+            return await toObjectUrl(await extensionBridge.proxyFetch(src));
+          } catch {}
+          try {
+            if (canCorsFetch) {
+              const busted = src + (src.includes('?') ? '&' : '?') + 'cb=' + Date.now();
+              const res = await fetch(busted);
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              return URL.createObjectURL(await res.blob());
+            }
+          } catch {}
+          return null;
+        })();
+        fallbackCache.set(src, p);
+      }
+      return p.then(url => {
+        if (url) consecutiveFailures = 0;
+        else if (++consecutiveFailures >= 10) {
+          consecutiveFailures = 0;
+          artworkBlackoutUntil = Date.now() + 90_000;
+          console.warn('[artwork] CDN rate-limited — pausing cover retries for 90s');
+        }
+        return url;
+      });
+    };
+
+    /** Last resort before the placeholder: fetch the bytes ourselves (bypasses image-dest blockers), then via the extension (bypasses page-context blockers entirely) */
+    const tryBlobFallback = async (img: HTMLImageElement, src: string) => {
+      const stillWanted = () => (img.currentSrc || img.src) === src;
+      const url = await resolveFallbackUrl(src);
+      if (url && stillWanted()) {
+        img.src = url;
+        return;
+      }
+      if (!url) console.warn('[artwork] failed to load, using placeholder:', src);
+      img.dataset.artDone = '1';
+      img.src = ARTWORK_PLACEHOLDER;
+    };
+
+    const onImgError = (e: Event) => {
+      const img = e.target;
+      if (!(img instanceof HTMLImageElement)) return;
+      if (img.dataset.artDone === '1') return;
+
+      // Empty/missing src (old persisted data) — nothing to probe, go straight to placeholder
+      const rawSrc = img.getAttribute('src') || '';
+      if (!rawSrc || rawSrc.startsWith('data:')) {
+        if (rawSrc.startsWith('data:')) return;
+        img.dataset.artDone = '1';
+        img.src = ARTWORK_PLACEHOLDER;
+        return;
+      }
+
+      const src = img.currentSrc || img.src || '';
+      if (!ART_HOST_RE.test(src)) return;
+
+      // First failure might be a spurious abort (lazy load cancelled mid-flight).
+      // Probe the URL once: if it loads, retry the <img>; if it truly fails, use the placeholder.
+      if (img.dataset.artRetried !== '1') {
+        img.dataset.artRetried = '1';
+        const probe = new Image();
+        probe.onload = () => { img.src = src; };
+        probe.onerror = () => {
+          // One more delayed retry — refresh bursts can cause transient failures
+          if (img.dataset.artRetried2 !== '1') {
+            img.dataset.artRetried2 = '1';
+            setTimeout(() => { img.src = src; }, 800);
+            return;
+          }
+          void tryBlobFallback(img, src);
+        };
+        probe.src = src;
+        return;
+      }
+
+      void tryBlobFallback(img, src);
+    };
+    document.addEventListener('error', onImgError, true);
+    return () => document.removeEventListener('error', onImgError, true);
+  }, []);
+
   // 1. Initialize Audio Engine with HTMLAudioElement and callbacks
   useEffect(() => {
     if (!audioRef.current) return;
@@ -107,18 +236,21 @@ export const MusicModule: React.FC = () => {
       onTimeUpdate: (currentTime, duration) => {
         setTime(currentTime, duration);
         replayRecorder.onPlayTick();
+        // Crossfade: ease into silence over the last ~1.4s so the transition isn't a hard cut
+        if (duration && duration > 0) {
+          const remaining = duration - currentTime;
+          if (remaining > 0 && remaining <= 1.4) {
+            engine.startFadeOut(Math.min(1400, remaining * 1000));
+          }
+        }
       },
       onStatusChange: (status) => {
         setPlaybackStatus(status);
+        if (status === 'playing') engine.startFadeIn(900);
       },
       onEnded: () => {
         replayRecorder.onTrackEnd(true);
-        if (useMusicPlayerStore.getState().repeatMode === 'one') {
-          engineRef.current?.seek(0);
-          engineRef.current?.play().catch(() => {});
-        } else {
-          void advance();
-        }
+        handleTrackEnded();
       },
     });
     engineRef.current = engine;
@@ -145,6 +277,7 @@ export const MusicModule: React.FC = () => {
     const handlePlaying = () => {
       if (engine.activeMode === 'html5') {
         setPlaybackStatus('playing');
+        engine.startFadeIn(900);
       }
     };
 
@@ -156,12 +289,7 @@ export const MusicModule: React.FC = () => {
 
     const handleEnded = () => {
       if (engine.activeMode === 'html5') {
-        if (useMusicPlayerStore.getState().repeatMode === 'one') {
-          audio.currentTime = 0;
-          audio.play().catch(() => {});
-        } else {
-          void advance();
-        }
+        handleTrackEnded();
       }
     };
 
@@ -229,11 +357,11 @@ export const MusicModule: React.FC = () => {
             artwork: currentTrack.artwork,
           });
 
-          // Proactively prefetch next track stream for 0ms transition
+          // Proactively prefetch next two tracks for 0ms transitions
           const st = useMusicPlayerStore.getState();
-          const nextTrackInQueue = st.queue[st.queueIndex + 1];
-          if (nextTrackInQueue) {
-            prefetchStreamUrl(nextTrackInQueue);
+          for (let i = 1; i <= 2; i++) {
+            const upcoming = st.queue[st.queueIndex + i];
+            if (upcoming) prefetchStreamUrl(upcoming);
           }
         };
 
@@ -379,6 +507,34 @@ export const MusicModule: React.FC = () => {
     }
   }, [playbackStatus]);
 
+  // 3b. Auto-advance past tracks that fail on every source (max 3 skips in a row)
+  useEffect(() => {
+    if (playbackStatus === 'playing') {
+      errorStreakRef.current = 0;
+      return;
+    }
+    if (playbackStatus !== 'error' || errorStreakRef.current >= 3) return;
+    errorStreakRef.current += 1;
+    const timer = window.setTimeout(() => {
+      void advance();
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [playbackStatus]);
+
+  // 3c. Sleep timer: pause playback once the deadline passes
+  useEffect(() => {
+    if (sleepTimerMode !== 'time' || !sleepTimerEndsAt) return;
+    const tick = () => {
+      if (Date.now() >= sleepTimerEndsAt) {
+        useMusicPlayerStore.getState().setSleepTimer('off');
+        useMusicPlayerStore.getState().pause();
+      }
+    };
+    tick();
+    const id = window.setInterval(tick, 5000);
+    return () => window.clearInterval(id);
+  }, [sleepTimerMode, sleepTimerEndsAt]);
+
   // Keep similar songs queued ahead of time so the next song starts without a gap
   useEffect(() => {
     if (!currentTrack || currentTrack.isLive) return;
@@ -405,12 +561,26 @@ export const MusicModule: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      const isFormField = target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      );
+      if (isFormField) {
+        return;
+      }
+
+      // Close the shortcuts overlay on Escape or ?
+      if (showShortcuts && (e.key === 'Escape' || e.key === '?')) {
+        e.preventDefault();
+        setShowShortcuts(false);
         return;
       }
 
       switch (e.code) {
         case 'Space':
+          // Let focused buttons/links handle Space natively
+          if ((target as HTMLElement | null)?.closest('button, a, [role="button"]')) return;
           e.preventDefault();
           togglePlayPause();
           break;
@@ -436,12 +606,18 @@ export const MusicModule: React.FC = () => {
           e.preventDefault();
           useMusicPlayerStore.getState().toggleQueue();
           break;
+        case 'Slash':
+          if (e.shiftKey) {
+            e.preventDefault();
+            setShowShortcuts(true);
+          }
+          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlayPause, volume]);
+  }, [togglePlayPause, volume, showShortcuts]);
 
   return (
     <div 
@@ -466,7 +642,7 @@ export const MusicModule: React.FC = () => {
         onOpenYouTubeLink={() => setIsYtLinkOpen(true)}
       />
 
-      {/* Main Content Scroll View: BitChord #0f0f0f with 140px bottom padding */}
+      {/* Main Content Scroll View: Xainy Music #0f0f0f with 140px bottom padding */}
       <main 
         className="flex-1 min-w-0 h-full overflow-y-auto px-4 sm:px-8 pt-4 sm:pt-6 am-scrollbar bg-[#0f0f0f]"
         style={{ paddingBottom: '140px' }}
@@ -552,6 +728,48 @@ export const MusicModule: React.FC = () => {
             onClose={() => setIsSettingsOpen(false)}
           />
         </Suspense>
+      )}
+
+      {/* Keyboard Shortcuts Help Overlay */}
+      {showShortcuts && (
+        <div
+          className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowShortcuts(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-[#1c1c1e] border border-white/10 rounded-3xl shadow-2xl p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-white">Keyboard Shortcuts</h3>
+              <button
+                type="button"
+                onClick={() => setShowShortcuts(false)}
+                className="text-white/40 hover:text-white text-sm cursor-pointer px-2"
+              >
+                Esc
+              </button>
+            </div>
+            <div className="space-y-2 text-sm">
+              {([
+                ['Space', 'Play / Pause'],
+                ['← / →', 'Seek ∓5s'],
+                ['Shift + ← / →', 'Previous / Next track'],
+                ['M', 'Mute'],
+                ['L', 'Lyrics'],
+                ['Q', 'Queue'],
+                ['?', 'This help'],
+              ] as const).map(([key, label]) => (
+                <div key={key} className="flex items-center justify-between">
+                  <span className="text-white/70">{label}</span>
+                  <kbd className="px-2 py-0.5 rounded-md bg-white/10 border border-white/15 text-[11px] font-mono text-white/90">
+                    {key}
+                  </kbd>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* YouTube Music Sync & Account Switcher Modal (Lazy) */}

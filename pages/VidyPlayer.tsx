@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
@@ -6,13 +6,14 @@ import {
   Server, ChevronLeft, ChevronRight, AlertCircle, Tv, Film,
   Ghost, Sparkles, Volume2, Subtitles, Check, Clock,
   Maximize2, Minimize2, Keyboard, Sun, Moon, ListVideo, Zap, X,
-  Star, Share2, Plus, Bookmark, Users, ChevronDown, Play
+  Star, Share2, Plus, Bookmark, Users, ChevronDown, Play, RotateCcw
 } from 'lucide-react';
 import { getDetails, getSeasonDetails, getRecommendations } from '../services/tmdb';
 import { searchAnimeByTitle, getAnimeById, mapAniListToTMDBDetail } from '../services/anilist';
-import { getProgressForId, getTheme, saveProgress, addToWatchlist, removeFromWatchlist, isInWatchlist } from '../services/storage';
+import { getProgressForId, getTheme, saveProgress, addToWatchlist, removeFromWatchlist, isInWatchlist, removeFromProgress } from '../services/storage';
+import { PROVIDERS, ANIME_PROVIDERS, ProviderId, AnimeProviderId, getHealthBook, bumpProviderHealth, providersByHealth, healthDotClass } from '../services/streamProviders';
 import { MediaType, TMDBResult } from '../types';
-import { TMDB_POSTER_BASE, TMDB_IMAGE_BASE, TMDB_PROFILE_BASE } from '../constants';
+import { TMDB_POSTER_BASE, TMDB_IMAGE_BASE, TMDB_PROFILE_BASE, TMDB_BACKDROP_W1280 } from '../constants';
 
 const getThemeHex = () => {
   const colors: Record<string, string> = {
@@ -25,20 +26,23 @@ const getThemeHex = () => {
   return colors[getTheme()] || '9333ea';
 };
 
-export const PROVIDERS = [
-  { id: 'ishowstream', name: 'iShowStream', speed: 'Ultra Fast ⚡', quality: '4K · 1080p', badge: 'Fastest' },
-  { id: 'vidy', name: 'Vidy Prime', speed: 'Fast ⚡', quality: '1080p', badge: 'Popular' },
-  { id: 'vidlypro', name: 'Vidly Pro', speed: 'Ultra ⚡', quality: '4K · 1080p', badge: 'Fast 4K' },
-  { id: 'vidlink', name: 'VidLink Pro', speed: 'Instant 🚀', quality: 'FHD · Audio', badge: 'Top Rated' },
-  { id: 'videasy', name: 'Videasy HD', speed: 'Smooth 🎬', quality: '1080p', badge: 'Clean' },
-  { id: 'vidsrc-sh', name: 'VidSrc Direct', speed: 'Fast ⚡', quality: '1080p Auto', badge: 'Stable' },
-  { id: 'cinemaos', name: 'CinemaOS', speed: 'Fast 💎', quality: 'High Bitrate', badge: 'Cinema' },
-  { id: 'vidsrc-wtf', name: 'VidSrc WTF', speed: 'Fast ⚡', quality: '1080p', badge: 'Mirror 1' },
-  { id: 'vidora', name: 'Vidora Stream', speed: 'Adaptive 🌐', quality: 'Multi-Res', badge: 'Mirror 2' },
-  { id: 'vidfastpro', name: 'VidFast HQ', speed: 'Rapid ⚡', quality: '1080p', badge: 'Mirror 3' },
-] as const;
+const safeStorageGet = (key: string): string | null => {
+  try { return localStorage.getItem(key); } catch { return null; }
+};
 
-export type ProviderId = typeof PROVIDERS[number]['id'];
+const safeStorageSet = (key: string, value: string) => {
+  try { localStorage.setItem(key, value); } catch {}
+};
+
+const formatResumeTime = (secs: number): string => {
+  const s = Math.max(0, Math.floor(secs));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = s % 60;
+  return h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`
+    : `${m}:${String(r).padStart(2, '0')}`;
+};
 
 export const VidyPlayer: React.FC = () => {
   const { mediaType: mediaTypeParam, id: idParam, season: seasonParam, episode: episodeParam } = useParams();
@@ -47,13 +51,38 @@ export const VidyPlayer: React.FC = () => {
   const playerRef = useRef<HTMLIFrameElement>(null);
   const loadingTimeout = useRef<number | undefined>(undefined);
   const lastSavedTime = useRef(0);
+  const failoverAttempts = useRef(0);
 
+  const mediaType = mediaTypeParam === MediaType.TV ? MediaType.TV : MediaType.MOVIE;
+  const isEpisode = mediaType === MediaType.TV;
+  const id = Number(idParam);
+  const season = Math.max(1, Number(seasonParam) || 1);
+  const episode = Math.max(1, Number(episodeParam) || 1);
+  const anilistIdParam = Number(searchParams.get('anilistId')) || undefined;
+
+  const providerStorageKey = `vidy:provider:${mediaType}:${id}`;
   const initialServer = searchParams.get('server') as ProviderId;
-  const [provider, setProvider] = useState<ProviderId>(
-    PROVIDERS.some(p => p.id === initialServer) ? initialServer : 'ishowstream'
-  );
-  const [animeProvider, setAnimeProvider] = useState<'aniembed' | 'megavid' | 'vidly' | 'anixo' | 'ishowstream'>('aniembed');
-  const [animeLang, setAnimeLang] = useState<'sub' | 'dub'>('sub');
+  const [providerHealthVersion, setProviderHealthVersion] = useState(0);
+  const [provider, setProviderState] = useState<ProviderId>(() => {
+    if (PROVIDERS.some(p => p.id === initialServer)) return initialServer;
+    const saved = safeStorageGet(providerStorageKey);
+    if (PROVIDERS.some(p => p.id === saved)) {
+      // Honor the remembered choice unless that mirror has a proven bad record
+      const key = `movie:${saved}`;
+      const e = getHealthBook()[key];
+      if (!e || e.fail <= e.ok + 1) return saved as ProviderId;
+    }
+    const best = providersByHealth(PROVIDERS, 'movie')[0];
+    return best.id;
+  });
+  const [animeProvider, setAnimeProvider] = useState<AnimeProviderId>(() => {
+    const saved = safeStorageGet('vidy:anime-provider');
+    return ANIME_PROVIDERS.some(p => p.id === saved) ? (saved as AnimeProviderId) : 'aniembed';
+  });
+  const [animeLang, setAnimeLang] = useState<'sub' | 'dub'>(() => {
+    const saved = safeStorageGet('vidy:anime-lang');
+    return saved === 'dub' ? 'dub' : 'sub';
+  });
   const [retryKey, setRetryKey] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [hasTimedOut, setHasTimedOut] = useState(false);
@@ -65,19 +94,13 @@ export const VidyPlayer: React.FC = () => {
   const [isWatchlisted, setIsWatchlisted] = useState<boolean>(false);
 
   const toastTimerRef = useRef<number | null>(null);
+  const confirmedPlaybackFor = useRef<string>('');
 
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToastMessage(msg);
     toastTimerRef.current = window.setTimeout(() => setToastMessage(null), 2500);
-  };
-
-  const mediaType = mediaTypeParam === MediaType.TV ? MediaType.TV : MediaType.MOVIE;
-  const isEpisode = mediaType === MediaType.TV;
-  const id = Number(idParam);
-  const season = Math.max(1, Number(seasonParam) || 1);
-  const episode = Math.max(1, Number(episodeParam) || 1);
-  const anilistIdParam = Number(searchParams.get('anilistId')) || undefined;
+  }, []);
 
   // Query Details from TMDB
   const detailsQuery = useQuery({
@@ -152,9 +175,13 @@ export const VidyPlayer: React.FC = () => {
     }
   };
 
-  const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
-    showToast('Player link copied to clipboard!');
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      showToast('Player link copied to clipboard!');
+    } catch {
+      showToast('Could not copy link to clipboard');
+    }
   };
 
   // Query Season Details for TV episodes navigation
@@ -190,6 +217,32 @@ export const VidyPlayer: React.FC = () => {
   const poster = details?.poster_path 
     ? (details.poster_path.startsWith('http') ? details.poster_path : `${TMDB_POSTER_BASE}${details.poster_path}`) 
     : undefined;
+  const backdrop = details?.backdrop_path ? `${TMDB_BACKDROP_W1280}${details.backdrop_path}` : undefined;
+
+  const currentProviderName = PROVIDERS.find(p => p.id === provider)?.name || provider;
+  const currentAnimeProvider = ANIME_PROVIDERS.find(p => p.id === animeProvider);
+
+  // Providers sorted by observed health — failover walks this order so proven
+  // dead mirrors get skipped instead of tried in fixed sequence.
+  const movieProviderOrder = useMemo(() => {
+    void providerHealthVersion;
+    return providersByHealth(PROVIDERS, 'movie');
+  }, [providerHealthVersion]);
+
+  const animeProviderOrder = useMemo(() => {
+    void providerHealthVersion;
+    return providersByHealth(ANIME_PROVIDERS, 'anime');
+  }, [providerHealthVersion]);
+
+  const healthBook = useMemo(() => {
+    void providerHealthVersion;
+    return getHealthBook();
+  }, [providerHealthVersion]);
+
+  const healthDot = (key: string) => healthDotClass(healthBook, key);
+  const animeServerName = currentAnimeProvider
+    ? `${currentAnimeProvider.name} (S${currentAnimeProvider.server})`
+    : animeProvider;
 
   const isEpisodeUpcoming = useMemo(() => {
     if (!details) return false;
@@ -337,19 +390,74 @@ export const VidyPlayer: React.FC = () => {
     }
   }, [provider, animeProvider, animeLang, isEpisode, isAnime, id, externalId, season, episode, effectiveAnilistId, progress, themeHex]);
 
-  // Loading safety timeout
+  const advanceStreamServer = useCallback((manual = false) => {
+    if (isAnime) {
+      const order = animeProviderOrder;
+      const idx = order.findIndex(p => p.id === animeProvider);
+      const next = order[(idx + 1) % order.length];
+      setAnimeProvider(next.id);
+      safeStorageSet('vidy:anime-provider', next.id);
+      showToast(manual ? `Switched to ${next.name}` : `Stream timed out — trying ${next.name}`);
+    } else {
+      const order = movieProviderOrder;
+      const idx = order.findIndex(p => p.id === provider);
+      const next = order[(idx + 1) % order.length];
+      setProviderState(next.id);
+      safeStorageSet(providerStorageKey, next.id);
+      showToast(manual ? `Switched to ${next.name}` : `Stream timed out — trying ${next.name}`);
+    }
+    if (manual) failoverAttempts.current = 0;
+    setIsLoading(true);
+    setHasTimedOut(false);
+  }, [isAnime, animeProvider, provider, providerStorageKey, showToast, movieProviderOrder, animeProviderOrder]);
+
+  const handleSelectProvider = (p: (typeof PROVIDERS)[number]) => {
+    failoverAttempts.current = 0;
+    setProviderState(p.id);
+    safeStorageSet(providerStorageKey, p.id);
+    setIsLoading(true);
+    showToast(`Switched to ${p.name}`);
+  };
+
+  const selectAnimeProvider = (id: AnimeProviderId) => {
+    const meta = ANIME_PROVIDERS.find(p => p.id === id);
+    failoverAttempts.current = 0;
+    setAnimeProvider(id);
+    safeStorageSet('vidy:anime-provider', id);
+    setIsLoading(true);
+    showToast(`Switched to ${meta?.name || id}${meta ? ` (Server ${meta.server})` : ''}`);
+  };
+
+  const selectAnimeLang = (lang: 'sub' | 'dub') => {
+    failoverAttempts.current = 0;
+    setAnimeLang(lang);
+    safeStorageSet('vidy:anime-lang', lang);
+    setIsLoading(true);
+    showToast(lang === 'sub' ? 'Audio set to Subtitled (JP)' : 'Audio set to English Dub (EN)');
+  };
+
+  // Loading safety timeout with automatic provider failover
   useEffect(() => {
     setIsLoading(true);
     setHasTimedOut(false);
 
     window.clearTimeout(loadingTimeout.current);
     loadingTimeout.current = window.setTimeout(() => {
-      setHasTimedOut(true);
-      setIsLoading(false);
+      const maxAttempts = isAnime ? ANIME_PROVIDERS.length - 1 : PROVIDERS.length - 1;
+      const timedOutKey = isAnime ? `anime:${animeProvider}` : `movie:${provider}`;
+      bumpProviderHealth(timedOutKey, 'fail');
+      setProviderHealthVersion(v => v + 1);
+      if (failoverAttempts.current < maxAttempts) {
+        failoverAttempts.current += 1;
+        advanceStreamServer();
+      } else {
+        setHasTimedOut(true);
+        setIsLoading(false);
+      }
     }, 12000);
 
     return () => window.clearTimeout(loadingTimeout.current);
-  }, [provider, animeProvider, animeLang, season, episode, retryKey]);
+  }, [provider, animeProvider, animeLang, season, episode, retryKey, isAnime, advanceStreamServer]);
 
   // Handle postMessage playback events from providers
   useEffect(() => {
@@ -375,6 +483,13 @@ export const VidyPlayer: React.FC = () => {
         }
 
         if (currentTime !== undefined && duration !== undefined && duration > 0) {
+          // Real playback data arrived — this provider works. Reward it once.
+          const healthKey = isAnime ? `anime:${animeProvider}` : `movie:${provider}`;
+          if (confirmedPlaybackFor.current !== healthKey) {
+            confirmedPlaybackFor.current = healthKey;
+            bumpProviderHealth(healthKey, 'ok');
+            setProviderHealthVersion(v => v + 1);
+          }
           const now = Date.now();
           if (now - lastSavedTime.current > 5000) {
             lastSavedTime.current = now;
@@ -399,7 +514,7 @@ export const VidyPlayer: React.FC = () => {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [details, mediaType, isEpisode, isAnime, season, episode, effectiveAnilistId]);
+  }, [details, mediaType, isEpisode, isAnime, animeProvider, provider, season, episode, effectiveAnilistId]);
 
   // Ensure item is tracked in Continue Watching upon starting playback
   useEffect(() => {
@@ -419,10 +534,20 @@ export const VidyPlayer: React.FC = () => {
   }, [details?.id, effectiveAnilistId, season, episode]);
 
   const retryPlayer = () => {
+    failoverAttempts.current = 0;
     setIsLoading(true);
     setHasTimedOut(false);
     setRetryKey(current => current + 1);
     showToast('Reloading stream player...');
+  };
+
+  const handleStartOver = () => {
+    removeFromProgress(id);
+    failoverAttempts.current = 0;
+    setIsLoading(true);
+    setHasTimedOut(false);
+    setRetryKey(current => current + 1);
+    showToast('Starting from the beginning');
   };
 
   const openFullscreen = () => {
@@ -431,6 +556,7 @@ export const VidyPlayer: React.FC = () => {
 
   const handleEpisodeChange = (newEp: number, targetSeason: number = season) => {
     if (newEp < 1) return;
+    failoverAttempts.current = 0;
     const anilistParam = effectiveAnilistId ? `?anilistId=${effectiveAnilistId}` : '';
     if (isEpisode || isAnime) {
       navigate(`/watch/tv/${id}/${targetSeason}/${newEp}${anilistParam}`);
@@ -442,14 +568,6 @@ export const VidyPlayer: React.FC = () => {
   const handleSeasonChange = (newSeason: number) => {
     if (newSeason === season) return;
     handleEpisodeChange(1, newSeason);
-  };
-
-  const switchNextServer = () => {
-    const currentIndex = PROVIDERS.findIndex(p => p.id === provider);
-    const nextProvider = PROVIDERS[(currentIndex + 1) % PROVIDERS.length];
-    setProvider(nextProvider.id);
-    setIsLoading(true);
-    showToast(`Switched to ${nextProvider.name}`);
   };
 
   // Keyboard Shortcuts: F (fullscreen), T (theater), L (lights), N (next), P (prev), R (reload)
@@ -473,6 +591,9 @@ export const VidyPlayer: React.FC = () => {
       } else if (e.key.toLowerCase() === 'r') {
         e.preventDefault();
         retryPlayer();
+      } else if (e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        advanceStreamServer(true);
       } else if (e.key.toLowerCase() === 'n' && (isEpisode || isAnime)) {
         e.preventDefault();
         if (episode < totalEpisodesInSeason) handleEpisodeChange(episode + 1);
@@ -484,7 +605,7 @@ export const VidyPlayer: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [episode, totalEpisodesInSeason, isEpisode, isAnime]);
+  }, [episode, totalEpisodesInSeason, isEpisode, isAnime, advanceStreamServer]);
 
   const detailsUrl = isAnime && effectiveAnilistId 
     ? `/tv/${id}?anilistId=${effectiveAnilistId}` 
@@ -502,6 +623,7 @@ export const VidyPlayer: React.FC = () => {
       )}
 
       {/* Top Header */}
+      {!isTheaterMode && (
       <header className="border-b border-white/10 bg-[#0c0c0e]/95 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-[1440px] mx-auto w-full px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
           
@@ -525,18 +647,41 @@ export const VidyPlayer: React.FC = () => {
                 <span>•</span>
                 <span className="flex items-center gap-1 text-emerald-400 font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  {isAnime 
-                    ? (animeProvider === 'aniembed' ? 'AniEmbed (S1)' 
-                       : animeProvider === 'megavid' ? 'MegaVid (S2)' 
-                       : animeProvider === 'vidly' ? 'Vidly Pro (S3)' 
-                       : 'Anixo (S4)') 
-                    : (PROVIDERS.find(p => p.id === provider)?.name || provider)}
+                  {isAnime ? animeServerName : currentProviderName}
                 </span>
+                {progress && progress > 30 && (
+                  <>
+                    <span>•</span>
+                    <span className="text-sky-400 font-medium">Resume {formatResumeTime(progress)}</span>
+                  </>
+                )}
+                {details?.vote_average ? (
+                  <>
+                    <span>•</span>
+                    <span className="flex items-center gap-1 text-amber-400 font-semibold">
+                      <Star className="w-3 h-3 fill-amber-400" />
+                      {details.vote_average.toFixed(1)}
+                    </span>
+                  </>
+                ) : null}
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Start Over — clears saved progress and reloads from 0:00 */}
+            {progress && progress > 30 && (
+              <button
+                type="button"
+                onClick={handleStartOver}
+                className="p-2 rounded-xl text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors border border-white/10 cursor-pointer"
+                title="Start over from the beginning"
+                aria-label="Start over"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            )}
+
             {/* Watchlist Toggle */}
             <button
               type="button"
@@ -641,9 +786,10 @@ export const VidyPlayer: React.FC = () => {
 
         </div>
       </header>
+      )}
 
       {/* Dimmed Lights Overlay */}
-      {isLightsDimmed && (
+      {isLightsDimmed && !isTheaterMode && (
         <div 
           onClick={() => setIsLightsDimmed(false)}
           className="fixed inset-0 bg-black/90 z-20 transition-opacity duration-500 cursor-pointer"
@@ -657,7 +803,7 @@ export const VidyPlayer: React.FC = () => {
         {/* ========================================================================= */}
         {/* IF ANIME: SHOW EXCLUSIVE ANIME PLAYER CONTROLS                           */}
         {/* ========================================================================= */}
-        {isAnime ? (
+        {!isTheaterMode && (isAnime ? (
           <div className="bg-[#111115] border border-pink-500/20 rounded-2xl p-3.5 sm:p-4 shadow-xl">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
               
@@ -678,86 +824,27 @@ export const VidyPlayer: React.FC = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center bg-black/60 p-1 rounded-xl border border-white/10 gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAnimeProvider('aniembed');
-                      setIsLoading(true);
-                      showToast('Switched to AniEmbed (Server 1)');
-                    }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      animeProvider === 'aniembed'
-                        ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
-                        : 'text-white/60 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <span>Server 1: AniEmbed</span>
-                    {animeProvider === 'aniembed' && <Check className="w-3 h-3 text-white" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAnimeProvider('megavid');
-                      setIsLoading(true);
-                      showToast('Switched to MegaVid (Server 2)');
-                    }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      animeProvider === 'megavid'
-                        ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
-                        : 'text-white/60 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <span>Server 2: MegaVid</span>
-                    {animeProvider === 'megavid' && <Check className="w-3 h-3 text-white" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAnimeProvider('vidly');
-                      setIsLoading(true);
-                      showToast('Switched to Vidly Pro (Server 3)');
-                    }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      animeProvider === 'vidly'
-                        ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
-                        : 'text-white/60 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <span>Server 3: Vidly Pro</span>
-                    {animeProvider === 'vidly' && <Check className="w-3 h-3 text-white" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAnimeProvider('anixo');
-                      setIsLoading(true);
-                      showToast('Switched to Anixo (Server 4)');
-                    }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      animeProvider === 'anixo'
-                        ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
-                        : 'text-white/60 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <span>Server 4: Anixo</span>
-                    {animeProvider === 'anixo' && <Check className="w-3 h-3 text-white" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAnimeProvider('ishowstream');
-                      setIsLoading(true);
-                      showToast('Switched to iShowStream (Server 5)');
-                    }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      animeProvider === 'ishowstream'
-                        ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
-                        : 'text-white/60 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <span>Server 5: iShowStream</span>
-                    {animeProvider === 'ishowstream' && <Check className="w-3 h-3 text-white" />}
-                  </button>
+                  {ANIME_PROVIDERS.map(ap => {
+                    const isActive = animeProvider === ap.id;
+                    return (
+                      <button
+                        key={ap.id}
+                        type="button"
+                        onClick={() => selectAnimeProvider(ap.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
+                            : 'text-white/60 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full ${healthDot(`anime:${ap.id}`)}`} />
+                          Server {ap.server}: {ap.name}
+                        </span>
+                        {isActive && <Check className="w-3 h-3 text-white" />}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -768,11 +855,7 @@ export const VidyPlayer: React.FC = () => {
                 <div className="flex items-center bg-black/60 p-1 rounded-xl border border-white/10">
                   <button
                     type="button"
-                    onClick={() => {
-                      setAnimeLang('sub');
-                      setIsLoading(true);
-                      showToast('Audio set to Subtitled (JP)');
-                    }}
+                    onClick={() => selectAnimeLang('sub')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       animeLang === 'sub'
                         ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
@@ -784,11 +867,7 @@ export const VidyPlayer: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setAnimeLang('dub');
-                      setIsLoading(true);
-                      showToast('Audio set to English Dub (EN)');
-                    }}
+                    onClick={() => selectAnimeLang('dub')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       animeLang === 'dub'
                         ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
@@ -858,11 +937,8 @@ export const VidyPlayer: React.FC = () => {
                 return (
                   <button
                     key={p.id}
-                    onClick={() => {
-                      setProvider(p.id);
-                      setIsLoading(true);
-                      showToast(`Switched to ${p.name}`);
-                    }}
+                    type="button"
+                    onClick={() => handleSelectProvider(p)}
                     className={`flex flex-col items-start text-left p-2.5 rounded-xl border transition-all relative overflow-hidden group cursor-pointer ${
                       isActive
                         ? 'bg-[rgb(var(--primary-color))]/20 border-[rgb(var(--primary-color))] ring-1 ring-[rgb(var(--primary-color))]/50 shadow-lg shadow-[rgb(var(--primary-color))]/15'
@@ -870,7 +946,8 @@ export const VidyPlayer: React.FC = () => {
                     }`}
                   >
                     <div className="flex items-center justify-between w-full mb-1">
-                      <span className="text-[10px] font-mono uppercase text-white/50 group-hover:text-white/70">
+                      <span className="flex items-center gap-1.5 text-[10px] font-mono uppercase text-white/50 group-hover:text-white/70">
+                        <span className={`w-1.5 h-1.5 rounded-full ${healthDot(`movie:${p.id}`)}`} title="Server health" />
                         S{idx + 1}
                       </span>
                       {isActive && (
@@ -883,7 +960,7 @@ export const VidyPlayer: React.FC = () => {
                     <h3 className={`text-xs font-bold truncate w-full ${isActive ? 'text-white' : 'text-white/80 group-hover:text-white'}`}>
                       {p.name}
                     </h3>
-                    <div className="mt-1 flex items-center justify-between w-full">
+                    <div className="mt-1 flex items-center justify-between w-full gap-1">
                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
                         isActive 
                           ? 'bg-[rgb(var(--primary-color))] text-white font-bold' 
@@ -891,16 +968,19 @@ export const VidyPlayer: React.FC = () => {
                       }`}>
                         {p.quality}
                       </span>
+                      <span className="text-[9px] font-semibold uppercase tracking-wide text-white/40 truncate">
+                        {p.badge}
+                      </span>
                     </div>
                   </button>
                 );
               })}
             </div>
           </div>
-        )}
+        ))}
 
         {/* Regular TV Season & Episode Navigation Bar */}
-        {!isAnime && isEpisode && (
+        {!isAnime && isEpisode && !isTheaterMode && (
           <div className="bg-[#111115] border border-white/10 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-lg">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
@@ -994,6 +1074,11 @@ export const VidyPlayer: React.FC = () => {
           <div className="relative w-full group/cinema">
             {/* Ambient Reactive Cinema Glow */}
             <div className="absolute -inset-2 sm:-inset-4 bg-gradient-to-r from-[rgb(var(--primary-color))]/20 via-pink-500/10 to-blue-500/20 blur-3xl opacity-50 group-hover/cinema:opacity-75 transition-opacity duration-700 pointer-events-none rounded-3xl" />
+            {backdrop && (
+              <div className="absolute -inset-2 sm:-inset-4 overflow-hidden rounded-3xl opacity-30 pointer-events-none">
+                <img src={backdrop} alt="" className="w-full h-full object-cover blur-2xl scale-125" loading="lazy" />
+              </div>
+            )}
 
             <div className={`relative w-full ${isTheaterMode ? 'aspect-[21/9] min-h-[480px] max-h-[84vh]' : 'aspect-video max-h-[78vh]'} bg-black rounded-2xl overflow-hidden ring-1 ring-white/15 shadow-2xl z-30 transition-all duration-300`}>
               <iframe
@@ -1014,33 +1099,118 @@ export const VidyPlayer: React.FC = () => {
 
               {/* Loading Indicator Overlay */}
               {isLoading && (
-                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm gap-4">
-                  <div className="relative">
-                    <div className="w-14 h-14 rounded-full border-2 border-white/10 border-t-[rgb(var(--primary-color))] animate-spin" />
-                    {isAnime ? (
-                      <Ghost className="w-6 h-6 text-pink-400 absolute inset-0 m-auto" />
-                    ) : (
-                      <Server className="w-6 h-6 text-white absolute inset-0 m-auto" />
-                    )}
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm gap-5 px-6">
+                  <div className="flex items-end gap-1.5 h-12">
+                    {[0, 1, 2, 3, 4].map(i => (
+                      <span
+                        key={i}
+                        className="w-1.5 rounded-full bg-[rgb(var(--primary-color))] animate-pulse"
+                        style={{ height: `${10 + ((i * 7) % 5) * 5}px`, animationDelay: `${i * 140}ms` }}
+                      />
+                    ))}
                   </div>
-                  <div className="text-center">
+                  <div className="text-center space-y-1">
                     <p className="text-sm font-bold text-white">
-                      {isAnime 
-                        ? `Connecting to ${animeProvider === 'aniembed' ? 'AniEmbed (Server 1)' : animeProvider === 'megavid' ? 'MegaVid (Server 2)' : animeProvider === 'vidly' ? 'Vidly Pro (Server 3)' : animeProvider === 'anixo' ? 'Anixo (Server 4)' : 'iShowStream (Server 5)'}...` 
-                        : `Connecting to ${PROVIDERS.find(p => p.id === provider)?.name || provider}...`}
+                      Connecting to {isAnime ? animeServerName : currentProviderName}...
                     </p>
-                    <p className="text-xs text-white/50 mt-1">
+                    <p className="text-xs text-white/50">
                       {isAnime ? `Loading Episode ${episode} (${animeLang.toUpperCase()})` : 'Establishing secure media streaming handshake'}
                     </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => advanceStreamServer(true)}
+                    className="text-xs font-semibold text-white/50 hover:text-white underline underline-offset-4 transition-colors cursor-pointer"
+                  >
+                    Taking too long? Try the next server
+                  </button>
+                </div>
+              )}
+
+              {/* Stream Failure Overlay (shown after all servers timed out) */}
+              {hasTimedOut && !isLoading && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/95 backdrop-blur-sm gap-4 p-6 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/25 flex items-center justify-center text-red-400">
+                    <AlertCircle className="w-7 h-7" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-white">This server failed to respond</p>
+                    <p className="text-xs text-white/50 max-w-xs">
+                      {isAnime
+                        ? 'Every anime server timed out. Try the next server or reload.'
+                        : 'Every mirror timed out. Try the next server or reload.'}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => advanceStreamServer(true)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[rgb(var(--primary-color))] hover:brightness-110 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
+                    >
+                      <Zap className="w-3.5 h-3.5" /> Try Next Server
+                    </button>
+                    <button
+                      type="button"
+                      onClick={retryPlayer}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold transition-colors border border-white/10 cursor-pointer"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" /> Reload
+                    </button>
+                    <a
+                      href={embedUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 text-xs font-semibold transition-colors border border-white/10 cursor-pointer"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Open in New Tab
+                    </a>
                   </div>
                 </div>
               )}
             </div>
+
+            {/* Floating Theater Mode Controls */}
+            {isTheaterMode && (
+              <div className="absolute top-3 right-3 z-40 flex items-center gap-1.5">
+                {(isEpisode || isAnime) && (
+                  <>
+                    <button
+                      type="button"
+                      disabled={episode <= 1}
+                      onClick={() => handleEpisodeChange(episode - 1)}
+                      className="p-2 rounded-xl bg-black/70 hover:bg-black/90 text-white/80 hover:text-white border border-white/15 backdrop-blur-md transition-colors cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+                      title="Previous Episode (P)"
+                      aria-label="Previous Episode"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={totalEpisodesInSeason > 0 && episode >= totalEpisodesInSeason}
+                      onClick={() => handleEpisodeChange(episode + 1)}
+                      className="p-2 rounded-xl bg-black/70 hover:bg-black/90 text-white/80 hover:text-white border border-white/15 backdrop-blur-md transition-colors cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+                      title="Next Episode (N)"
+                      aria-label="Next Episode"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsTheaterMode(false)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-black/70 hover:bg-black/90 text-white text-xs font-bold border border-white/15 backdrop-blur-md transition-colors cursor-pointer"
+                  title="Exit Theater Mode (T)"
+                >
+                  <Minimize2 className="w-3.5 h-3.5" /> Exit (T)
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* Quick Episode Selection Strip for Series & Anime */}
-        {(isEpisode || isAnime) && (
+        {!isTheaterMode && (isEpisode || isAnime) && (
           <div className="bg-[#111115] border border-white/10 rounded-2xl p-4 shadow-xl">
             <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
               <div className="flex items-center gap-2">
@@ -1069,6 +1239,7 @@ export const VidyPlayer: React.FC = () => {
                         key={epItem.id}
                         type="button"
                         onClick={() => handleEpisodeChange(epItem.episode_number)}
+                        title={epItem.overview || epItem.name || `Episode ${epItem.episode_number}`}
                         className={`w-44 sm:w-52 shrink-0 p-2 rounded-xl border text-left transition-all group flex flex-col cursor-pointer ${
                           isCur
                             ? 'bg-[rgb(var(--primary-color))]/20 border-[rgb(var(--primary-color))] ring-1 ring-[rgb(var(--primary-color))] shadow-lg'
@@ -1077,7 +1248,7 @@ export const VidyPlayer: React.FC = () => {
                       >
                         <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-black/60 mb-2">
                           {epThumb ? (
-                            <img src={epThumb} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                            <img src={epThumb} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-zinc-900 text-white/40 font-mono text-xs">
                               Ep {epItem.episode_number}
@@ -1137,6 +1308,7 @@ export const VidyPlayer: React.FC = () => {
         )}
 
         {/* Player Bottom Bar & Troubleshooting Actions */}
+        {!isTheaterMode && (
         <div className="bg-[#111115] border border-white/10 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-white/5 text-white/70 border border-white/10 shrink-0">
@@ -1144,18 +1316,18 @@ export const VidyPlayer: React.FC = () => {
             </div>
             <div>
               <p className="text-xs sm:text-sm font-medium text-white/80">
-                {hasTimedOut 
-                  ? isAnime
-                    ? `Stream taking longer than expected. Switch to another anime server above.`
-                    : 'Server taking longer than expected. Try switching to the next provider below.'
-                  : isAnime 
-                    ? `Streaming anime with ${animeProvider === 'aniembed' ? 'AniEmbed (Server 1)' : animeProvider === 'megavid' ? 'MegaVid (Server 2)' : animeProvider === 'vidly' ? 'Vidly Pro (Server 3)' : animeProvider === 'anixo' ? 'Anixo (Server 4)' : 'iShowStream (Server 5)'} (${animeLang.toUpperCase()}).`
-                    : `Currently streaming via ${PROVIDERS.find(p => p.id === provider)?.name}.`}
+                {hasTimedOut
+                  ? 'All streaming servers failed to respond. Try reloading or opening the stream in a new tab.'
+                  : isAnime
+                    ? `Streaming anime with ${animeServerName} (${animeLang.toUpperCase()}).`
+                    : `Currently streaming via ${currentProviderName}.`}
               </p>
               <p className="text-[11px] text-white/50 mt-0.5">
-                {isAnime 
-                  ? 'If a server cannot find this episode, switch to one of the 5 alternate anime servers above.' 
-                  : 'If video or audio is buffering, click Next Server or pick another mirror.'}
+                {hasTimedOut
+                  ? 'Servers are retried automatically on timeout — you can also switch mirrors manually.'
+                  : isAnime
+                    ? 'If a server cannot find this episode, switch to one of the alternate anime servers above.'
+                    : 'If video or audio is buffering, click Next Server or pick another mirror.'}
               </p>
             </div>
           </div>
@@ -1164,7 +1336,7 @@ export const VidyPlayer: React.FC = () => {
             {!isAnime && (
               <button
                 type="button"
-                onClick={switchNextServer}
+                onClick={() => advanceStreamServer(true)}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-xs sm:text-sm font-semibold transition-colors border border-amber-500/30 cursor-pointer"
                 title="Switch to next provider"
               >
@@ -1175,11 +1347,7 @@ export const VidyPlayer: React.FC = () => {
             {isAnime && (
               <button
                 type="button"
-                onClick={() => {
-                  setAnimeProvider(prev => prev === 'aniembed' ? 'megavid' : prev === 'megavid' ? 'vidly' : prev === 'vidly' ? 'anixo' : prev === 'anixo' ? 'ishowstream' : 'aniembed');
-                  setIsLoading(true);
-                  showToast('Switched to next anime player');
-                }}
+                onClick={() => advanceStreamServer(true)}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-pink-500/15 hover:bg-pink-500/25 text-pink-300 text-xs sm:text-sm font-semibold transition-colors border border-pink-500/30 cursor-pointer"
               >
                 <RotateCw className="w-3.5 h-3.5" /> 
@@ -1203,9 +1371,10 @@ export const VidyPlayer: React.FC = () => {
             </a>
           </div>
         </div>
+        )}
 
         {/* Media Details & Cast Showcase Below Player */}
-        {details && (
+        {details && !isTheaterMode && (
           <div className="bg-[#111115] border border-white/10 rounded-2xl p-4 sm:p-6 shadow-xl space-y-5">
             <div className="flex flex-col sm:flex-row gap-5 items-start">
               {poster && (
@@ -1284,6 +1453,7 @@ export const VidyPlayer: React.FC = () => {
                         <img 
                           src={`${TMDB_PROFILE_BASE}${person.profile_path}`} 
                           alt={person.name} 
+                          loading="lazy"
                           className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/15" 
                         />
                       ) : (
@@ -1308,7 +1478,7 @@ export const VidyPlayer: React.FC = () => {
         )}
 
         {/* Recommended & Similar Titles Row */}
-        {recommendationsQuery.data && recommendationsQuery.data.length > 0 && (
+        {recommendationsQuery.data && recommendationsQuery.data.length > 0 && !isTheaterMode && (
           <div className="bg-[#111115] border border-white/10 rounded-2xl p-4 sm:p-5 shadow-xl">
             <div className="flex items-center gap-2 mb-4">
               <Sparkles className="w-4 h-4 text-amber-400" />
@@ -1341,6 +1511,7 @@ export const VidyPlayer: React.FC = () => {
                         <img 
                           src={recPoster} 
                           alt={rec.title || rec.name} 
+                          loading="lazy"
                           className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-300" 
                         />
                       ) : (
@@ -1419,6 +1590,14 @@ export const VidyPlayer: React.FC = () => {
               <div className="flex items-center justify-between py-1.5 border-b border-white/5">
                 <span className="text-white/70">Reload Stream Player</span>
                 <kbd className="px-2 py-1 rounded bg-black/60 border border-white/20 font-mono text-xs text-white">R</kbd>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-white/5">
+                <span className="text-white/70">Switch to Next Server</span>
+                <kbd className="px-2 py-1 rounded bg-black/60 border border-white/20 font-mono text-xs text-white">S</kbd>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-white/5">
+                <span className="text-white/70">Show Keyboard Shortcuts</span>
+                <kbd className="px-2 py-1 rounded bg-black/60 border border-white/20 font-mono text-xs text-white">?</kbd>
               </div>
             </div>
           </div>

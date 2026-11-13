@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { 
   Heart, Clock, Play, Shuffle, Music2, Users, Disc, 
@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { useQuery } from '@tanstack/react-query';
-import { getLibrarySection, getHomeShelves } from '../api/innertube';
+import { getLibrarySection, getHomeShelves, getPlaylistDetails } from '../api/innertube';
 import { useSessionStore } from '../store/useSessionStore';
 import { MediaShelf } from '../components/MediaShelf';
 import { TrackRow } from '../components/TrackRow';
@@ -48,11 +48,6 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
 
   // Compile all known songs across library
   const allKnownTracks = [...importedTracks, ...recentlyPlayed];
-
-  // Deduplicate liked tracks
-  const likedTracks = allKnownTracks.filter((track, index, self) => 
-    likedTrackIds.includes(track.id) && self.findIndex(t => t.id === track.id) === index
-  );
 
   const activeChannelId = useSessionStore(state => state.activeChannelId);
   const path = location.pathname;
@@ -96,6 +91,29 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
     refetchOnWindowFocus: false,
     retry: 1,
   });
+  // YouTube Music's own Liked Music playlist — the source of truth for liked songs
+  const likedQ = useQuery({
+    queryKey: ['ytm-liked-music', activeChannelId || 'default'],
+    queryFn: () => getPlaylistDetails('LM'),
+    enabled: activeTab === 'liked',
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  // Liked songs = YouTube's Liked Music (full metadata) + locally-starred tracks we know about
+  const likedTracks = useMemo(() => {
+    const seen = new Set<string>();
+    const out: MusicTrack[] = [];
+    for (const t of likedQ.data?.tracks ?? []) {
+      if (!seen.has(t.id)) { seen.add(t.id); out.push(t); }
+    }
+    for (const t of allKnownTracks) {
+      if (likedTrackIds.includes(t.id) && !seen.has(t.id)) { seen.add(t.id); out.push(t); }
+    }
+    return out;
+  }, [likedQ.data, likedTrackIds, importedTracks, recentlyPlayed]);
 
   const statusBox = (q: { isLoading: boolean; error: unknown }, empty: boolean, what: string) =>
     q.isLoading ? (
@@ -111,7 +129,12 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
   const handlePlayCollection = (tracks: MusicTrack[], shuffle = false) => {
     if (tracks.length === 0) return;
     let list = [...tracks];
-    if (shuffle) list.sort(() => Math.random() - 0.5);
+    if (shuffle) {
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
+      }
+    }
     playTrack(list[0], list);
   };
 
@@ -272,7 +295,13 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
               )}
             </div>
 
-            {currentList.length > 0 ? (
+            {activeTab === 'liked' && likedQ.isLoading ? (
+              <p className="text-sm text-[#b3b3b3] py-10 text-center">Loading your Liked Music…</p>
+            ) : activeTab === 'liked' && likedQ.error && likedTracks.length === 0 ? (
+              <p className="text-sm text-white/60 py-10 text-center">
+                Couldn't load Liked Music from YouTube: {(likedQ.error as Error).message}
+              </p>
+            ) : currentList.length > 0 ? (
               <div className="space-y-1">
                 {/* Table Header Columns */}
                 <div className="flex items-center justify-between px-3.5 py-2 text-[11px] font-semibold text-[#b3b3b3] uppercase tracking-wider border-b border-white/10 mb-2">

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Shuffle, SkipBack, Play, Pause, SkipForward, Repeat, Repeat1,
   Star, MoreHorizontal, MessageSquareQuote, List, Volume2, VolumeX,
-  Loader2, Menu, Plus, Disc, User, Compass, Share2, Check
+  Loader2, Menu, Plus, Disc, User, Compass, Share2, Check, Moon, ChevronRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
@@ -43,10 +43,27 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
   const toggleQueue = useMusicPlayerStore(state => state.toggleQueue);
   const toggleLike = useMusicPlayerStore(state => state.toggleLike);
   const addToQueue = useMusicPlayerStore(state => state.addToQueue);
+  const sleepTimerMode = useMusicPlayerStore(state => state.sleepTimerMode);
+  const sleepTimerEndsAt = useMusicPlayerStore(state => state.sleepTimerEndsAt);
+  const sleepTimerMinutes = useMusicPlayerStore(state => state.sleepTimerMinutes);
+  const setSleepTimer = useMusicPlayerStore(state => state.setSleepTimer);
+  const queue = useMusicPlayerStore(state => state.queue);
+  const queueIndex = useMusicPlayerStore(state => state.queueIndex);
+  const playTrack = useMusicPlayerStore(state => state.playTrack);
 
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showSleepOptions, setShowSleepOptions] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const [copied, setCopied] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const volumeRef = useRef<HTMLDivElement>(null);
+
+  // Tick the clock while the menu is open so the countdown label stays fresh
+  useEffect(() => {
+    if (!showMoreMenu) return;
+    const id = window.setInterval(() => setNow(Date.now()), 15000);
+    return () => window.clearInterval(id);
+  }, [showMoreMenu]);
 
   useEffect(() => {
     if (!showMoreMenu) return;
@@ -61,11 +78,38 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
     };
   }, [showMoreMenu]);
 
+  // Scroll-wheel volume (native non-passive listener so preventDefault works)
+  useEffect(() => {
+    const el = volumeRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const st = useMusicPlayerStore.getState();
+      const base = st.isMuted ? 0 : st.volume;
+      st.setVolume(Math.max(0, Math.min(1, base + (e.deltaY > 0 ? -0.05 : 0.05))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
   const isPlaying = playbackStatus === 'playing';
   const isLoading = playbackStatus === 'loading';
   const isLiked = currentTrack ? likedTrackIds.includes(currentTrack.id) : false;
 
+  const sleepTimerLabel = (() => {
+    if (sleepTimerMode === 'trackEnd') return 'End of Song';
+    if (sleepTimerMode === 'time' && sleepTimerEndsAt) {
+      const minsLeft = Math.max(1, Math.ceil((sleepTimerEndsAt - now) / 60000));
+      return `${minsLeft}m left`;
+    }
+    return 'Off';
+  })();
+
   const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
+
+  // Next track in the queue (skips nothing — respects shuffle order already baked into queueIndex)
+  const upNextTrack = queue.length > 0 ? queue[(queueIndex + 1) % queue.length] : undefined;
+  const upNextIsCurrent = upNextTrack && currentTrack && upNextTrack.id === currentTrack.id && queue.length <= 1;
 
   const formatTime = (secs: number) => {
     if (isNaN(secs) || secs <= 0) return '0:00';
@@ -74,12 +118,25 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const handleScrubberClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const seekFromClientX = (clientX: number, el: HTMLElement) => {
     if (!duration || duration <= 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+    const rect = el.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     onSeek(ratio * duration);
+  };
+
+  const handleScrubberPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!duration || duration <= 0) return;
+    e.preventDefault();
+    seekFromClientX(e.clientX, e.currentTarget);
+    const el = e.currentTarget;
+    const onMove = (ev: PointerEvent) => seekFromClientX(ev.clientX, el);
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   };
 
   const openArtist = async () => {
@@ -106,7 +163,7 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
 
   return (
     <>
-      {/* BitChord Apple Music Authentic Floating Player Pill */}
+      {/* Xainy Music Apple Music Authentic Floating Player Pill */}
       <div 
         className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-[860px] w-[96vw] sm:w-auto"
         style={{ fontFamily: 'var(--bitchord-font)' }}
@@ -209,8 +266,10 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowLyrics(true)}
-                      title="Open Fullscreen Player"
-                      className="text-[13px] font-semibold text-white truncate hover:underline text-left cursor-pointer leading-snug"
+                      title={playbackStatus === 'error' ? 'This song failed to play — use → to skip' : 'Open Fullscreen Player'}
+                      className={`text-[13px] font-semibold truncate hover:underline text-left cursor-pointer leading-snug ${
+                        playbackStatus === 'error' ? 'text-red-400' : 'text-white'
+                      }`}
                     >
                       {currentTrack.title}
                     </button>
@@ -226,13 +285,15 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                     title="Go to artist"
                     className="text-[11px] text-[#98989d] hover:text-white hover:underline truncate w-full text-left cursor-pointer leading-snug"
                   >
-                    {resolving ? 'Opening…' : currentTrack.artist} {currentTrack.album ? `— ${currentTrack.album}` : ''}
+                    {playbackStatus === 'error'
+                      ? 'Playback failed — press → or tap next to skip'
+                      : `${resolving ? 'Opening…' : currentTrack.artist} ${currentTrack.album ? `— ${currentTrack.album}` : ''}`}
                   </button>
 
-                  {/* Sleek integrated micro-scrubber */}
+                  {/* Sleek integrated micro-scrubber (click or drag to seek) */}
                   <div 
-                    onClick={handleScrubberClick}
-                    className="w-full h-[3px] hover:h-[5px] bg-white/15 rounded-full cursor-pointer transition-all overflow-hidden mt-1.5 relative group"
+                    onPointerDown={handleScrubberPointerDown}
+                    className="w-full h-[3px] hover:h-[5px] bg-white/15 rounded-full cursor-pointer transition-all overflow-hidden mt-1.5 relative group touch-none"
                     title={`Seek playback (${formatTime(currentTime)} / ${formatTime(duration)})`}
                   >
                     <div 
@@ -305,6 +366,31 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                     </div>
                   </div>
 
+                  {/* Up Next preview — click to jump straight to it */}
+                  {upNextTrack && !upNextIsCurrent && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        playTrack(upNextTrack, queue);
+                      }}
+                      className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2.5 cursor-pointer transition-colors mb-0.5"
+                      title={`Play next: ${upNextTrack.title}`}
+                    >
+                      <img
+                        src={upNextTrack.artwork}
+                        alt=""
+                        className="w-8 h-8 rounded-lg object-cover shrink-0 border border-white/10"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">Up Next</p>
+                        <p className="text-white/90 text-xs font-medium truncate leading-tight mt-0.5">{upNextTrack.title}</p>
+                        <p className="text-white/50 text-[11px] truncate leading-tight">{upNextTrack.artist}</p>
+                      </div>
+                      <Play className="w-3.5 h-3.5 text-white/50 shrink-0" />
+                    </button>
+                  )}
+
                   {/* Queue Controls */}
                   <button
                     type="button"
@@ -371,6 +457,59 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
 
                   <div className="my-1 border-t border-white/10" />
 
+                  {/* Sleep Timer */}
+                  <button
+                    type="button"
+                    onClick={() => setShowSleepOptions(prev => !prev)}
+                    className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-white/10 flex items-center justify-between text-white/90 hover:text-white cursor-pointer transition-colors"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Moon className="w-3.5 h-3.5 text-white/70" />
+                      <span>Sleep Timer</span>
+                    </span>
+                    <span className="flex items-center gap-1 text-white/50">
+                      {sleepTimerLabel}
+                      <ChevronRight className={`w-3 h-3 transition-transform ${showSleepOptions ? 'rotate-90' : ''}`} />
+                    </span>
+                  </button>
+
+                  {showSleepOptions && (
+                    <div className="pl-8 pr-1.5 pb-1.5 space-y-0.5">
+                      {([
+                        { mode: 'off' as const, label: 'Off' },
+                        { mode: 'time' as const, minutes: 15, label: '15 minutes' },
+                        { mode: 'time' as const, minutes: 30, label: '30 minutes' },
+                        { mode: 'time' as const, minutes: 60, label: '1 hour' },
+                        { mode: 'trackEnd' as const, label: 'End of song' },
+                      ]).map(opt => {
+                        const isActive = opt.mode === 'off'
+                          ? sleepTimerMode === 'off'
+                          : opt.mode === 'trackEnd'
+                            ? sleepTimerMode === 'trackEnd'
+                            : sleepTimerMode === 'time' && sleepTimerMinutes === opt.minutes;
+                        return (
+                          <button
+                            key={opt.label}
+                            type="button"
+                            onClick={() => {
+                              setSleepTimer(opt.mode, opt.mode === 'time' ? opt.minutes : undefined);
+                              setShowSleepOptions(false);
+                              setShowMoreMenu(false);
+                            }}
+                            className={`w-full text-left px-2.5 py-1.5 rounded-xl flex items-center justify-between cursor-pointer transition-colors ${
+                              isActive ? 'text-white bg-white/10' : 'text-white/60 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            <span>{opt.label}</span>
+                            {isActive && <Check className="w-3 h-3 text-emerald-400" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="my-1 border-t border-white/10" />
+
                   <button
                     type="button"
                     onClick={() => {
@@ -420,8 +559,24 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
               <List className="w-4 h-4" />
             </button>
 
+            {/* Sleep Timer Active Indicator */}
+            {sleepTimerMode !== 'off' && (
+              <button
+                type="button"
+                onClick={() => setShowMoreMenu(true)}
+                className="p-1.5 rounded-full text-white hover:text-white transition-colors cursor-pointer hidden sm:block"
+                title={`Sleep timer: ${sleepTimerLabel}`}
+              >
+                <Moon className="w-3.5 h-3.5" />
+              </button>
+            )}
+
             {/* Inline Volume Control (Apple Music Desktop Style) */}
-            <div className="flex items-center gap-1.5 pl-1">
+            <div
+              ref={volumeRef}
+              className="flex items-center gap-1.5 pl-1"
+              title="Scroll to adjust volume"
+            >
               <button
                 type="button"
                 onClick={toggleMute}

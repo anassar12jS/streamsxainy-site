@@ -1,6 +1,7 @@
 import { MusicTrack, Playlist } from '../types';
 import { getInnertube, resetInnertube, getPlaylistDetails, getLibraryPlaylists } from './innertube';
 import { extensionBridge } from '../extension/bridge';
+import { artworkOr } from './ytmParse';
 
 const STORAGE_KEY_YT_ACCOUNT = 'bitchord_yt_account_v1';
 const STORAGE_KEY_YT_TRACKS = 'bitchord_yt_imported_tracks_v1';
@@ -54,7 +55,12 @@ export function saveLinkedYouTubeAccount(account: LinkedYouTubeAccount) {
 export function getImportedYouTubeTracks(): MusicTrack[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_YT_TRACKS);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      // Repair artwork saved before the fallback fix (empty strings)
+      return (JSON.parse(raw) as MusicTrack[]).map(t =>
+        t.artwork ? t : { ...t, artwork: artworkOr(undefined, t.youtubeId) }
+      );
+    }
   } catch {}
   return [];
 }
@@ -68,7 +74,11 @@ export function saveImportedYouTubeTracks(tracks: MusicTrack[]) {
 export function getImportedYouTubePlaylists(): Playlist[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_YT_PLAYLISTS);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      return (JSON.parse(raw) as Playlist[]).map(p =>
+        p.artwork ? p : { ...p, artwork: artworkOr(undefined) }
+      );
+    }
   } catch {}
   return [];
 }
@@ -126,7 +136,7 @@ export async function importPlaylistFromYouTube(urlOrId: string): Promise<{ titl
     id: `yt-pl-${playlistId}`,
     title: playlistTitle,
     subtitle: `${tracks.length} Songs · YouTube Music`,
-    artwork: tracks[0]?.artwork || '',
+    artwork: artworkOr(tracks[0]?.artwork || undefined),
     trackCount: tracks.length,
     tracks,
   };
@@ -235,7 +245,7 @@ export async function syncUserYouTubeMusicLibrary(_account?: LinkedYouTubeAccoun
       id: 'yt-pl-liked-music',
       title: 'Liked Music',
       subtitle: `${likedTracks.length} songs`,
-      artwork: likedTracks[0].artwork,
+      artwork: artworkOr(likedTracks[0]?.artwork),
       trackCount: likedTracks.length,
       tracks: likedTracks,
     });

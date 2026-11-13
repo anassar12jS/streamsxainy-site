@@ -20,15 +20,28 @@ const emitStorageChange = (key: string) => {
   }
 };
 
-// --- Watchlist ---
-export const getWatchlist = (): TMDBResult[] => {
+// Parsed-value cache: localStorage.getItem is cheap but JSON.parse of large
+// lists runs synchronously on the main thread. Hundreds of MediaCards each
+// calling isInWatchlist()/getProgress() would re-parse the same blob per card.
+// Cache the parsed result keyed by the raw string so external writes
+// (importData, other tabs) still invalidate correctly.
+const parseCache = new Map<string, { raw: string | null; value: unknown }>();
+
+const readStoredJSON = <T>(key: string, fallback: T): T => {
   try {
-    const stored = localStorage.getItem(WATCHLIST_KEY);
-    return stored ? JSON.parse(stored) : [];
+    const raw = localStorage.getItem(key);
+    const hit = parseCache.get(key);
+    if (hit && hit.raw === raw) return hit.value as T;
+    const value = (raw ? JSON.parse(raw) : fallback) as T;
+    parseCache.set(key, { raw, value });
+    return value;
   } catch (e) {
-    return [];
+    return fallback;
   }
 };
+
+// --- Watchlist ---
+export const getWatchlist = (): TMDBResult[] => readStoredJSON<TMDBResult[]>(WATCHLIST_KEY, []);
 
 export const addToWatchlist = (item: TMDBResult) => {
   const list = getWatchlist();
@@ -52,14 +65,7 @@ export const isInWatchlist = (id: number): boolean => {
 };
 
 // --- History (Recently Watched Metadata) ---
-export const getHistory = (): TMDBResult[] => {
-  try {
-    const stored = localStorage.getItem(HISTORY_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch (e) {
-    return [];
-  }
-};
+export const getHistory = (): TMDBResult[] => readStoredJSON<TMDBResult[]>(HISTORY_KEY, []);
 
 export const addToHistory = (item: TMDBResult) => {
   const list = getHistory();
@@ -70,14 +76,7 @@ export const addToHistory = (item: TMDBResult) => {
 };
 
 // --- Continue Watching (Progress) ---
-export const getProgress = (): ContinueWatchingItem[] => {
-  try {
-    const stored = localStorage.getItem(PROGRESS_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch (e) {
-    return [];
-  }
-};
+export const getProgress = (): ContinueWatchingItem[] => readStoredJSON<ContinueWatchingItem[]>(PROGRESS_KEY, []);
 
 export const saveProgress = (item: { 
   id: number; 
@@ -134,12 +133,7 @@ export const getProgressForId = (id: number): ContinueWatchingItem | undefined =
 };
 
 // --- Live TV Favorites ---
-export const getFavoriteChannels = (): IPTVChannel[] => {
-    try {
-        const stored = localStorage.getItem(TV_FAVORITES_KEY);
-        return stored ? JSON.parse(stored) : [];
-    } catch (e) { return []; }
-};
+export const getFavoriteChannels = (): IPTVChannel[] => readStoredJSON<IPTVChannel[]>(TV_FAVORITES_KEY, []);
 
 export const toggleFavoriteChannel = (channel: IPTVChannel) => {
     const list = getFavoriteChannels();
@@ -160,12 +154,7 @@ export const isFavoriteChannel = (url: string): boolean => {
 };
 
 // --- Live TV Recents ---
-export const getRecentChannels = (): IPTVChannel[] => {
-    try {
-        const stored = localStorage.getItem(TV_RECENT_KEY);
-        return stored ? JSON.parse(stored) : [];
-    } catch (e) { return []; }
-};
+export const getRecentChannels = (): IPTVChannel[] => readStoredJSON<IPTVChannel[]>(TV_RECENT_KEY, []);
 
 export const addRecentChannel = (channel: IPTVChannel) => {
     const list = getRecentChannels();
@@ -175,12 +164,7 @@ export const addRecentChannel = (channel: IPTVChannel) => {
 };
 
 // --- Sports Favorites ---
-export const getFavoriteSportsMatches = (): string[] => {
-    try {
-        const stored = localStorage.getItem(SPORTS_FAVORITES_KEY);
-        return stored ? JSON.parse(stored) : [];
-    } catch (e) { return []; }
-};
+export const getFavoriteSportsMatches = (): string[] => readStoredJSON<string[]>(SPORTS_FAVORITES_KEY, []);
 
 export const addFavoriteSportsMatch = (id: string) => {
     const list = getFavoriteSportsMatches();
@@ -204,12 +188,7 @@ export const isFavoriteSportsMatch = (id: string): boolean => {
 // --- Sports Match Reminders (Kickoff notifications) ---
 const SPORTS_REMINDERS_KEY = 'streamhub_sports_reminders';
 
-export const getMatchReminders = (): string[] => {
-    try {
-        const stored = localStorage.getItem(SPORTS_REMINDERS_KEY);
-        return stored ? JSON.parse(stored) : [];
-    } catch (e) { return []; }
-};
+export const getMatchReminders = (): string[] => readStoredJSON<string[]>(SPORTS_REMINDERS_KEY, []);
 
 export const addMatchReminder = (id: string) => {
     const list = getMatchReminders();
@@ -233,21 +212,17 @@ export const isMatchReminder = (id: string): boolean => {
 
 // --- Stream Providers ---
 export const getStreamProviders = (): StreamProvider[] => {
-    try {
-        const stored = localStorage.getItem(PROVIDERS_KEY);
-        // Fallback for legacy single URL storage
-        const legacyUrl = localStorage.getItem('torrentio_url');
-        
-        if (stored) return JSON.parse(stored);
-        
-        if (legacyUrl) {
-            return [{ name: 'Torrentio (Legacy)', url: legacyUrl }];
-        }
-        
-        return [{ name: 'Torrentio', url: TORRENTIO_BASE_URL }];
-    } catch (e) {
-        return [{ name: 'Torrentio', url: TORRENTIO_BASE_URL }];
+    const stored = localStorage.getItem(PROVIDERS_KEY);
+    // Fallback for legacy single URL storage
+    const legacyUrl = localStorage.getItem('torrentio_url');
+
+    if (stored) return readStoredJSON<StreamProvider[]>(PROVIDERS_KEY, []);
+
+    if (legacyUrl) {
+        return [{ name: 'Torrentio (Legacy)', url: legacyUrl }];
     }
+
+    return [{ name: 'Torrentio', url: TORRENTIO_BASE_URL }];
 };
 
 export const saveStreamProviders = (providers: StreamProvider[]) => {

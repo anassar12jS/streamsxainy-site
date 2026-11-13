@@ -1,4 +1,5 @@
 import { MusicTrack, ReplayStats } from '../types';
+import { ARTWORK_PLACEHOLDER } from './ytmParse';
 
 const STORAGE_KEY_REPLAY = 'bitchord_replay_records_v1';
 
@@ -99,10 +100,15 @@ export class ReplayRecorder {
   public getAllRecords(): PlayRecord[] {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_REPLAY);
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        // Repair records saved before artwork fallbacks existed
+        return (JSON.parse(raw) as PlayRecord[]).map(r =>
+          r.artwork ? r : { ...r, artwork: ARTWORK_PLACEHOLDER }
+        );
+      }
     } catch {}
 
-    // Initial realistic seed records for BitChord Replay experience
+    // Initial realistic seed records for Xainy Music Replay experience
     return [
       {
         id: 'rec-1',

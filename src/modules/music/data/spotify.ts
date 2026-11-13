@@ -30,7 +30,7 @@ export interface SpotifyPlaylist {
 export async function getSpotifyAuthState(): Promise<{ authenticated: boolean; user?: any }> {
   try {
     const res = await extensionBridge.call<any>('spotify.authState', {}, { timeoutMs: 4000, retryOnWakeup: false });
-    if (res && (res.authenticated || res.user || res.accessToken)) {
+    if (res && (res.authenticated || res.signedIn || res.user || res.accessToken)) {
       return { authenticated: true, user: res.user };
     }
   } catch (e) {

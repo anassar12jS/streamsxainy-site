@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Play, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Play, Pause, ChevronLeft, ChevronRight, ListPlus } from 'lucide-react';
 import { MusicTrack } from '../types';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
@@ -28,6 +28,9 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const setTrack = useMusicPlayerStore(state => state.setTrack);
+  const appendToQueue = useMusicPlayerStore(state => state.appendToQueue);
+  const currentTrack = useMusicPlayerStore(state => state.currentTrack);
+  const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
@@ -48,7 +51,6 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
   return (
     <div 
       className="space-y-3.5 group/shelf"
-      style={{ contentVisibility: 'auto', containIntrinsicSize: '280px' }}
     >
       {/* Shelf Header */}
       <div className="flex items-end justify-between px-1">
@@ -88,7 +90,11 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
         className="flex items-start gap-4 overflow-x-auto pb-4 pt-1 am-scrollbar scroll-smooth"
         style={{ fontFamily: 'var(--bitchord-font)' }}
       >
-        {items.map((item) => (
+        {items.map((item) => {
+          const isThisPlaying =
+            playbackStatus === 'playing' &&
+            !!item.tracks?.some(t => t.id === currentTrack?.id);
+          return (
           <div
             key={item.id}
             onClick={item.onClick}
@@ -114,14 +120,46 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
                 </div>
               )}
 
+              {/* Playing equalizer badge */}
+              {isThisPlaying && (
+                <div className="absolute bottom-2.5 left-2.5 flex items-end gap-[3px] h-4 px-1.5 py-1 rounded-md bg-black/60 backdrop-blur-sm">
+                  <span className="w-[3px] bg-white rounded-full animate-pulse" style={{ height: '40%' }} />
+                  <span className="w-[3px] bg-white rounded-full animate-bounce" style={{ height: '90%', animationDelay: '150ms' }} />
+                  <span className="w-[3px] bg-white rounded-full animate-pulse" style={{ height: '60%', animationDelay: '300ms' }} />
+                </div>
+              )}
+
+              {/* Add to Queue (cards that carry tracks) */}
+              {item.tracks && item.tracks.length > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    appendToQueue(item.tracks!);
+                  }}
+                  className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-black/80 hover:scale-105 active:scale-95 cursor-pointer"
+                  title={`Add ${item.tracks.length > 1 ? `${item.tracks.length} songs` : 'song'} to queue`}
+                >
+                  <ListPlus className="w-3.5 h-3.5" />
+                </button>
+              )}
+
               {/* Play Button Overlay */}
               <button
                 type="button"
                 onClick={(e) => handlePlayItem(e, item)}
-                className="absolute bottom-2.5 right-2.5 w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-2xl opacity-0 group-hover:opacity-100 transform translate-y-1 group-hover:translate-y-0 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
-                title="Play"
+                className={`absolute bottom-2.5 right-2.5 w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-2xl transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer ${
+                  isThisPlaying
+                    ? 'opacity-100 translate-y-0'
+                    : 'opacity-0 group-hover:opacity-100 transform translate-y-1 group-hover:translate-y-0'
+                }`}
+                title={isThisPlaying ? 'Playing' : 'Play'}
               >
-                <Play className="w-4 h-4 fill-current ml-0.5 text-black" />
+                {isThisPlaying ? (
+                  <Pause className="w-4 h-4 fill-current ml-0.5 text-black" />
+                ) : (
+                  <Play className="w-4 h-4 fill-current ml-0.5 text-black" />
+                )}
               </button>
             </div>
 
@@ -133,7 +171,8 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
               {item.subtitle}
             </p>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

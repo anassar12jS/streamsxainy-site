@@ -79,6 +79,10 @@ export class MusicAudioEngine {
   private callbacks: AudioEngineCallbacks | null = null;
   private currentVolume: number = 1;
   private currentMuted: boolean = false;
+  /** 0..1 transition gain layered over the user's volume for crossfade-style fades */
+  private fadeGain: number = 1;
+  private fadeRaf: number | null = null;
+  private fadingDirection: 'in' | 'out' | null = null;
 
   constructor(audioElement: HTMLAudioElement, callbacks?: AudioEngineCallbacks) {
     this.audioElement = audioElement;
@@ -410,14 +414,64 @@ export class MusicAudioEngine {
     this.audioElement.currentTime = target;
   }
 
-  public setVolume(volume: number): void {
-    this.currentVolume = Math.max(0, Math.min(1, volume));
-    this.audioElement.volume = this.currentVolume;
+  /** Pushes user volume * fadeGain to whichever backend is active */
+  private applyVolume() {
+    const v = Math.max(0, Math.min(1, this.currentVolume * this.fadeGain));
+    this.audioElement.volume = v;
     if (this.ytPlayer && typeof this.ytPlayer.setVolume === 'function') {
       try {
-        this.ytPlayer.setVolume(Math.round(this.currentVolume * 100));
+        this.ytPlayer.setVolume(Math.round(v * 100));
       } catch {}
     }
+  }
+
+  private animateFade(target: number, ms: number) {
+    if (this.fadeRaf !== null) cancelAnimationFrame(this.fadeRaf);
+    const from = this.fadeGain;
+    if (from === target) {
+      this.fadeGain = target;
+      this.applyVolume();
+      return;
+    }
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / Math.max(1, ms));
+      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      this.fadeGain = from + (target - from) * eased;
+      this.applyVolume();
+      this.fadeRaf = t < 1 ? requestAnimationFrame(step) : null;
+    };
+    this.fadeRaf = requestAnimationFrame(step);
+  }
+
+  /** Smooth fade to silence — call near the end of a track for a crossfade feel */
+  public startFadeOut(ms = 1400) {
+    if (this.fadingDirection === 'out' || this.fadeGain <= 0) return;
+    this.fadingDirection = 'out';
+    this.animateFade(0, ms);
+    // Clear the flag once the ramp lands (or is interrupted by a fade-in)
+    const check = () => {
+      if (this.fadeRaf === null) this.fadingDirection = null;
+      else requestAnimationFrame(check);
+    };
+    requestAnimationFrame(check);
+  }
+
+  /** Smooth fade back to full volume — call when a new track starts playing */
+  public startFadeIn(ms = 900) {
+    if (this.fadingDirection === 'in' && this.fadeGain >= 1) return;
+    this.fadingDirection = 'in';
+    this.animateFade(1, ms);
+    const check = () => {
+      if (this.fadeRaf === null) this.fadingDirection = null;
+      else requestAnimationFrame(check);
+    };
+    requestAnimationFrame(check);
+  }
+
+  public setVolume(volume: number): void {
+    this.currentVolume = Math.max(0, Math.min(1, volume));
+    this.applyVolume();
   }
 
   public setMuted(muted: boolean): void {
@@ -498,6 +552,7 @@ export class MusicAudioEngine {
 
   public destroy() {
     this.stopYouTubeTimer();
+    if (this.fadeRaf !== null) cancelAnimationFrame(this.fadeRaf);
     this.audioElement.pause();
     this.audioElement.removeAttribute('src');
     this.audioElement.load();

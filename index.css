@@ -124,6 +124,33 @@ body {
   100% { background-position: -200% 0; }
 }
 
+@keyframes heroProgress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes scoreFlash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55);
+    background-color: rgba(52, 211, 153, 0.22);
+  }
+  100% {
+    box-shadow: 0 0 0 16px rgba(52, 211, 153, 0);
+    background-color: rgba(52, 211, 153, 0);
+  }
+}
+.score-flash {
+  animation: scoreFlash 1.5s ease-out;
+}
+
+@keyframes shineSweep {
+  0% { transform: translateX(-120%) skewX(-18deg); }
+  100% { transform: translateX(240%) skewX(-18deg); }
+}
+.shine-sweep {
+  animation: shineSweep 3.2s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;

@@ -7,7 +7,7 @@ import { getImportedYouTubePlaylists } from '../api/youtubeAuth';
 import { useSessionStore } from '../store/useSessionStore';
 import type { Playlist } from '../types';
 
-/** All Playlists: the signed-in YouTube Music library, live (like BitChord's playlists page). */
+/** All Playlists: the signed-in YouTube Music library, live (like Xainy Music's playlists page). */
 export const PlaylistsRoute: React.FC = () => {
   const navigate = useNavigate();
   const activeChannel = useSessionStore(state => state.activeChannel);

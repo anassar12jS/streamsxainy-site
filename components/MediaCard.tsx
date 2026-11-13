@@ -86,7 +86,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onClick, onWatchlist
       tabIndex={0}
       aria-label={`View details for ${title}`}
       className="group relative flex-shrink-0 w-[148px] sm:w-[170px] md:w-[185px] text-left cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary-color))] rounded-2xl select-none"
-      style={{ contentVisibility: 'auto', containIntrinsicSize: '185px 278px' }}
+      style={{ containIntrinsicSize: '185px 278px' }}
       onClick={() => onClick(item)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {

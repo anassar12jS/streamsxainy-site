@@ -125,7 +125,7 @@ export function useHomeFeed() {
         console.debug('Failed to fetch YouTube Music home feed from Innertube:', err);
       }
 
-      // High-quality fallback shelf structure matching BitChord
+      // High-quality fallback shelf structure matching Xainy Music
       return [
         {
           id: 'shelf_recent',

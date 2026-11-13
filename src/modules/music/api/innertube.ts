@@ -2,7 +2,7 @@ import { Innertube, UniversalCache } from 'youtubei.js';
 import { MusicTrack, Album, Artist, Playlist } from '../types';
 import { extensionBridge } from '../extension/bridge';
 import { YTNodes } from 'youtubei.js';
-import { txt, thumbOf, parsePanelVideo, parseSong, parseAlbumCard, parseArtistCard, parsePlaylistCard, parseCard, parseShelf, parseAlbumHeader, type HomeShelf, type HomeItem } from './ytmParse';
+import { txt, thumbOf, artworkOr, durationSeconds, ARTWORK_PLACEHOLDER, parsePanelVideo, parseSong, parseAlbumCard, parseArtistCard, parsePlaylistCard, parseCard, parseShelf, parseAlbumHeader, type HomeShelf, type HomeItem } from './ytmParse';
 
 let ytInstance: Innertube | null = null;
 let isInitializing = false;
@@ -14,7 +14,7 @@ export const resetInnertube = resetInnertubeInstances;
 
 /**
  * Initializes YouTube.js Innertube client with custom extension proxy fetch.
- * Bypasses CORS and routes requests through the BitChord companion extension
+ * Bypasses CORS and routes requests through the Xainy Music companion extension
  * to utilize signed-in YouTube Music sessions.
  */
 export async function getInnertube(channelId?: string): Promise<Innertube> {
@@ -200,11 +200,16 @@ export async function resolveStreamUrl(
  * Proactively prefetches the audio stream for upcoming queue tracks
  * so skips and auto-advances begin with 0ms buffering delay.
  */
+const prefetchAttempted = new Set<string>();
 export async function prefetchStreamUrl(track: MusicTrack | null | undefined): Promise<void> {
   if (!track || track.isLive) return;
   try {
     const vId = track.youtubeId || (await resolveVideoId(track));
-    if (!vId) return;
+    if (!vId || prefetchAttempted.has(vId)) return;
+    prefetchAttempted.add(vId);
+    if (prefetchAttempted.size > 500) {
+      prefetchAttempted.delete(prefetchAttempted.values().next().value!);
+    }
     if (streamUrlCache.has(vId)) return;
     resolveStreamUrl(track).catch(() => {});
   } catch {}
@@ -227,8 +232,8 @@ export async function searchInnerTube(query: string): Promise<MusicTrack[]> {
 
       if (contents.length > 0) {
         return contents.slice(0, 25).map((item: any, idx: number): MusicTrack => {
-          const artwork = item.thumbnail?.contents?.[0]?.url || item.thumbnails?.[0]?.url || '';
           const videoId = item.id || item.videoId || '';
+          const artwork = thumbOf(item.thumbnail ?? item.thumbnails);
           return {
             id: videoId || `yt-${idx}-${Date.now()}`,
             title: item.title?.text || item.title || 'Unknown Title',
@@ -236,8 +241,8 @@ export async function searchInnerTube(query: string): Promise<MusicTrack[]> {
             artistId: item.artists?.[0]?.id,
             album: item.album?.name || 'Single',
             albumId: item.album?.id,
-            artwork: artwork ? artwork.replace(/=w\d+-h\d+/, '=w600-h600') : '',
-            duration: item.duration?.seconds || 210,
+            artwork: artworkOr(artwork, videoId || undefined),
+            duration: durationSeconds(item.duration) || 210,
             audioUrl: '', // Stream resolved on-demand via YouTube Music
             youtubeId: videoId,
             source: 'innertube',
@@ -415,8 +420,7 @@ export async function getSearchSuggestions(query: string): Promise<SearchSuggest
 
       for (const item of items.slice(0, 5)) {
         const vId = item.id || item.videoId;
-        const art = item.thumbnail?.contents?.[0]?.url || item.thumbnails?.[0]?.url || '';
-        const highResArt = art ? art.replace(/=w\d+-h\d+/, '=w300-h300') : '';
+        const highResArt = artworkOr(thumbOf(item.thumbnail ?? item.thumbnails, 300), vId);
         const songTitle = item.title?.text || item.title || '';
         const artistName = item.artists?.[0]?.name || item.author?.name || '';
         const artistId = item.artists?.[0]?.id;
@@ -442,7 +446,7 @@ export async function getSearchSuggestions(query: string): Promise<SearchSuggest
               album: albumName || 'Single',
               albumId,
               artwork: highResArt,
-              duration: item.duration?.seconds || 210,
+              duration: durationSeconds(item.duration) || 210,
               youtubeId: vId,
               source: 'innertube',
             },
@@ -540,11 +544,10 @@ export async function searchFullCatalog(query: string): Promise<FullCatalogSearc
             if (aId && !artistSeen.has(aId)) {
               artistSeen.add(aId);
               const aName = a.name || a.title?.text || a.title || 'Artist';
-              const aThumb = a.thumbnail?.contents?.[0]?.url || a.thumbnails?.[0]?.url || '';
               artists.push({
                 id: aId,
                 name: aName,
-                avatar: aThumb ? aThumb.replace(/=w\d+-h\d+/, '=w400-h400') : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=300&q=80',
+                avatar: artworkOr(thumbOf(a.thumbnail ?? a.thumbnails, 400)),
                 listeners: a.subscribers?.text || 'Verified Artist',
               });
             }
@@ -563,13 +566,12 @@ export async function searchFullCatalog(query: string): Promise<FullCatalogSearc
               const albTitle = alb.title?.text || alb.title || 'Album';
               const albArtist = alb.artists?.[0]?.name || alb.author?.name || '';
               const albYear = alb.year?.text || alb.year || '';
-              const albThumb = alb.thumbnail?.contents?.[0]?.url || alb.thumbnails?.[0]?.url || '';
               albums.push({
                 id: albId,
                 title: albTitle,
                 artist: albArtist,
                 year: albYear,
-                artwork: albThumb ? albThumb.replace(/=w\d+-h\d+/, '=w600-h600') : '',
+                artwork: artworkOr(thumbOf(alb.thumbnail ?? alb.thumbnails)),
               });
             }
           }
@@ -899,7 +901,7 @@ export async function getPlaylistDetails(playlistId: string): Promise<Playlist |
   if (!title && tracks.length === 0) return null;
 
   const owner = header?.author?.name || txt(header?.strapline_text_one) || '';
-  const artwork = thumbOf(header?.thumbnail ?? header?.thumbnails ?? background, 800) || tracks[0]?.artwork || '';
+  const artwork = artworkOr(thumbOf(header?.thumbnail ?? header?.thumbnails ?? background, 800) || tracks[0]?.artwork || undefined);
 
   return {
     id,
@@ -1009,7 +1011,7 @@ export async function getLibraryPlaylists(): Promise<Playlist[]> {
     id: 'LM',
     title: 'Liked Music',
     subtitle: 'Auto playlist',
-    artwork: '',
+    artwork: ARTWORK_PLACEHOLDER,
     trackCount: 0,
     tracks: [],
   };
@@ -1049,6 +1051,57 @@ export async function getRadioTracks(videoId: string, limit = 25): Promise<Music
 }
 
 const homeShelvesCache = new Map<string, { at: number; shelves: HomeShelf[] }>();
+const DURATION_CACHE_KEY = 'xainy_duration_cache_v1';
+const durationCache: Map<string, number> = (() => {
+  try {
+    const raw = sessionStorage.getItem(DURATION_CACHE_KEY);
+    return raw ? new Map(JSON.parse(raw)) : new Map();
+  } catch {
+    return new Map();
+  }
+})(); // videoId -> seconds (-1 = tried & failed)
+let durationCacheDirty = false;
+function persistDurationCache() {
+  if (!durationCacheDirty) return;
+  durationCacheDirty = false;
+  try {
+    // Keep the map bounded — drop oldest entries beyond ~2000
+    const entries = [...durationCache.entries()].slice(-2000);
+    sessionStorage.setItem(DURATION_CACHE_KEY, JSON.stringify(entries));
+  } catch {}
+}
+
+/**
+ * MusicTwoRowItem (home shelf songs) carries no duration — resolve missing lengths
+ * through the lightweight player endpoint, a few at a time, cached per session.
+ */
+export async function resolveTrackDurations(tracks: MusicTrack[]): Promise<void> {
+  const missing = [...new Map(
+    tracks.filter(t => t.youtubeId && !(t.duration > 0) && !durationCache.has(t.youtubeId))
+      .map(t => [t.youtubeId as string, t])
+  ).values()].slice(0, 24);
+  if (!missing.length) return;
+  const yt: any = await getInnertube();
+  const queue = [...missing];
+  const withTimeout = <T,>(p: Promise<T>, ms: number) =>
+    Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+  const workers = Array.from({ length: 4 }, async () => {
+    for (let t = queue.shift(); t; t = queue.shift()) {
+      const id = t.youtubeId as string;
+      try {
+        const info: any = await withTimeout(yt.getBasicInfo(id), 6000);
+        const secs = Number(info?.video_details?.length_seconds ?? info?.basic_info?.duration ?? 0);
+        durationCache.set(id, secs > 0 ? secs : -1);
+        if (secs > 0) t.duration = secs;
+      } catch {
+        durationCache.set(id, -1);
+      }
+    }
+  });
+  await Promise.all(workers);
+  durationCacheDirty = true;
+  persistDurationCache();
+}
 
 /** Personalised home feed shelves (super fast non-blocking single-pass). */
 export async function getHomeShelves(forceRefresh = false): Promise<HomeShelf[]> {

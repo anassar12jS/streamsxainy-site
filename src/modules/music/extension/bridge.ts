@@ -1,8 +1,8 @@
 /**
- * BitChord Companion Browser Extension Bridge (MV3 Protocol 1)
+ * Xainy Music Companion Browser Extension Bridge (MV3 Protocol 1)
  * Extension ID: pkddffeebcmhhanjcigilehaeonkkfih
  * 
- * Strict gateway to the BitChord MV3 extension for YouTube Music session cookies,
+ * Strict gateway to the Xainy Music MV3 extension for YouTube Music session cookies,
  * CORS bypass, Spotify OAuth & Discord Rich Presence.
  */
 
@@ -67,10 +67,10 @@ export interface BridgeCallOptions {
   retryOnWakeup?: boolean;
 }
 
-const YOUTUBE_HOST_REGEX = /(?:^|\.)(?:youtube\.com|music\.youtube\.com|youtubei\.googleapis\.com|suggestqueries-clients6\.youtube\.com|googlevideo\.com)$/i;
+const YOUTUBE_HOST_REGEX = /(?:^|\.)(?:youtube\.com|music\.youtube\.com|youtubei\.googleapis\.com|suggestqueries-clients6\.youtube\.com|googlevideo\.com|googleusercontent\.com|ggpht\.com)$/i;
 
-export class BitChordExtensionBridge {
-  private static instance: BitChordExtensionBridge;
+export class XainyMusicBridge {
+  private static instance: XainyMusicBridge;
   private status: ExtensionStatus = { available: false };
   private listeners: Set<(status: ExtensionStatus) => void> = new Set();
   public static readonly EXTENSION_ID = 'pkddffeebcmhhanjcigilehaeonkkfih';
@@ -79,11 +79,11 @@ export class BitChordExtensionBridge {
     this.init();
   }
 
-  public static getInstance(): BitChordExtensionBridge {
-    if (!BitChordExtensionBridge.instance) {
-      BitChordExtensionBridge.instance = new BitChordExtensionBridge();
+  public static getInstance(): XainyMusicBridge {
+    if (!XainyMusicBridge.instance) {
+      XainyMusicBridge.instance = new XainyMusicBridge();
     }
-    return BitChordExtensionBridge.instance;
+    return XainyMusicBridge.instance;
   }
 
   private init() {
@@ -150,7 +150,7 @@ export class BitChordExtensionBridge {
   }
 
   /**
-   * Verified single door to chrome.runtime for BitChord companion extension.
+   * Verified single door to chrome.runtime for Xainy Music companion extension.
    * Envelope: { channel: 'bitchord-bridge', direction: 'to-extension', protocol: 1, id, method, params }
    */
   public async call<T = any>(
@@ -182,7 +182,7 @@ export class BitChordExtensionBridge {
 
         try {
           chromeRuntime.sendMessage(
-            BitChordExtensionBridge.EXTENSION_ID,
+            XainyMusicBridge.EXTENSION_ID,
             {
               channel: 'bitchord-bridge',
               direction: 'to-extension',
@@ -525,4 +525,4 @@ export class BitChordExtensionBridge {
   }
 }
 
-export const extensionBridge = BitChordExtensionBridge.getInstance();
+export const extensionBridge = XainyMusicBridge.getInstance();

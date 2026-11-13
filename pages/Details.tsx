@@ -7,6 +7,7 @@ import { getAnimeById, mapAniListToTMDBDetail } from '../services/anilist';
 import { getStreams, getEpisodeStreams } from '../services/addonService';
 import { isInWatchlist, addToWatchlist, removeFromWatchlist, addToHistory, saveProgress, getProgressForId } from '../services/storage';
 import { TMDB_IMAGE_BASE, TMDB_POSTER_BASE, TMDB_IMAGE_ORIGINAL, TMDB_BACKDROP_W1280, TMDB_BACKDROP_W780 } from '../constants';
+import { PROVIDERS, getHealthBook, healthDotClass } from '../services/streamProviders';
 import { StreamList } from '../components/StreamList';
 import { MediaCard } from '../components/MediaCard';
 import { Skeleton } from '../components/Skeleton';
@@ -37,18 +38,8 @@ type TabKey = 'overview' | 'episodes' | 'streams' | 'videos' | 'photos';
 const AVATAR_FALLBACK_SVG = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22120%22%20height%3D%22160%22%20viewBox%3D%220%200%20120%20160%22%3E%3Crect%20fill%3D%22%2318181b%22%20width%3D%22120%22%20height%3D%22160%22%2F%3E%3Ccircle%20cx%3D%2260%22%20cy%3D%2260%22%20r%3D%2226%22%20fill%3D%22%233f3f46%22%2F%3E%3Cpath%20d%3D%22M24%20140c0-20%2016-36%2036-36s36%2016%2036%2036%22%20fill%3D%22%233f3f46%22%2F%3E%3C%2Fsvg%3E';
 const POSTER_FALLBACK_SVG = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22300%22%20height%3D%22450%22%20viewBox%3D%220%200%20300%20450%22%3E%3Crect%20fill%3D%22%2318181b%22%20width%3D%22300%22%20height%3D%22450%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20text-anchor%3D%22middle%22%20fill%3D%22%2371717a%22%20font-family%3D%22sans-serif%22%20font-size%3D%2216%22%3ENo%20Poster%3C%2Ftext%3E%3C%2Fsvg%3E';
 
-const FAST_SERVERS = [
-  { id: 'ishowstream', name: 'iShowStream', speed: 'Ultra Fast ⚡', badge: 'Default' },
-  { id: 'vidy', name: 'Vidy Prime', speed: 'Fast ⚡', badge: 'Popular' },
-  { id: 'vidlypro', name: 'Vidly Pro', speed: 'Ultra ⚡', badge: 'Fast 4K' },
-  { id: 'vidlink', name: 'VidLink Pro', speed: 'Instant 🚀', badge: 'Top Rated' },
-  { id: 'videasy', name: 'Videasy HD', speed: 'Smooth 🎬', badge: 'Clean' },
-  { id: 'vidsrc-sh', name: 'VidSrc Direct', speed: 'Fast ⚡', badge: 'Stable' },
-  { id: 'cinemaos', name: 'CinemaOS', speed: 'Cinema 💎', badge: 'HQ' },
-  { id: 'vidsrc-wtf', name: 'VidSrc WTF', speed: 'Fast ⚡', badge: 'Mirror 1' },
-  { id: 'vidora', name: 'Vidora Stream', speed: 'Adaptive 🌐', badge: 'Mirror 2' },
-  { id: 'vidfastpro', name: 'VidFast HQ', speed: 'Rapid ⚡', badge: 'Mirror 3' },
-];
+// Fast server picker mirrors the shared provider registry (same list VidyPlayer uses)
+const FAST_SERVERS = PROVIDERS.map(p => ({ id: p.id, name: p.name, speed: p.speed, badge: p.badge }));
 
 export const Details: React.FC = () => {
   const { id } = useParams();
@@ -203,18 +194,26 @@ export const Details: React.FC = () => {
 
   // Sticky header observer: Only triggers once the hero action buttons have scrolled off the viewport
   useEffect(() => {
+    let rafId = 0;
     const handleScroll = () => {
-      if (actionRowRef.current) {
-        const rect = actionRowRef.current.getBoundingClientRect();
-        // 60px corresponds to the top navbar height
-        setShowStickyHeader(rect.bottom < 60);
-      } else {
-        setShowStickyHeader(window.scrollY > 680);
-      }
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        if (actionRowRef.current) {
+          const rect = actionRowRef.current.getBoundingClientRect();
+          // 60px corresponds to the top navbar height
+          setShowStickyHeader(rect.bottom < 60);
+        } else {
+          setShowStickyHeader(window.scrollY > 680);
+        }
+      });
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
-    return () => window.removeEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   // Close server picker on outside click or Escape key
@@ -851,7 +850,7 @@ export const Details: React.FC = () => {
         </div>
 
         {/* Layer 3: Hero Content Body */}
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 w-full">
+        <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 w-full">
           <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-8 items-end">
             
             {/* Poster Card Column (Desktop) */}
@@ -1123,6 +1122,10 @@ export const Details: React.FC = () => {
                                   ) : (
                                     <Server className="w-4 h-4 text-white/40 shrink-0" />
                                   )}
+                                  <span
+                                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${healthDotClass(getHealthBook(), `movie:${srv.id}`)}`}
+                                    title="Server health"
+                                  />
                                   <div className="text-left min-w-0">
                                     <p className="truncate font-bold leading-tight">{srv.name}</p>
                                     {srv.badge && (

@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <script>
+      // Start every page load at the top — prevents the browser restoring the
+      // previous scroll position before React mounts and ScrollToTop runs.
+      if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+      window.scrollTo(0, 0);
+    </script>
+    <script>
       // Guard against environments or extensions attempting to patch window.fetch
       // where Window.prototype.fetch is defined with only a getter.
       (function() {
@@ -29,19 +35,19 @@
 
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://streamsxainy-site.vercel.app/" />
-    <meta property="og:title" content="StreamHub anas" />
-    <meta property="og:description" content="A movie and TV show discovery platform powered by TMDB." />
-    <meta property="og:image" content="https://streamsxainy-site.vercel.app/og-image.svg" />
-    <meta property="og:image:secure_url" content="https://streamsxainy-site.vercel.app/og-image.svg" />
-    <meta property="og:image:type" content="image/svg+xml" />
+    <meta property="og:title" content="StreamHub — Movies, Shows, Sports, Live TV & Music" />
+    <meta property="og:description" content="Stream movies & TV shows, catch live sports and matches, watch live TV, and listen to music with Xainy Music — all in one place." />
+    <meta property="og:image" content="https://streamsxainy-site.vercel.app/og-image.png" />
+    <meta property="og:image:secure_url" content="https://streamsxainy-site.vercel.app/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="StreamHub social preview" />
+    <meta property="og:image:alt" content="StreamHub — movies, shows, sports, live TV and Xainy Music" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="StreamHub anas" />
-    <meta name="twitter:description" content="A movie and TV show discovery platform powered by TMDB." />
-    <meta name="twitter:image" content="https://streamsxainy-site.vercel.app/og-image.svg" />
+    <meta name="twitter:title" content="StreamHub — Movies, Shows, Sports, Live TV & Music" />
+    <meta name="twitter:description" content="Stream movies & TV shows, catch live sports and matches, watch live TV, and listen to music with Xainy Music — all in one place." />
+    <meta name="twitter:image" content="https://streamsxainy-site.vercel.app/og-image.png" />
     <meta name="twitter:image:alt" content="StreamHub social preview" />
 
     <!-- Favicon / Website Tab Logo -->

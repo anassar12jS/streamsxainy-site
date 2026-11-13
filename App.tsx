@@ -27,13 +27,26 @@ const Privacy = lazy(() => import('./pages/Legal').then(m => ({ default: m.Priva
 const Terms = lazy(() => import('./pages/Legal').then(m => ({ default: m.Terms })));
 
 const PageLoadingFallback = () => (
-  <div className="min-h-[60vh] flex flex-col items-center justify-center animate-fade-in">
-    <div className="w-10 h-10 rounded-2xl bg-[rgb(var(--primary-color))]/15 flex items-center justify-center mb-3">
+  <div className="min-h-[70vh] w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 animate-fade-in">
+    {/* Hero skeleton */}
+    <div className="h-72 sm:h-96 rounded-3xl bg-[var(--bg-card)] border border-[var(--border-color)] animate-pulse mb-10" />
+    {/* Row skeletons */}
+    {[0, 1, 2].map(row => (
+      <div key={row} className="mb-10">
+        <div className="h-6 w-48 rounded-lg bg-[var(--bg-card)] animate-pulse mb-5" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="aspect-[2/3] rounded-2xl bg-[var(--bg-card)] border border-[var(--border-color)] animate-pulse" style={{ animationDelay: `${i * 80}ms` }} />
+          ))}
+        </div>
+      </div>
+    ))}
+    <div className="flex items-center justify-center gap-3 pt-4">
       <Loader2 className="w-5 h-5 text-[rgb(var(--primary-color))] animate-spin" />
+      <span className="text-xs font-mono font-bold tracking-widest text-[var(--text-muted)] uppercase">
+        Loading Stage...
+      </span>
     </div>
-    <span className="text-xs font-mono font-bold tracking-widest text-[var(--text-muted)] uppercase">
-      Loading Stage...
-    </span>
   </div>
 );
 

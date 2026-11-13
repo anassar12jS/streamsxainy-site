@@ -1,5 +1,5 @@
 /**
- * Parsers that turn youtubei.js YouTube Music nodes into BitChord's own types.
+ * Parsers that turn youtubei.js YouTube Music nodes into Xainy Music's own types.
  *
  * Field names here come from the youtubei.js 18.x type definitions, NOT from guesswork:
  *  - MusicResponsiveListItem: id (videoId), title (string), artists[{name, channel_id}],
@@ -39,6 +39,19 @@ function widest(arr: any[]): string {
   return best?.url || '';
 }
 
+export const ARTWORK_PLACEHOLDER =
+  'data:image/svg+xml;charset=UTF-8,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#1c1c1e"/><circle cx="300" cy="265" r="72" fill="#3a3a3c"/><path d="M300 385c-62 0-114-42-127-98h254c-13 56-65 98-127 98z" fill="#3a3a3c"/></svg>'
+  );
+
+/** Never return an empty/broken artwork URL: prefer the source thumb, then the video's own thumbnail, then a placeholder. */
+export function artworkOr(url: string | undefined, videoId?: string): string {
+  if (url) return url;
+  if (videoId) return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  return ARTWORK_PLACEHOLDER;
+}
+
 /** Accepts Thumbnail[], MusicThumbnail ({contents}), or an object with `thumbnails`. */
 export function thumbOf(x: any, size = 600): string {
   if (!x) return '';
@@ -48,6 +61,17 @@ export function thumbOf(x: any, size = 600): string {
   else if (Array.isArray(x.contents)) arr = x.contents;
   else if (Array.isArray(x.thumbnails)) arr = x.thumbnails;
   return arr?.length ? hiRes(widest(arr), size) : '';
+}
+
+/** duration{seconds} | {text:'m:ss'} | 'm:ss' | plain seconds -> seconds (0 when unknown) */
+export function durationSeconds(d: any): number {
+  if (d == null) return 0;
+  if (typeof d === 'number') return d;
+  if (typeof d.seconds === 'number' && d.seconds > 0) return d.seconds;
+  const t = txt(d?.text ?? d);
+  const parts = t.split(':').map(Number);
+  if (!parts.length || parts.some(isNaN)) return 0;
+  return parts.reduce((acc, p) => acc * 60 + p, 0);
 }
 
 export function browseIdOf(endpoint: any): string | undefined {
@@ -103,7 +127,7 @@ export function parseSong(item: any, ctx: SongCtx = {}): MusicTrack | null {
   const artist = people.map(p => p?.name).filter(Boolean).join(', ') || ctx.artist || '';
   const artistId: string | undefined = people.find(p => p?.channel_id)?.channel_id || ctx.artistId;
 
-  const artwork = thumbOf(item.thumbnail ?? item.thumbnails) || ctx.artwork || '';
+  const artwork = artworkOr(thumbOf(item.thumbnail ?? item.thumbnails) || ctx.artwork || undefined, videoId);
 
   return {
     id: videoId,
@@ -113,7 +137,7 @@ export function parseSong(item: any, ctx: SongCtx = {}): MusicTrack | null {
     album: item.album?.name || ctx.album || '',
     albumId: item.album?.id || ctx.albumId,
     artwork,
-    duration: item.duration?.seconds ?? 0,
+    duration: durationSeconds(item.duration),
     youtubeId: videoId,
     source: 'innertube',
   };
@@ -141,7 +165,7 @@ export function parseAlbumCard(item: any): Album | null {
     title,
     artist,
     artistId,
-    artwork: thumbOf(item.thumbnail ?? item.thumbnails),
+    artwork: artworkOr(thumbOf(item.thumbnail ?? item.thumbnails)),
     year: item.year || YEAR_RE.exec(subText)?.[0] || '',
     genre: kind ? kind[0].toUpperCase() + kind.slice(1).toLowerCase() : 'Album',
     trackCount: 0, // unknown until the album page is opened
@@ -163,7 +187,7 @@ export function parseArtistCard(item: any): ArtistCard | null {
   return {
     id,
     name,
-    artwork: thumbOf(item.thumbnail ?? item.thumbnails),
+    artwork: artworkOr(thumbOf(item.thumbnail ?? item.thumbnails)),
     subtitle: txt(item.subtitle) || item.subscribers || '',
   };
 }
@@ -186,7 +210,7 @@ export function parsePlaylistCard(item: any): Playlist | null {
   const sub = txt(item.subtitle)
     .replace(/^Playlist\s*•\s*/i, '')
     .trim();
-  const artwork = thumbOf(item.thumbnail ?? item.thumbnails);
+  const artwork = artworkOr(thumbOf(item.thumbnail ?? item.thumbnails));
   return {
     id,
     title,
@@ -284,7 +308,7 @@ export function parseAlbumHeader(header: any, background?: any): ParsedAlbumHead
   const year = header?.year || YEAR_RE.exec(subtitle)?.[0] || YEAR_RE.exec(txt(header?.second_subtitle))?.[0] || '';
   const kind = /^(album|single|ep)/i.exec(subtitle)?.[0] || 'Album';
 
-  const artwork = thumbOf(header?.thumbnail ?? header?.thumbnails ?? background, 1200);
+  const artwork = artworkOr(thumbOf(header?.thumbnail ?? header?.thumbnails ?? background, 1200));
   return { title, artist, artistId, year, artwork, kind: kind[0].toUpperCase() + kind.slice(1).toLowerCase() };
 }
 
@@ -310,8 +334,8 @@ export function parsePanelVideo(row: any): MusicTrack | null {
     artistId: people.find(p => p?.channel_id)?.channel_id,
     album: item.album?.name || '',
     albumId: item.album?.id,
-    artwork: thumbOf(item.thumbnail),
-    duration: item.duration?.seconds ?? 0,
+    artwork: artworkOr(thumbOf(item.thumbnail), item.video_id),
+    duration: durationSeconds(item.duration),
     youtubeId: item.video_id,
     source: 'innertube',
   };

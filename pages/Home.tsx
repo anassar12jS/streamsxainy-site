@@ -23,13 +23,14 @@ import {
 import { TMDBResult, MediaType, ContinueWatchingItem } from '../types';
 import { MediaCard } from '../components/MediaCard';
 import { StreamingProvidersShowcase } from '../components/StreamingProvidersShowcase';
-import { TMDB_BACKDROP_W1280, TMDB_BACKDROP_W780, TMDB_BACKDROP_W300, TMDB_POSTER_BASE } from '../constants';
+import { TMDB_BACKDROP_W1280, TMDB_BACKDROP_W780, TMDB_BACKDROP_W300, TMDB_POSTER_BASE, BACKDROP_FALLBACK_SVG } from '../constants';
 import { 
   Play, Info, TrendingUp, Star, ChevronLeft, ChevronRight, 
   Plus, Check, Youtube, X, Flame, Sparkles, Film, Tv, Compass, 
   CheckCircle2, ArrowRight, Pause, Layers, Zap
 } from 'lucide-react';
 import { RowSkeleton, Skeleton } from '../components/Skeleton';
+import { Reveal } from '../components/Reveal';
 
 interface HomeProps {
   onSelect?: (item: TMDBResult) => void;
@@ -118,7 +119,7 @@ const InteractiveRow = React.memo(({
   if (!items || items.length === 0) return null;
 
   return (
-    <div className="mb-12 relative group/row content-visibility-auto">
+    <Reveal className="mb-12 relative group/row">
       <div className="flex items-center justify-between mb-4 px-4 sm:px-6">
         <div className="flex items-center gap-3">
           {Icon && (
@@ -182,7 +183,7 @@ const InteractiveRow = React.memo(({
         ))}
         <div className="w-4 shrink-0" />
       </div>
-    </div>
+    </Reveal>
   );
 });
 
@@ -217,7 +218,7 @@ const Top10Showcase = React.memo(({
   };
 
   return (
-    <div className="mb-14 relative group/top10 z-10 content-visibility-auto">
+    <Reveal className="mb-14 relative group/top10 z-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 px-4 sm:px-6">
         <div className="flex items-center gap-3">
           <div className="w-1.5 h-8 bg-gradient-to-b from-[rgb(var(--primary-color))] to-pink-500 rounded-full" />
@@ -288,9 +289,16 @@ const Top10Showcase = React.memo(({
         ref={scrollRef}
         className="flex overflow-x-auto overflow-y-hidden overscroll-x-contain space-x-6 px-4 sm:px-6 pb-8 custom-scrollbar scroll-smooth snap-x snap-proximity pt-3"
       >
-        {displayItems.map((item, index) => (
+        {displayItems.map((item, index) => {
+          const itemKey = `${item.media_type || (item.title ? 'movie' : 'tv')}-${item.id}`;
+          const imgSrc = item.backdrop_path
+            ? `${TMDB_BACKDROP_W300}${item.backdrop_path}`
+            : item.poster_path
+              ? `${TMDB_POSTER_BASE}${item.poster_path}`
+              : BACKDROP_FALLBACK_SVG;
+          return (
           <div 
-            key={item.id} 
+            key={itemKey} 
             className="snap-start relative min-w-[270px] sm:min-w-[340px] aspect-[16/9] rounded-2xl cursor-pointer group transition-all duration-300 hover:scale-[1.03] hover:z-20 shrink-0"
             onClick={() => onSelect(item)}
           >
@@ -311,10 +319,14 @@ const Top10Showcase = React.memo(({
             {/* Poster Backdrop Box */}
             <div className="w-full h-full rounded-2xl overflow-hidden shadow-2xl relative border border-[var(--border-subtle)] bg-[var(--bg-card)] ml-8 sm:ml-9 group-hover:border-[rgb(var(--primary-color))]/50 transition-all duration-300 group-hover:shadow-[rgb(var(--primary-color))]/10">
               <img 
-                src={item.backdrop_path ? `${TMDB_BACKDROP_W300}${item.backdrop_path}` : `${TMDB_POSTER_BASE}${item.poster_path}`} 
+                src={imgSrc} 
                 alt={item.name || item.title} 
                 className="w-full h-full object-cover opacity-85 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
                 loading="lazy"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = BACKDROP_FALLBACK_SVG;
+                }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
               
@@ -343,10 +355,11 @@ const Top10Showcase = React.memo(({
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
         <div className="w-6 shrink-0" />
       </div>
-    </div>
+    </Reveal>
   );
 });
 
@@ -399,7 +412,6 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
   const [heroIndex, setHeroIndex] = useState(0);
   const [isHeroHovered, setIsHeroHovered] = useState(false);
   const [isHeroPaused, setIsHeroPaused] = useState(false);
-  const [slideProgress, setSlideProgress] = useState(0);
   const [continueWatchingList, setContinueWatchingList] = useState<ContinueWatchingItem[]>([]);
   const [selectedTrailerKey, setSelectedTrailerKey] = useState<string | null>(null);
   const [selectedTrailerTitle, setSelectedTrailerTitle] = useState<string>('');
@@ -409,6 +421,8 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
 
   const toastTimerRef = useRef<number | null>(null);
   const SLIDE_DURATION_MS = 8000;
+  const heroRemainingRef = useRef<number>(SLIDE_DURATION_MS);
+  const heroDeadlineRef = useRef<number>(0);
 
   const showToast = (message: string) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -455,36 +469,41 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
     }
   }, [currentHero, heroIndex]);
 
-  // Smooth slide timer ticker with visual progress indicator
+  // Auto-advance hero: single timeout instead of a 100ms interval re-rendering
+  // the whole page. Remaining time is tracked so hover/pause resumes correctly.
   useEffect(() => {
-    if (featuredList.length <= 1 || isHeroHovered || isHeroPaused) return;
+    if (featuredList.length <= 1) return;
 
-    const intervalTime = 100;
-    const increment = (intervalTime / SLIDE_DURATION_MS) * 100;
+    const paused = isHeroHovered || isHeroPaused;
+    if (paused) {
+      heroRemainingRef.current = Math.max(0, heroDeadlineRef.current - Date.now());
+      return;
+    }
 
-    const timer = setInterval(() => {
-      setSlideProgress(prev => {
-        if (prev >= 100) {
-          setHeroIndex(curr => (curr + 1) % featuredList.length);
-          return 0;
-        }
-        return prev + increment;
-      });
-    }, intervalTime);
+    heroDeadlineRef.current = Date.now() + heroRemainingRef.current;
+    const timer = window.setTimeout(() => {
+      heroRemainingRef.current = SLIDE_DURATION_MS;
+      setHeroIndex(curr => (curr + 1) % featuredList.length);
+    }, heroRemainingRef.current);
 
-    return () => clearInterval(timer);
+    return () => window.clearTimeout(timer);
   }, [featuredList.length, isHeroHovered, isHeroPaused, heroIndex]);
+
+  const resetHeroTimer = () => {
+    heroRemainingRef.current = SLIDE_DURATION_MS;
+    heroDeadlineRef.current = Date.now() + SLIDE_DURATION_MS;
+  };
 
   const goToNextHero = () => {
     if (featuredList.length <= 1) return;
+    resetHeroTimer();
     setHeroIndex(prev => (prev + 1) % featuredList.length);
-    setSlideProgress(0);
   };
 
   const goToPrevHero = () => {
     if (featuredList.length <= 1) return;
+    resetHeroTimer();
     setHeroIndex(prev => (prev - 1 + featuredList.length) % featuredList.length);
-    setSlideProgress(0);
   };
 
   // Keyboard navigation for Hero Spotlight (Left/Right Arrows)
@@ -844,8 +863,8 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                   <button
                     key={item.id}
                     onClick={() => {
+                      resetHeroTimer();
                       setHeroIndex(idx);
-                      setSlideProgress(0);
                     }}
                     className={`relative w-16 h-10 xl:w-20 xl:h-12 rounded-xl overflow-hidden border-2 transition-all group cursor-pointer ${
                       isActive 
@@ -861,12 +880,16 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                     />
                     <div className="absolute inset-0 bg-black/30 group-hover:bg-transparent transition-colors" />
                     
-                    {/* Active Slide Timer Line */}
+                    {/* Active Slide Timer Line — CSS-driven, no React re-renders */}
                     {isActive && (
                       <div className="absolute inset-x-0 bottom-0 h-1 bg-black/50 overflow-hidden">
-                        <div 
-                          className="h-full bg-[rgb(var(--primary-color))] transition-all duration-100 ease-linear shadow-sm"
-                          style={{ width: `${slideProgress}%` }}
+                        <div
+                          key={heroIndex}
+                          className="h-full w-full bg-[rgb(var(--primary-color))] origin-left shadow-sm"
+                          style={{
+                            animation: `heroProgress ${SLIDE_DURATION_MS}ms linear forwards`,
+                            animationPlayState: (isHeroHovered || isHeroPaused) ? 'paused' : 'running',
+                          }}
                         />
                       </div>
                     )}
@@ -882,8 +905,8 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 <button
                   key={idx}
                   onClick={() => {
+                    resetHeroTimer();
                     setHeroIndex(idx);
-                    setSlideProgress(0);
                   }}
                   aria-label={`Go to slide ${idx + 1}`}
                   className={`h-1.5 rounded-full transition-all cursor-pointer ${
@@ -929,7 +952,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
 
         {/* Continue Watching Row */}
         {continueWatchingList.length > 0 && activeCategory === 'all' && (
-          <div className="mb-10 animate-fade-in content-visibility-auto">
+          <Reveal className="mb-10 animate-fade-in">
             <div className="flex items-center justify-between mb-4 px-4 sm:px-6">
               <div className="flex items-center gap-3">
                 <div className="p-1.5 rounded-xl bg-gradient-to-tr from-[rgb(var(--primary-color))] to-pink-500 text-white shadow-md">
@@ -1022,15 +1045,15 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 );
               })}
             </div>
-          </div>
+          </Reveal>
         )}
 
-        {/* Top 10 Showcase */}
-        {trending && movies && series && activeCategory === 'all' && (
+        {/* Top 10 Showcase — tabs filter the same trending source so every tab is a real "top 10" */}
+        {trending && trending.length > 0 && activeCategory === 'all' && (
           <Top10Showcase 
             allTop={trending} 
-            moviesTop={movies} 
-            seriesTop={series} 
+            moviesTop={trending.filter(i => i.media_type !== 'tv')} 
+            seriesTop={trending.filter(i => i.media_type === 'tv')} 
             onSelect={handleSelect} 
           />
         )}
@@ -1054,7 +1077,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
 
         {/* Curated Genre & Mood Discovery Strip */}
         {activeCategory === 'all' && (
-          <div className="mb-12 content-visibility-auto">
+          <Reveal className="mb-12">
             <div className="flex items-center justify-between mb-4 px-4 sm:px-6">
               <div className="flex items-center gap-3">
                 <div className="p-1.5 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-600/30 text-amber-400">
@@ -1102,7 +1125,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 );
               })}
             </div>
-          </div>
+          </Reveal>
         )}
 
         {/* Popular Blockbusters */}

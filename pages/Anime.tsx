@@ -145,7 +145,7 @@ const AnimeRow = React.memo(({
   if (!items || items.length === 0) return null;
 
   return (
-    <div className="mb-12 relative group/row content-visibility-auto">
+    <div className="mb-12 relative group/row">
       <div className="flex items-center justify-between mb-4 px-4 sm:px-6">
         <div className="flex items-center gap-3">
           {Icon && (

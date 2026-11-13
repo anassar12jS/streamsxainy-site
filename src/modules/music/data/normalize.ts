@@ -1,5 +1,5 @@
 /**
- * BitChord Domain Normalization Layer
+ * Xainy Music Domain Normalization Layer
  * Converts raw Innertube / YouTube Music / Spotify responses into clean, typed models.
  * Includes defensive extractors and high-res thumbnail upscaling.
  */

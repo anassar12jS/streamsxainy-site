@@ -1,5 +1,10 @@
 import { create } from 'zustand';
 import { MusicTrack, LyricsData } from '../types';
+import { artworkOr } from '../api/ytmParse';
+
+/** Repair tracks persisted before artwork fallbacks existed (empty artwork strings). */
+const fixTrackArt = (t: MusicTrack): MusicTrack =>
+  t?.artwork ? t : { ...t, artwork: artworkOr(undefined, t?.youtubeId) };
 
 export type RepeatMode = 'off' | 'all' | 'one';
 export type PlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
@@ -7,6 +12,7 @@ export type PlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'error'
 const STORAGE_LIKES = 'bitchord_music_likes';
 const STORAGE_RECENT = 'bitchord_music_recent';
 const STORAGE_VOLUME = 'bitchord_music_volume';
+const STORAGE_MUTED = 'bitchord_music_muted';
 const STORAGE_SESSION = 'bitchord_music_session_v1';
 const STORAGE_AUTOPLAY = 'bitchord_music_autoplay_radio';
 
@@ -18,7 +24,13 @@ const loadStoredSession = (): StoredSession => {
     const raw = localStorage.getItem(STORAGE_SESSION);
     if (raw) {
       const v = JSON.parse(raw) as StoredSession;
-      if (v?.currentTrack && Array.isArray(v.queue)) return v;
+      if (v?.currentTrack && Array.isArray(v.queue)) {
+        return {
+          ...v,
+          currentTrack: fixTrackArt(v.currentTrack),
+          queue: v.queue.map(fixTrackArt),
+        };
+      }
     }
   } catch {}
   return { currentTrack: null, queue: [], queueIndex: 0 };
@@ -57,7 +69,8 @@ const loadStoredLikes = (): string[] => {
 const loadStoredRecent = (): MusicTrack[] => {
   try {
     const raw = localStorage.getItem(STORAGE_RECENT);
-    return raw ? JSON.parse(raw) : [];
+    const list = raw ? (JSON.parse(raw) as MusicTrack[]) : [];
+    return list.map(fixTrackArt);
   } catch {
     return [];
   }
@@ -70,6 +83,20 @@ const loadStoredVolume = (): number => {
   } catch {
     return 0.85;
   }
+};
+
+const loadStoredMuted = (): boolean => {
+  try {
+    return localStorage.getItem(STORAGE_MUTED) === '1';
+  } catch {
+    return false;
+  }
+};
+
+const saveMuted = (muted: boolean) => {
+  try {
+    localStorage.setItem(STORAGE_MUTED, muted ? '1' : '0');
+  } catch {}
 };
 
 export interface MusicPlayerState {
@@ -96,6 +123,10 @@ export interface MusicPlayerState {
   activeAccount: any | null;
   /** When the queue runs out, keep playing similar songs (YouTube Music radio) */
   autoplayRadio: boolean;
+  /** Sleep timer: pause after N minutes, or at the end of the current track */
+  sleepTimerMode: 'off' | 'time' | 'trackEnd';
+  sleepTimerEndsAt: number | null;
+  sleepTimerMinutes: number | null;
 
   // Actions
   setActiveAccount: (account: any) => void;
@@ -122,6 +153,7 @@ export interface MusicPlayerState {
   /** Appends tracks not already queued; returns how many were added */
   appendToQueue: (tracks: MusicTrack[]) => number;
   setAutoplayRadio: (on: boolean) => void;
+  setSleepTimer: (mode: 'off' | 'time' | 'trackEnd', minutes?: number) => void;
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
   setPlaybackStatus: (status: PlaybackStatus) => void;
@@ -139,7 +171,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   currentTime: 0,
   duration: initialSession.currentTrack?.duration || 0,
   volume: loadStoredVolume(),
-  isMuted: false,
+  isMuted: loadStoredMuted(),
   queue: initialSession.queue,
   queueIndex: initialSession.queueIndex,
   shuffle: false,
@@ -156,6 +188,9 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   trackPlayNonce: 0,
   activeAccount: null,
   autoplayRadio: loadStoredAutoplay(),
+  sleepTimerMode: 'off',
+  sleepTimerEndsAt: null,
+  sleepTimerMinutes: null,
 
   setActiveAccount: (account: any) => {
     try {
@@ -240,7 +275,12 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
 
     let nextIdx = queueIndex + 1;
     if (shuffle) {
-      nextIdx = Math.floor(Math.random() * queue.length);
+      // Smart shuffle: never repeat the current song, and prefer a different artist back-to-back
+      const currentArtist = get().currentTrack?.artist;
+      const candidates = queue.map((_, i) => i).filter(i => i !== queueIndex);
+      const differentArtist = candidates.filter(i => queue[i].artist !== currentArtist);
+      const pool = differentArtist.length ? differentArtist : candidates;
+      nextIdx = pool.length ? pool[Math.floor(Math.random() * pool.length)] : queueIndex;
     } else if (nextIdx >= queue.length) {
       if (repeatMode === 'all') {
         nextIdx = 0;
@@ -286,10 +326,15 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
       localStorage.setItem(STORAGE_VOLUME, String(clamped));
     } catch {}
     set({ volume: clamped, isMuted: clamped === 0 });
+    saveMuted(clamped === 0);
   },
 
   toggleMute: () => {
-    set(state => ({ isMuted: !state.isMuted }));
+    set(state => {
+      const next = !state.isMuted;
+      saveMuted(next);
+      return { isMuted: next };
+    });
   },
 
   toggleShuffle: () => {
@@ -374,6 +419,16 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   setAutoplayRadio: (on) => {
     try { localStorage.setItem(STORAGE_AUTOPLAY, on ? '1' : '0'); } catch {}
     set({ autoplayRadio: on });
+  },
+
+  setSleepTimer: (mode, minutes) => {
+    if (mode === 'time' && minutes && minutes > 0) {
+      set({ sleepTimerMode: 'time', sleepTimerEndsAt: Date.now() + minutes * 60_000, sleepTimerMinutes: minutes });
+    } else if (mode === 'trackEnd') {
+      set({ sleepTimerMode: 'trackEnd', sleepTimerEndsAt: null, sleepTimerMinutes: null });
+    } else {
+      set({ sleepTimerMode: 'off', sleepTimerEndsAt: null, sleepTimerMinutes: null });
+    }
   },
 
   removeFromQueue: (index) => {

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
-import { extensionBridge, BitChordExtensionBridge } from '../extension/bridge';
+import { extensionBridge, XainyMusicBridge } from '../extension/bridge';
 
 import { useSessionStore } from '../store/useSessionStore';
 import { resetInnertube } from '../api/innertube';
@@ -84,7 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         const chromeRuntime = (window as any).chrome?.runtime;
         if (chromeRuntime && typeof chromeRuntime.sendMessage === 'function') {
           chromeRuntime.sendMessage(
-            BitChordExtensionBridge.EXTENSION_ID,
+            XainyMusicBridge.EXTENSION_ID,
             { channel: 'bitchord-bridge', direction: 'to-extension', protocol: 1, method: 'spotify.playlists', params: { offset: 0 } },
             (response: any) => {
               if (chromeRuntime.lastError) {
@@ -199,26 +199,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Top Section */}
       <div className="p-4 space-y-4 overflow-y-auto no-scrollbar">
         
-        {/* BitChord Brand Header with 3-curve wavy equalizer icon */}
+        {/* Xainy Music Brand Header with 3-curve wavy equalizer icon */}
         <div className="flex items-center justify-between px-1 pt-1 pb-1">
           <Link 
             to="/music" 
             className="flex items-center gap-2.5 group cursor-pointer"
             onClick={onCloseMobile}
           >
-            <div className="flex items-center justify-center">
-              <svg 
-                className="w-6 h-6 text-white group-hover:text-white/80 transition-colors" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2.3" 
-                strokeLinecap="round"
-              >
-                <path d="M4 7c3-2 6 2 9 0s5-1 7-1" />
-                <path d="M4 12c3-2 6 2 9 0s5-1 7-1" />
-                <path d="M4 17c3-2 6 2 9 0s5-1 7-1" />
-              </svg>
+            <div className="flex items-center justify-center w-7 h-7 rounded-xl bg-gradient-to-br from-violet-600 via-fuchsia-500 to-pink-500 shadow-lg shadow-fuchsia-500/30 ring-1 ring-white/20">
+              <Music2 className="w-4 h-4 text-white" strokeWidth={2.4} />
             </div>
             <span className="font-bold text-lg text-white tracking-tight">
               Xainy Music
@@ -482,18 +471,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           />
         </div>
 
-        {/* Get Android App & Settings */}
-        <div className="flex items-center justify-between px-2 pt-1">
-          <a
-            href="https://github.com/anassar12jS/bitchord"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[11px] font-medium text-[#777777] hover:text-white flex items-center gap-1 transition-colors"
-          >
-            <span>Get the Android app</span>
-            <span className="text-xs">↗</span>
-          </a>
-
+        {/* Settings & Debug */}
+        <div className="flex items-center justify-end px-2 pt-1">
           <div className="flex items-center gap-1">
             <Link 
               to="/music/debug"
@@ -514,13 +493,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Cinema Switcher */}
+        {/* Cinema Switcher — prominent card so it's easy to spot */}
         <Link
           to="/"
-          className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#777777] hover:text-white text-[10px] font-bold uppercase tracking-wider transition-colors"
+          className="flex items-center justify-between gap-2 w-full px-3.5 py-3 rounded-2xl bg-gradient-to-r from-violet-600/20 via-fuchsia-600/10 to-transparent hover:from-violet-600/30 border border-violet-500/25 hover:border-violet-400/50 text-white transition-all group cursor-pointer"
         >
-          <Film className="w-3 h-3 text-purple-400" />
-          <span>StreamHub Cinema</span>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30 shrink-0 group-hover:scale-105 transition-transform">
+              <Film className="w-4 h-4 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-white truncate">StreamHub Cinema</p>
+              <p className="text-[10px] text-white/50">Movies, shows & sports</p>
+            </div>
+          </div>
+          <ExternalLink className="w-3.5 h-3.5 text-white/40 group-hover:text-white/80 transition-colors shrink-0" />
         </Link>
 
       </div>

@@ -3,7 +3,7 @@ import { extensionBridge } from '../extension/bridge';
 
 const STORAGE_KEY_ADDONS = 'bitchord_music_addons';
 
-export interface BitChordAddonStream {
+export interface XainyMusicAddonStream {
   url: string;
   isDash?: boolean;
   quality?: string;
@@ -65,7 +65,7 @@ export async function searchAddon(addonBaseUrl: string, query: string): Promise<
   return [];
 }
 
-export async function resolveAddonStream(addonBaseUrl: string, trackId: string): Promise<BitChordAddonStream | null> {
+export async function resolveAddonStream(addonBaseUrl: string, trackId: string): Promise<XainyMusicAddonStream | null> {
   const cleanUrl = addonBaseUrl.replace(/\/$/, '');
   try {
     const res = await extensionBridge.proxyFetch(`${cleanUrl}/stream/${encodeURIComponent(trackId)}`);
