@@ -406,6 +406,17 @@ export class XainyMusicBridge {
         // youtubei.googleapis.com endpoints may allow CORS; if not, this fails cleanly
         // and the caller surfaces a normal network error instead of NO_EXTENSION.
         if (extError instanceof BridgeError && extError.code === 'NO_EXTENSION') {
+          // Serverless InnerTube proxy first — reaches the public YouTube Music
+          // catalog from browsers that can't run the extension (phones etc.)
+          const isYtApi = url.includes('youtubei.googleapis.com') || url.includes('/youtubei/');
+          if (isYtApi) {
+            try {
+              const proxied = await this.fetchViaServerlessProxy(url, method, headers, body, isGetOrHead);
+              if (proxied) return proxied;
+            } catch (proxyErr) {
+              console.debug('[Xainy Music Bridge] Serverless proxy failed:', proxyErr);
+            }
+          }
           try {
             const directInit: RequestInit = { method, headers };
             if (!isGetOrHead && body !== undefined) {
@@ -532,6 +543,63 @@ export class XainyMusicBridge {
       localStorage.setItem('bitchord_selected_channel_id', channelId);
     } catch {}
     return this.getAuthState(false);
+  }
+
+  /**
+   * Routes a YouTube InnerTube API call through the site's own Vercel function
+   * (/api/youtubei). Server-side fetch bypasses CORS, so the public catalog
+   * works without the extension. Returns null when the proxy is unavailable
+   * (e.g. local vite dev) so callers can fall through to direct fetch.
+   */
+  private async fetchViaServerlessProxy(
+    url: string,
+    method: string,
+    headers: Record<string, string>,
+    body: any,
+    isGetOrHead: boolean
+  ): Promise<Response | null> {
+    let serializedBody: string | undefined;
+    if (!isGetOrHead && body !== undefined) {
+      if (typeof body === 'string') serializedBody = body;
+      else if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) serializedBody = new TextDecoder().decode(body);
+      else serializedBody = JSON.stringify(body);
+    }
+
+    const payload = JSON.stringify({ url, method, headers, body: serializedBody });
+    // Same-origin first (Vercel), then the production deployment as fallback
+    // so local vite dev (which has no serverless functions) still works.
+    const bases = ['/api/youtubei', 'https://streamsxainy-site.vercel.app/api/youtubei'];
+    let data: any = null;
+    for (const base of bases) {
+      try {
+        const res = await fetch(base, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+        });
+        if (!res.ok) continue;
+        data = await res.json();
+        if (data && typeof data.status === 'number') break;
+        data = null;
+      } catch {}
+    }
+    if (!data) return null;
+    const resHeaders = new Headers();
+    if (data.headers && typeof data.headers === 'object') {
+      for (const [k, v] of Object.entries(data.headers)) resHeaders.set(k, String(v));
+    }
+
+    let responseBody: BodyInit | null = null;
+    if (data.bodyEncoding === 'base64' && typeof data.body === 'string') {
+      const binary = atob(data.body);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      responseBody = bytes.buffer;
+    } else if (typeof data.body === 'string') {
+      responseBody = data.body;
+    }
+
+    return new Response(responseBody, { status: data.status || 200, headers: resHeaders });
   }
 
   public updateDiscordRpc(track: { title: string; artist: string; duration: number; artwork?: string }) {
