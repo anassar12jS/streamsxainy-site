@@ -211,10 +211,10 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
         {/* ======================================================================= */}
         {/* LEFT COLUMN: PLAYER HERO & CONTROLS STACK                              */}
         {/* ======================================================================= */}
-        <div className="lg:col-span-5 flex flex-col justify-center items-center lg:items-start max-w-[440px] mx-auto w-full h-full min-h-0">
+        <div className="lg:col-span-5 flex flex-col justify-center items-center lg:items-start max-w-[400px] mx-auto w-full h-full min-h-0">
           
           {/* Album Artwork with smooth rounded corners & subtle shadow */}
-          <div className="relative aspect-square w-full max-w-[420px] rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.85)] border border-white/5 bg-[#121316] shrink-0">
+          <div className="relative aspect-square w-full max-w-[320px] rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.85)] border border-white/5 bg-[#121316] shrink-0">
             <img 
               src={currentTrack.artwork} 
               alt={currentTrack.title} 
@@ -352,7 +352,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                 }`}
                 title="Shuffle"
               >
-                <Shuffle className="w-4 h-4" />
+                <Shuffle className="w-3.5 h-3.5" />
               </button>
 
               {/* Previous Track: Solid white double triangle */}
@@ -362,7 +362,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                 className="p-2 text-white hover:opacity-80 active:scale-95 transition-all cursor-pointer"
                 title="Previous Track"
               >
-                <SkipBack className="w-6 h-6 fill-white text-white" />
+                <SkipBack className="w-5 h-5 fill-white text-white" />
               </button>
 
               {/* Play / Pause: Solid white glyph, no heavy circular pill */}
@@ -373,9 +373,9 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                 title={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
-                  <Pause className="w-7 h-7 sm:w-8 sm:h-8 fill-white text-white" />
+                  <Pause className="w-6 h-6 sm:w-7 sm:h-7 fill-white text-white" />
                 ) : (
-                  <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-white text-white ml-0.5" />
+                  <Play className="w-6 h-6 sm:w-7 sm:h-7 fill-white text-white ml-0.5" />
                 )}
               </button>
 
@@ -386,7 +386,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                 className="p-2 text-white hover:opacity-80 active:scale-95 transition-all cursor-pointer"
                 title="Next Track"
               >
-                <SkipForward className="w-6 h-6 fill-white text-white" />
+                <SkipForward className="w-5 h-5 fill-white text-white" />
               </button>
 
               {/* Repeat */}
@@ -398,7 +398,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                 }`}
                 title={`Repeat: ${repeatMode}`}
               >
-                <Repeat className="w-4 h-4" />
+                <Repeat className="w-3.5 h-3.5" />
                 {repeatMode === 'one' && (
                   <span className="absolute top-1 right-1 text-[9px] font-bold">1</span>
                 )}
