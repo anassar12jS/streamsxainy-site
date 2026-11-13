@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { RefreshCw, AlertCircle, Heart, Radio, History, ListMusic } from 'lucide-react';
+import { RefreshCw, AlertCircle, Heart, Radio, History, ListMusic, SlidersHorizontal, Eye, EyeOff } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { useSessionStore } from '../store/useSessionStore';
 import { getHomeShelves, resolveTrackDurations } from '../api/innertube';
@@ -14,6 +14,16 @@ import type { MusicTrack } from '../types';
 
 /** Home: live YouTube Music home feed (personalised when a session is connected). */
 const SHELVES_CACHE_PREFIX = 'ytm_home_shelves_v4_'; // v4: duration backfill via getBasicInfo — v3 caches hold duration:0
+const HIDDEN_SHELVES_KEY = 'xainy_hidden_shelves';
+
+const loadHiddenShelves = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(HIDDEN_SHELVES_KEY);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch {
+    return new Set();
+  }
+};
 
 const loadCachedShelves = (channelId: string): HomeShelf[] | undefined => {
   try {
@@ -38,6 +48,17 @@ export const BrowseRoute: React.FC = () => {
   const activeChannel = useSessionStore(state => state.activeChannel);
   const cacheKey = activeChannelId || 'default';
   const [, setDurationTick] = React.useState(0);
+  const [hiddenShelves, setHiddenShelves] = React.useState<Set<string>>(loadHiddenShelves);
+  const [customizing, setCustomizing] = React.useState(false);
+
+  const toggleShelfVisibility = (id: string) => {
+    setHiddenShelves(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      try { localStorage.setItem(HIDDEN_SHELVES_KEY, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
 
   const { data: shelves, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['ytm-home', cacheKey],
@@ -100,6 +121,8 @@ export const BrowseRoute: React.FC = () => {
         };
     }
   };
+
+  const visibleShelves = shelves?.filter(s => !hiddenShelves.has(s.id));
 
   const renderShelf = (shelf: HomeShelf) => {
     const tracks = shelf.items.flatMap(i => (i.kind === 'track' ? [i.track] : []));
@@ -188,16 +211,54 @@ export const BrowseRoute: React.FC = () => {
             {activeChannel ? ` • Picks for ${activeChannel.name}` : ' • YouTube Music home'}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => refetch()}
-          disabled={isFetching}
-          className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-60 cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {shelves && shelves.length > 1 && (
+            <button
+              type="button"
+              onClick={() => setCustomizing(prev => !prev)}
+              className={`px-3.5 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                customizing ? 'bg-white text-black' : 'bg-white/10 hover:bg-white/20 text-white'
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              Shelves
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-60 cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
         </div>
+        </div>
+
+        {/* Shelf customization — show/hide home shelves */}
+        {customizing && shelves && shelves.length > 0 && (
+          <div className="mt-3 rounded-2xl bg-[#141414]/90 backdrop-blur border border-white/10 p-3 flex flex-wrap gap-2">
+            {shelves.map(s => {
+              const hidden = hiddenShelves.has(s.id);
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => toggleShelfVisibility(s.id)}
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-semibold flex items-center gap-1.5 border transition-colors cursor-pointer ${
+                    hidden
+                      ? 'bg-white/5 border-white/10 text-white/35'
+                      : 'bg-white/10 border-white/20 text-white'
+                  }`}
+                >
+                  {hidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  {s.title}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Quick access tiles */}
@@ -261,7 +322,7 @@ export const BrowseRoute: React.FC = () => {
         </div>
       ) : (
         <div className="relative space-y-10">
-          {shelves.map((shelf, i) => (
+          {(visibleShelves ?? []).map((shelf, i) => (
             <div
               key={shelf.id}
               className="animate-fade-in"

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getAlbumDetails } from '../api/innertube';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { MusicTrack } from '../types';
+import { ParallaxImage } from '../components/ParallaxImage';
 
 export const AlbumRoute: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -92,8 +93,19 @@ export const AlbumRoute: React.FC = () => {
           {/* ========================================================================= */}
           {/* 1. ALBUM HEADER LOCKUP                                                    */}
           {/* ========================================================================= */}
-          <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 sm:gap-8 pt-2 pb-8 border-b border-white/10">
-            
+          <div className="relative flex flex-col sm:flex-row items-center sm:items-end gap-6 sm:gap-8 pt-2 pb-8 border-b border-white/10">
+
+            {/* Ambient blurred artwork backdrop with scroll parallax */}
+            <div className="absolute -inset-8 overflow-hidden rounded-3xl pointer-events-none" aria-hidden="true">
+              <ParallaxImage
+                src={album.artwork}
+                alt=""
+                speed={0.15}
+                className="opacity-25 blur-3xl"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0f0f0f] via-[#0f0f0f]/70 to-transparent" />
+            </div>
+
             {/* Aspect Square, Rounded 8px Album Cover */}
             <div className="relative w-48 h-48 sm:w-56 sm:h-56 lg:w-60 lg:h-60 rounded-[8px] overflow-hidden shadow-[0_16px_36px_rgba(0,0,0,0.8)] border border-white/10 shrink-0 bg-[#121212]">
               <img 

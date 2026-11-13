@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Pause, Heart, MoreHorizontal, Plus, Disc, Loader2, ListPlus } from 'lucide-react';
+import { Play, Pause, Heart, MoreHorizontal, Plus, Disc, Loader2, ListPlus, Moon } from 'lucide-react';
 import { MusicTrack } from '../types';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { prefetchStreamUrl } from '../api/innertube';
@@ -27,6 +27,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
   const toggleLike = useMusicPlayerStore(state => state.toggleLike);
   const isLiked = useMusicPlayerStore(state => state.isLiked(track.id));
   const addToQueue = useMusicPlayerStore(state => state.addToQueue);
+  const setSleepTimer = useMusicPlayerStore(state => state.setSleepTimer);
 
   const [showMenu, setShowMenu] = useState(false);
 
@@ -240,6 +241,18 @@ export const TrackRow: React.FC<TrackRowProps> = ({
               >
                 <Disc className="w-3.5 h-3.5" />
                 <span>Add to Queue</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  playTrack(track, playlistContext);
+                  setSleepTimer('trackEnd');
+                  setShowMenu(false);
+                }}
+                className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white cursor-pointer"
+              >
+                <Moon className="w-3.5 h-3.5" />
+                <span>Play &amp; sleep after song</span>
               </button>
             </div>
           )}

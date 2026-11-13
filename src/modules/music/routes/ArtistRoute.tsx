@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getArtistDetails, getArtistAllSongs } from '../api/innertube';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { MusicTrack } from '../types';
+import { ParallaxImage } from '../components/ParallaxImage';
 
 export const ArtistRoute: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -102,10 +103,12 @@ export const ArtistRoute: React.FC = () => {
           {/* 1. ARTIST HERO LOCKUP                                                     */}
           {/* ========================================================================= */}
           <div className="relative rounded-2xl overflow-hidden p-6 sm:p-10 border border-white/10 bg-[#121212] shadow-2xl flex flex-col sm:flex-row items-center sm:items-end justify-between gap-6">
-            {/* Ambient Blurred backdrop */}
-            <div 
-              className="absolute inset-0 bg-cover bg-center filter blur-3xl opacity-20 scale-125 pointer-events-none"
-              style={{ backgroundImage: `url(${artist.avatar})` }}
+            {/* Ambient Blurred backdrop with scroll parallax */}
+            <ParallaxImage
+              src={artist.avatar}
+              alt=""
+              speed={0.15}
+              className="opacity-20 blur-3xl pointer-events-none"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-[#121212]/80 to-transparent pointer-events-none" />
 

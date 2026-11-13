@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, Suspense, lazy } from 'react';
-import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, Link, useSearchParams } from 'react-router-dom';
 import { Menu, Home, Compass, Library, Search } from 'lucide-react';
 import './styles/tokens.css';
 import { useMusicPlayerStore } from './store/useMusicPlayerStore';
@@ -60,6 +60,8 @@ export const MusicModule: React.FC = () => {
 
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isListenTogetherOpen, setIsListenTogetherOpen] = useState(false);
+  const [partyJoinCode, setPartyJoinCode] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isYtLinkOpen, setIsYtLinkOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
 
@@ -342,7 +344,7 @@ export const MusicModule: React.FC = () => {
 
         // Pre-fetch lyrics in background so full-screen lyrics are instant
         if (!currentTrack.isLive && currentTrack.artist && currentTrack.title) {
-          fetchLyrics(currentTrack.artist, currentTrack.title, currentTrack.duration).then(lyrics => {
+          fetchLyrics(currentTrack.artist, currentTrack.title, currentTrack.duration, currentTrack.youtubeId).then(lyrics => {
             if (!isCancelled && lyrics) {
               useMusicPlayerStore.getState().setLyrics(lyrics);
               useMusicPlayerStore.getState().setIsLoadingLyrics(false);
@@ -662,6 +664,19 @@ export const MusicModule: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Deep link: /music?party=ABC123 opens Listen Together with the code prefilled
+  useEffect(() => {
+    const code = searchParams.get('party');
+    if (!code) return;
+    setPartyJoinCode(code.trim().toUpperCase());
+    setIsListenTogetherOpen(true);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete('party');
+      return next;
+    }, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   // Re-check pending remote position whenever playback state flips to playing
   useEffect(() => {
     if (playbackStatus !== 'playing') return;
@@ -889,7 +904,8 @@ export const MusicModule: React.FC = () => {
         <Suspense fallback={null}>
           <ListenTogetherModal
             isOpen={isListenTogetherOpen}
-            onClose={() => setIsListenTogetherOpen(false)}
+            onClose={() => { setIsListenTogetherOpen(false); setPartyJoinCode(null); }}
+            joinCode={partyJoinCode}
           />
         </Suspense>
       )}

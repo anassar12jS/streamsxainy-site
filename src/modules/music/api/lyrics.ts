@@ -48,7 +48,7 @@ function parseLrc(lrcText: string): SyncedLyricLine[] {
   return synced.sort((a, b) => a.time - b.time);
 }
 
-export async function fetchLyrics(artist: string, title: string, duration?: number): Promise<LyricsData | null> {
+export async function fetchLyrics(artist: string, title: string, duration?: number, videoId?: string): Promise<LyricsData | null> {
   if (!artist || !title) return null;
 
   const cleanedTitle = cleanTrackTitle(title);
@@ -118,6 +118,32 @@ export async function fetchLyrics(artist: string, title: string, duration?: numb
         synced: [],
         ttml: '',
       };
+    }
+  } catch {}
+
+  // 5. YouTube Music's own lyrics endpoint — official timed lyrics for
+  //    tracks LRCLIB/ovh don't carry. Needs a videoId, resolved lazily.
+  try {
+    const { getInnertube, resolveVideoId } = await import('./innertube');
+    const resolvedId = videoId || (await resolveVideoId({ title, artist }));
+    if (resolvedId) {
+      const yt: any = await getInnertube();
+      const lyricsRes: any = await yt.music.getLyrics(resolvedId);
+      const timed: any[] = lyricsRes?.timedLyrics || [];
+      const plain: string = lyricsRes?.lyrics || '';
+      if (timed.length > 0 || plain) {
+        const synced: SyncedLyricLine[] = timed
+          .map((l: any) => ({
+            time: (Number(l.textStartMs) || 0) / 1000,
+            text: String(l.text || '').trim(),
+          }))
+          .filter((l: SyncedLyricLine) => l.text);
+        return {
+          plain: plain || synced.map(s => s.text).join('\n'),
+          synced,
+          ttml: generateTTMLFromLRC(synced, cleanedTitle || title, cleanedArtist || artist),
+        };
+      }
     }
   } catch {}
 

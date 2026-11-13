@@ -6,6 +6,8 @@ import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 interface ListenTogetherModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Prefilled room code from a ?party= deep link */
+  joinCode?: string | null;
 }
 
 interface Member {
@@ -19,6 +21,7 @@ const NAME_KEY = 'xainy_party_name';
 export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
   isOpen,
   onClose,
+  joinCode,
 }) => {
   const [activeCode, setActiveCode] = useState<string | null>(listenTogetherClient.currentPartyCode);
   const [isHost, setIsHost] = useState(listenTogetherClient.isCurrentHost);
@@ -36,6 +39,11 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
 
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
+
+  // Prefill join code from a shared party deep link
+  useEffect(() => {
+    if (joinCode) setInputCode(joinCode.slice(0, 6).toUpperCase());
+  }, [joinCode]);
 
   useEffect(() => {
     const unsub = listenTogetherClient.subscribe((type, payload) => {
