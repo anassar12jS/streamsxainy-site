@@ -234,7 +234,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex flex-col bg-[#07080b] text-white select-none overflow-hidden animate-fade-in font-sans"
+      className="fixed inset-0 z-50 flex flex-col bg-[#07080b] text-white select-none overflow-hidden animate-fade-in font-sans pb-[env(safe-area-inset-bottom)]"
       style={{ fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}
     >
       {/* ========================================================================= */}
@@ -285,16 +285,16 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
       {/* Left: Artwork + Title + Scrubber + Deck + Volume                         */}
       {/* Right: Crisp, sharp Lyrics (no glow!) or Apple Up-Next panel             */}
       {/* ========================================================================= */}
-      <main className="relative z-20 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 px-8 sm:px-12 lg:px-20 py-8 lg:py-12 min-h-0 overflow-hidden max-w-[1600px] mx-auto w-full">
+      <main className="relative z-20 flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-4 lg:gap-14 px-4 sm:px-8 lg:px-20 pt-4 lg:pt-12 pb-1 lg:pb-12 min-h-0 overflow-hidden max-w-[1600px] mx-auto w-full">
         
         {/* ======================================================================= */}
         {/* LEFT COLUMN: PLAYER HERO & CONTROLS STACK                              */}
         {/* ======================================================================= */}
-        <div className="lg:col-span-5 flex flex-col justify-center items-center lg:items-start max-w-[400px] mx-auto w-full h-full min-h-0">
+        <div className="lg:col-span-5 flex flex-col justify-start lg:justify-center items-center lg:items-start w-full shrink-0 lg:h-full lg:max-w-[400px] mx-auto min-h-0">
           
           {/* Album Artwork with smooth rounded corners & subtle shadow */}
           <div 
-            className="relative aspect-square w-full max-w-[320px] rounded-2xl sm:rounded-3xl overflow-hidden shrink-0 transition-shadow duration-700"
+            className="relative aspect-square w-full max-w-[170px] sm:max-w-[240px] lg:max-w-[320px] rounded-2xl sm:rounded-3xl overflow-hidden shrink-0 transition-shadow duration-700"
             style={{
               boxShadow: ambient
                 ? `0 24px 80px rgba(0,0,0,0.85), 0 0 90px ${ambient[0]}33`
@@ -313,7 +313,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
           </div>
 
           {/* Player controls & metadata stack */}
-          <div className="w-full mt-6 space-y-4">
+          <div className="w-full mt-4 lg:mt-6 space-y-3 lg:space-y-4">
             
             {/* Title Row with Explicit Badge + Star + More */}
             <div className="flex items-center justify-between gap-3">
@@ -527,7 +527,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
         {/* ======================================================================= */}
         {/* RIGHT COLUMN: CRISP SYNCHRONIZED LYRICS (ZERO GLOW) OR UP-NEXT QUEUE   */}
         {/* ======================================================================= */}
-        <div className="lg:col-span-7 flex flex-col h-full min-h-0 overflow-hidden pl-0 lg:pl-12 pt-6 lg:pt-0">
+        <div className="lg:col-span-7 flex flex-col flex-1 lg:h-full min-h-0 overflow-hidden pl-0 lg:pl-12 pt-2 lg:pt-0">
           
           {/* VIEW A: LYRICS */}
           {immersiveTab === 'lyrics' && (
@@ -663,7 +663,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
       {/* ========================================================================= */}
       {/* 4. BOTTOM-RIGHT CONTROLS: Lyrics bubble icon & Queue toggle               */}
       {/* ========================================================================= */}
-      <footer className="absolute bottom-6 right-6 z-40 flex items-center gap-2">
+      <footer className="relative lg:absolute lg:bottom-6 lg:right-6 z-40 flex items-center justify-center gap-2 pb-3 lg:pb-0 pt-1 lg:pt-0 shrink-0">
         {/* Lyrics toggle button (Apple Music speech bubble with quote mark) */}
         <button
           type="button"

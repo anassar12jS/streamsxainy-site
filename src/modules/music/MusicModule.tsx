@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, Suspense, lazy } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Menu } from 'lucide-react';
+import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
+import { Menu, Home, Search, Heart, Settings } from 'lucide-react';
 import './styles/tokens.css';
 import { useMusicPlayerStore } from './store/useMusicPlayerStore';
 import { MusicAudioEngine } from './player/AudioEngine';
@@ -834,6 +834,33 @@ export const MusicModule: React.FC = () => {
           </div>
         </Suspense>
       </main>
+
+      {/* Mobile bottom tab bar — thumb-reachable nav, hidden on desktop */}
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#0f0f0f]/90 backdrop-blur-xl border-t border-white/10 pb-[env(safe-area-inset-bottom)]">
+        <div className="flex items-stretch justify-around h-14">
+          {([
+            { to: '/music', label: 'Home', icon: Home, exact: true },
+            { to: '/music/search', label: 'Search', icon: Search, exact: false },
+            { to: '/music/library/liked', label: 'Liked', icon: Heart, exact: false },
+            { to: '/music/settings', label: 'Settings', icon: Settings, exact: false },
+          ] as const).map(tab => {
+            const Icon = tab.icon;
+            const active = tab.exact ? location.pathname === tab.to : location.pathname.startsWith(tab.to);
+            return (
+              <Link
+                key={tab.to}
+                to={tab.to}
+                className={`flex flex-col items-center justify-center gap-0.5 flex-1 transition-colors cursor-pointer ${
+                  active ? 'text-white' : 'text-white/40 hover:text-white/70'
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="text-[9px] font-semibold tracking-wide">{tab.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
 
       {/* Floating Glassmorphic Player Capsule Dock */}
       <PlayerChrome
