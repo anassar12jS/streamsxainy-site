@@ -7,16 +7,16 @@
  *   - Internet Archive (last-resort FLAC)
  *   - Deezer      (catalog only — rows resolve on any audio source)
  *
- * Qobuz/Tidal upstreams from the original BitChord addon are dead
- * (soundfean suspended, aurix/gglos offline) so they are not wired in.
+ * Qobuz/Tidal upstreams are dead (soundfean suspended, aurix/gglos offline).
+ * Shared provider code lives in server/hires/ (outside api/ so Vercel only
+ * builds this one function).
  *
- * Endpoints:
- *   GET /api/hires-stream?q=...&quality=LOSSLESS   → { tracks }
- *   GET /api/hires-stream/stream?id=mc:123          → stream descriptor
- *   GET /api/hires-stream/health                    → per-provider status
+ *   GET /api/hires-stream?q=...&quality=LOSSLESS  → { tracks }
+ *   GET /api/hires-stream?id=mc:123&quality=...  → stream descriptor
+ *   GET /api/hires-stream?health=1               → per-provider status
  */
 
-import { searchAll, resolveStream } from './_lib/router.js';
+import { searchAll, resolveStream } from '../server/hires/router.js';
 
 const json = (res, status, body, extraHeaders = {}) => {
   const headers = {
@@ -89,19 +89,8 @@ export default async function handler(req, res) {
   }
 
   const url = new URL(req.url, 'http://localhost');
-  let path = url.pathname.replace(/\/+$/, '') || '/';
-  // Support both /api/hires-stream and /api/hires-stream/stream/... shapes
-  path = path.replace(/^\/api\/hires-stream/, '') || '/';
 
-  if (path === '/' || path === '') {
-    return json(res, 200, {
-      name: 'xainy-hires',
-      description: 'Multi-source lossless FLAC resolver with automatic failover',
-      endpoints: ['/api/hires-stream?q=', '/api/hires-stream/stream?id=', '/api/hires-stream/health'],
-    });
-  }
-
-  if (path === '/health' || url.searchParams.get('health') === '1') {
+  if (url.searchParams.get('health') === '1') {
     try {
       return json(res, 200, await health());
     } catch (err) {
@@ -109,26 +98,6 @@ export default async function handler(req, res) {
     }
   }
 
-  if (path === '/search') {
-    const query = url.searchParams.get('q') || '';
-    if (!query.trim()) return json(res, 200, { tracks: [] });
-    try {
-      const { tracks, perSource } = await searchAll(query, url.searchParams.get('quality'));
-      return json(res, 200, { tracks }, { 'X-Addon-Sources': encodeURIComponent(JSON.stringify(perSource)) });
-    } catch (err) {
-      return json(res, 200, { tracks: [], error: String(err?.message || err) });
-    }
-  }
-
-  if (path.startsWith('/stream/')) {
-    const id = decodeURIComponent(path.slice('/stream/'.length));
-    if (!id) return json(res, 404, { error: 'missing id' });
-    const stream = await resolveStream(id, url.searchParams.get('quality'));
-    if (!stream) return json(res, 404, { error: 'not available' });
-    return json(res, 200, stream);
-  }
-
-  // Convenience: /api/hires-stream?id=mc:123 resolves a stream directly
   const directId = url.searchParams.get('id');
   if (directId) {
     const stream = await resolveStream(directId, url.searchParams.get('quality'));
@@ -136,5 +105,19 @@ export default async function handler(req, res) {
     return json(res, 200, stream);
   }
 
-  return json(res, 404, { error: 'not found' });
+  const query = url.searchParams.get('q') || '';
+  if (!query.trim()) {
+    return json(res, 200, {
+      name: 'xainy-hires',
+      description: 'Multi-source lossless FLAC resolver with automatic failover',
+      endpoints: ['?q=', '?id=', '?health=1'],
+    });
+  }
+
+  try {
+    const { tracks, perSource } = await searchAll(query, url.searchParams.get('quality'));
+    return json(res, 200, { tracks }, { 'X-Addon-Sources': encodeURIComponent(JSON.stringify(perSource)) });
+  } catch (err) {
+    return json(res, 200, { tracks: [], error: String(err?.message || err) });
+  }
 }
