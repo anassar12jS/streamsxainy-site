@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   X, Settings, Plus, Trash2, Check, ExternalLink, ShieldCheck, 
   Layers, Radio, Sparkles, Sliders, Music2, MessageSquare, Disc,
@@ -428,6 +429,21 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                 </div>
                 <span className="px-2.5 py-1 rounded-lg bg-white/10 text-white/60 text-[10px] font-mono">Supabase</span>
               </div>
+
+              {/* Account & extension status page */}
+              <Link
+                to="/music/settings"
+                onClick={onClose}
+                className="block p-4 rounded-2xl bg-[#141416] border border-white/10 hover:bg-white/5 transition-colors"
+              >
+                <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                  Account & Extension Status
+                  <ExternalLink className="w-3 h-3 text-white/40" />
+                </h4>
+                <p className="text-[11px] text-white/50 mt-0.5">
+                  YouTube account switching, Spotify sign-in, and extension diagnostics
+                </p>
+              </Link>
 
             </div>
           )}
