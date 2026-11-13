@@ -408,7 +408,7 @@ export const MusicModule: React.FC = () => {
               }
             }
           } catch (hiresErr) {
-            console.debug('Hi-res stream unavailable, falling back:', hiresErr);
+            console.warn('Hi-res stream unavailable, falling back:', hiresErr);
           }
         }
         if (isCancelled) return;

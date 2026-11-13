@@ -109,8 +109,9 @@ export async function tryHiresStream(
       // Web Audio graph requires CORS-clean media or it silently fails.
       // Netease and Archive send ACAO:* so they can play direct.
       const needsProxy = /monochrome\.st|qqdl\.site/i.test(stream.url) || stream.provider === 'Monochrome';
+      // loadStream requires an absolute http(s) URL — relative /api paths throw
       const url = needsProxy
-        ? `${BASE}?proxy=${encodeURIComponent(stream.url)}`
+        ? `${window.location.origin}${BASE}?proxy=${encodeURIComponent(stream.url)}`
         : stream.url;
       return { url, meta: stream };
     }
