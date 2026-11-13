@@ -165,7 +165,7 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
     <>
       {/* Xainy Music Apple Music Authentic Floating Player Pill */}
       <div 
-        className="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom))] sm:bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-[860px] w-[96vw] sm:w-auto"
+        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] sm:bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-[860px] w-[96vw] sm:w-auto"
         style={{ fontFamily: 'var(--bitchord-font)' }}
       >
         <div 

@@ -835,9 +835,10 @@ export const MusicModule: React.FC = () => {
         </Suspense>
       </main>
 
-      {/* Mobile bottom tab bar — thumb-reachable nav, hidden on desktop */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-[#0f0f0f]/90 backdrop-blur-xl border-t border-white/10 pb-[env(safe-area-inset-bottom)]">
-        <div className="flex items-stretch justify-around h-14">
+      {/* Mobile bottom tab bar — floating liquid-glass pill, hidden on desktop */}
+      <nav className="lg:hidden fixed bottom-[calc(0.7rem+env(safe-area-inset-bottom))] inset-x-3 z-40">
+        <div className="relative flex items-stretch justify-around h-14 rounded-[1.4rem] bg-white/[0.09] backdrop-blur-2xl border border-white/[0.16] shadow-[0_16px_50px_rgba(0,0,0,0.65),inset_0_1px_0_rgba(255,255,255,0.14)] overflow-hidden">
+          <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
           {([
             { to: '/music', label: 'Home', icon: Home, exact: true },
             { to: '/music/new', label: 'Explore', icon: Compass, exact: false },
@@ -850,8 +851,8 @@ export const MusicModule: React.FC = () => {
               <Link
                 key={tab.to}
                 to={tab.to}
-                className={`flex flex-col items-center justify-center gap-0.5 flex-1 transition-colors cursor-pointer ${
-                  active ? 'text-white' : 'text-white/40 hover:text-white/70'
+                className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 rounded-2xl transition-colors cursor-pointer ${
+                  active ? 'text-white bg-white/[0.12]' : 'text-white/40 hover:text-white/70'
                 }`}
               >
                 <Icon className="w-5 h-5" />

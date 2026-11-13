@@ -193,7 +193,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const sidebarContent = (
     <div 
-      className="w-[230px] h-full bg-[#121212] text-[#a3a3a3] flex flex-col justify-between select-none border-r border-[#1a1a1a]"
+      className="w-[230px] h-full bg-[#121212] text-[#a3a3a3] flex flex-col justify-between select-none border-r border-[#1a1a1a] pb-40 lg:pb-0"
       style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       
@@ -557,7 +557,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Mobile Sidebar Overlay Drawer */}
       {isOpenOnMobile && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
+        <div className="lg:hidden fixed inset-0 z-[60] flex">
           <div 
             onClick={onCloseMobile}
             className="fixed inset-0 bg-black/80 backdrop-blur-sm animate-fade-in" 

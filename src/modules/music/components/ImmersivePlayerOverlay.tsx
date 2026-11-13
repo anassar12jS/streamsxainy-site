@@ -295,7 +295,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
           
           {/* Album Artwork with smooth rounded corners & subtle shadow */}
           <div 
-            className="relative aspect-square w-full max-w-[170px] sm:max-w-[240px] lg:max-w-[320px] rounded-2xl sm:rounded-3xl overflow-hidden shrink-0 transition-shadow duration-700"
+            className="relative aspect-square w-full max-w-[150px] sm:max-w-[220px] lg:max-w-[320px] rounded-2xl sm:rounded-3xl overflow-hidden shrink-0 transition-shadow duration-700"
             style={{
               boxShadow: ambient
                 ? `0 24px 80px rgba(0,0,0,0.85), 0 0 90px ${ambient[0]}33`
@@ -506,8 +506,8 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
               </button>
             </div>
 
-            {/* Volume Slider Bar */}
-            <div className="w-full flex items-center gap-2.5 pt-1">
+            {/* Volume Slider Bar — hidden on phones, hardware/gesture volume instead */}
+            <div className="hidden sm:flex w-full items-center gap-2.5 pt-1">
               <button
                 type="button"
                 onClick={toggleMute}
@@ -544,7 +544,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
           {immersiveTab === 'lyrics' && (
             <div 
               ref={lyricsContainerRef}
-              className="flex-1 overflow-y-auto pr-4 am-scrollbar py-24 select-none"
+              className="flex-1 overflow-y-auto overscroll-contain pr-4 am-scrollbar py-24 select-none"
               style={{ maskImage: 'linear-gradient(to bottom, transparent 0%, black 12%, black 82%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 12%, black 82%, transparent 100%)' }}
             >
               {isLoadingLyrics ? (
@@ -607,7 +607,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                 )}
               </div>
 
-              <div className="flex-1 overflow-y-auto am-scrollbar py-3 space-y-1">
+              <div className="flex-1 overflow-y-auto overscroll-contain am-scrollbar py-3 space-y-1">
                 {upNextTracks.length > 0 ? (
                   upNextTracks.map((track, idx) => {
                     const actualQueueIndex = queueIndex + 1 + idx;
