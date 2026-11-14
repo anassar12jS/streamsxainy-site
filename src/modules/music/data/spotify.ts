@@ -64,6 +64,37 @@ export async function signInSpotify(): Promise<boolean> {
 }
 
 /**
+ * Fetches every Spotify playlist page (extension caps at 50/page).
+ */
+export async function getAllSpotifyPlaylists(): Promise<SpotifyPlaylist[]> {
+  const all: SpotifyPlaylist[] = [];
+  for (let page = 0; page < 10; page++) {
+    const offset = page * 50;
+    try {
+      const res = await extensionBridge.call<any>('spotify.playlists', { offset, limit: 50 });
+      const items: any[] = Array.isArray(res) ? res : (res?.items || []);
+      const normalized = items
+        .map((p: any) => ({
+          id: p?.id || String(p?.uri || '').split(':').pop() || '',
+          name: p?.name || '',
+          description: p?.description,
+          images: p?.imageUrl ? [{ url: p.imageUrl }] : p?.images,
+          owner: p?.owner,
+          tracks: p?.tracks,
+        }))
+        .filter((p: any) => p.id && p.name);
+      all.push(...normalized);
+      const total = typeof res?.total === 'number' ? res.total : items.length;
+      if (items.length < 50 || all.length >= total) break;
+    } catch (e) {
+      console.debug('Spotify playlists page failed:', e);
+      break;
+    }
+  }
+  return all;
+}
+
+/**
  * Fetches user playlists from Spotify
  */
 export async function getSpotifyPlaylists(offset = 0, limit = 20): Promise<SpotifyPlaylist[]> {
@@ -82,13 +113,46 @@ export async function getSpotifyPlaylists(offset = 0, limit = 20): Promise<Spoti
 }
 
 /**
+ * The extension returns Spotify's GraphQL shape: { id, title, artist, album,
+ * durationMs, imageUrl }. Older code expected the REST shape { name, artists,
+ * duration_ms, album.images }. Normalize both into SpotifyTrack.
+ */
+function normalizeSpotifyTrack(raw: any): SpotifyTrack | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = raw.id || String(raw.uri || '').split(':').pop() || '';
+  const name = raw.name || raw.title || '';
+  if (!id || !name) return null;
+  const artists: Array<{ name: string; id?: string }> = Array.isArray(raw.artists) && raw.artists.length
+    ? raw.artists.map((a: any) => ({ name: a?.name || '', id: a?.id }))
+    : raw.artist
+      ? [{ name: String(raw.artist) }]
+      : [{ name: 'Various Artists' }];
+  const durationMs = raw.duration_ms ?? raw.durationMs ?? 0;
+  const imageUrl = raw.imageUrl
+    || raw.album?.images?.[0]?.url
+    || (Array.isArray(raw.album?.images) ? raw.album.images[0]?.url : undefined);
+  const albumName = raw.album?.name || raw.albumName || '';
+  return {
+    id,
+    name,
+    artists: artists.filter(a => a.name),
+    album: (albumName || imageUrl)
+      ? { name: albumName, images: imageUrl ? [{ url: imageUrl }] : undefined }
+      : undefined,
+    duration_ms: durationMs,
+  };
+}
+
+/**
  * Fetches tracks from a Spotify playlist (single page).
  */
 export async function getSpotifyPlaylistTracks(playlistId: string, offset = 0): Promise<{ tracks: SpotifyTrack[]; total: number }> {
   try {
     const res = await extensionBridge.call<any>('spotify.tracks', { playlistId, offset });
     const rawItems: any[] = Array.isArray(res) ? res : (res?.items || res?.tracks || []);
-    const tracks = rawItems.map((item: any) => item?.track || item).filter(Boolean) as SpotifyTrack[];
+    const tracks = rawItems
+      .map((item: any) => normalizeSpotifyTrack(item?.track || item))
+      .filter((t): t is SpotifyTrack => t !== null);
     const total = typeof res?.total === 'number' ? res.total : tracks.length;
     return { tracks, total };
   } catch (e) {

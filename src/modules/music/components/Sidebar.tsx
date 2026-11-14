@@ -7,12 +7,13 @@ import {
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
-import { extensionBridge, XainyMusicBridge } from '../extension/bridge';
+import { extensionBridge } from '../extension/bridge';
 
 import { useSessionStore } from '../store/useSessionStore';
 import { resetInnertube } from '../api/innertube';
 import { syncUserYouTubeMusicLibrary } from '../api/youtubeAuth';
 import { getLibraryPlaylists } from '../api/innertube';
+import { getAllSpotifyPlaylists } from '../data/spotify';
 import { ARTWORK_PLACEHOLDER } from '../api/ytmParse';
 
 interface SidebarProps {
@@ -80,35 +81,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const { data: spotifyPlaylists } = useQuery({
     queryKey: ['spotifyPlaylists'],
-    queryFn: () => new Promise<any[]>((resolve, reject) => {
-      try {
-        const chromeRuntime = (window as any).chrome?.runtime;
-        if (chromeRuntime && typeof chromeRuntime.sendMessage === 'function') {
-          chromeRuntime.sendMessage(
-            XainyMusicBridge.EXTENSION_ID,
-            { channel: 'bitchord-bridge', direction: 'to-extension', protocol: 1, method: 'spotify.playlists', params: { offset: 0 } },
-            (response: any) => {
-              if (chromeRuntime.lastError) {
-                // If extension communication error, return empty array gracefully
-                resolve([]);
-                return;
-              }
-              if (response?.ok && response.result) {
-                resolve(response.result.items || []); // Must resolve the 'items' array
-              } else {
-                resolve([]);
-              }
-            }
-          );
-        } else {
-          resolve([]);
-        }
-      } catch {
-        resolve([]);
-      }
-    }),
+    queryFn: getAllSpotifyPlaylists,
     enabled: isBridgeReady, // CRITICAL: Prevent fetching until extension is ready
-    staleTime: 1000 * 60 * 5, 
+    staleTime: 1000 * 60 * 5,
   });
 
   // Click outside to dismiss popover
