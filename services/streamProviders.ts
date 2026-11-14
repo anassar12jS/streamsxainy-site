@@ -12,7 +12,7 @@ export const PROVIDERS = [
   { id: 'vidsrc-sh', name: 'VidSrc Direct', speed: 'Fast ⚡', quality: '1080p Auto', badge: 'Stable' },
   { id: 'cinemaos', name: 'CinemaOS', speed: 'Fast 💎', quality: 'High Bitrate', badge: 'Cinema' },
   { id: 'vidsrc-wtf', name: 'VidSrc WTF', speed: 'Fast ⚡', quality: '1080p', badge: 'Mirror 1' },
-  { id: 'vidora', name: 'Vidora Stream', speed: 'Adaptive 🌐', quality: 'Multi-Res', badge: 'Mirror 2' },
+  { id: 'videasy-xyz', name: 'Videasy XYZ', speed: 'Adaptive 🌐', quality: 'Multi-Res', badge: 'Mirror 2' },
   { id: 'vidfastpro', name: 'VidFast HQ', speed: 'Rapid ⚡', quality: '1080p', badge: 'Mirror 3' },
   { id: 'vidsrc-to', name: 'VidSrc TO', speed: 'Fast ⚡', quality: '1080p', badge: 'Mirror 4' },
   { id: 'vidsrc-me', name: 'VidSrc ME', speed: 'Fast ⚡', quality: '1080p', badge: 'Mirror 5' },

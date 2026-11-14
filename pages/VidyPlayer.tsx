@@ -401,10 +401,10 @@ export const VidyPlayer: React.FC = () => {
         return isEpisode
           ? `https://player.videasy.net/tv/${id}/${season}/${episode}`
           : `https://player.videasy.net/movie/${id}`;
-      case 'vidora':
+      case 'videasy-xyz':
         return isEpisode
-          ? `https://vidora.su/tv/${id}/${season}/${episode}`
-          : `https://vidora.su/movie/${id}`;
+          ? `https://videasy.xyz/embed/tv/${id}/${season}/${episode}`
+          : `https://videasy.xyz/embed/movie/${id}`;
       case 'cinemaos':
         return isEpisode
           ? `https://cinemaos.tech/player/${id}/${season}/${episode}`
