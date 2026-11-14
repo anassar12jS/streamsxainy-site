@@ -397,10 +397,6 @@ export const VidyPlayer: React.FC = () => {
           ? `https://vidsrc.sh/embed/tv/${externalId}/${season}/${episode}?${vidsrcParams.toString()}`
           : `https://vidsrc.sh/embed/movie/${externalId}?${vidsrcParams.toString()}`;
       }
-      case 'videasy':
-        return isEpisode
-          ? `https://player.videasy.net/tv/${id}/${season}/${episode}`
-          : `https://player.videasy.net/movie/${id}`;
       case 'videasy-xyz':
         return isEpisode
           ? `https://videasy.xyz/embed/tv/${id}/${season}/${episode}`

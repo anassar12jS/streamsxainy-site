@@ -29,7 +29,6 @@ const SERVER_OPTIONS = [
   { id: 'vidlypro', name: 'Vidly Pro (4K · Ultra)' },
   { id: 'vidlink', name: 'VidLink (Adaptive 4K)' },
   { id: 'vidsrc-wtf', name: 'VidSrc WTF' },
-  { id: 'videasy', name: 'Videasy (Ad-Light)' },
   { id: 'cinemaos', name: 'CinemaOS' },
   { id: 'vidfastpro', name: 'VidFast' },
 ];
