@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Settings, Youtube, Music, Radio, Sparkles, CheckCircle2,
+  Sparkles, CheckCircle2,
   ExternalLink, ArrowLeft, RefreshCw, Sliders, Download, Upload,
   Plus, Trash2, AlertTriangle, Check, ListMusic, Users
 } from 'lucide-react';
@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { extensionBridge } from '../extension/bridge';
 import { useMusicPlayerStore, isDiscordRpcEnabled, setDiscordRpcEnabled } from '../store/useMusicPlayerStore';
 import { getInstalledAddons, saveInstalledAddons, fetchAddonManifest } from '../api/addons';
+import { SpotifyIcon, YouTubeMusicIcon, DiscordIcon, ExtensionIcon } from '../../../components/BrandIcons';
 
 /** localStorage keys that make up "your music data" for export/import */
 const MUSIC_DATA_KEYS = [
@@ -310,8 +311,8 @@ export const SettingsRoute: React.FC = () => {
           }
         >
           <div className="flex items-center gap-4 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white shrink-0">
-              <Youtube className="w-5 h-5 fill-current" />
+            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
+              <YouTubeMusicIcon className="w-5 h-5" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -352,8 +353,8 @@ export const SettingsRoute: React.FC = () => {
           }
         >
           <div className="flex items-center gap-4 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-              <Music className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-emerald-600/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+              <SpotifyIcon className="w-5 h-5" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -383,8 +384,8 @@ export const SettingsRoute: React.FC = () => {
         {/* Discord RPC */}
         <Row right={<Toggle on={discordRpc} onChange={handleDiscordToggle} />}>
           <div className="flex items-center gap-4 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
-              <Radio className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
+              <DiscordIcon className="w-5 h-5" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -430,8 +431,8 @@ export const SettingsRoute: React.FC = () => {
           }
         >
           <div className="flex items-center gap-4 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-purple-600/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
-              <Sparkles className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-purple-600/10 border border-purple-500/20 flex items-center justify-center shrink-0">
+              <ExtensionIcon className="w-5 h-5 text-purple-300" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
