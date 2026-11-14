@@ -6,6 +6,7 @@ import { getArtistDetails, getArtistAllSongs } from '../api/innertube';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { MusicTrack } from '../types';
 import { ParallaxImage } from '../components/ParallaxImage';
+import { ARTWORK_PLACEHOLDER } from '../api/ytmParse';
 
 export const ArtistRoute: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -118,7 +119,7 @@ export const ArtistRoute: React.FC = () => {
                   src={artist.avatar} 
                   alt={artist.name} 
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';
+                    (e.target as HTMLImageElement).src = ARTWORK_PLACEHOLDER;
                   }}
                   className="w-full h-full object-cover" 
                 />

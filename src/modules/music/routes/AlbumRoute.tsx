@@ -6,6 +6,7 @@ import { getAlbumDetails } from '../api/innertube';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { MusicTrack } from '../types';
 import { ParallaxImage } from '../components/ParallaxImage';
+import { ARTWORK_PLACEHOLDER } from '../api/ytmParse';
 
 export const AlbumRoute: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +16,7 @@ export const AlbumRoute: React.FC = () => {
   const togglePlayPause = useMusicPlayerStore(state => state.togglePlayPause);
   const likedTrackIds = useMusicPlayerStore(state => state.likedTrackIds);
   const toggleLike = useMusicPlayerStore(state => state.toggleLike);
+  const appendToQueue = useMusicPlayerStore(state => state.appendToQueue);
 
   const { data: album, isLoading, error, refetch } = useQuery({
     queryKey: ['music-album', id],
@@ -112,7 +114,7 @@ export const AlbumRoute: React.FC = () => {
                 src={album.artwork} 
                 alt={album.title} 
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80';
+                  (e.target as HTMLImageElement).src = ARTWORK_PLACEHOLDER;
                 }}
                 className="w-full h-full object-cover" 
               />
@@ -164,8 +166,9 @@ export const AlbumRoute: React.FC = () => {
 
                 <button
                   type="button"
+                  onClick={() => album?.tracks?.length && appendToQueue(album.tracks)}
                   className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer border border-white/10"
-                  title="Add to Library"
+                  title="Add all songs to queue"
                 >
                   <span className="text-lg font-light leading-none">+</span>
                 </button>

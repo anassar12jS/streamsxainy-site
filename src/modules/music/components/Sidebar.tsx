@@ -13,6 +13,7 @@ import { useSessionStore } from '../store/useSessionStore';
 import { resetInnertube } from '../api/innertube';
 import { syncUserYouTubeMusicLibrary } from '../api/youtubeAuth';
 import { getLibraryPlaylists } from '../api/innertube';
+import { ARTWORK_PLACEHOLDER } from '../api/ytmParse';
 
 interface SidebarProps {
   isOpenOnMobile?: boolean;
@@ -61,7 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const activeUser = {
     id: activeChannel?.id || 'channel_primary',
     name: activeChannel?.name || 'Not signed in',
-    avatar: activeChannel?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&q=80',
+    avatar: activeChannel?.avatarUrl || ARTWORK_PLACEHOLDER,
     handle: activeChannel?.handle || 'YouTube Music',
   };
 
@@ -370,7 +371,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="space-y-1 pt-2 border-t border-white/5">
             <p className="px-3 text-[11px] font-medium text-[#777777] uppercase tracking-wider flex items-center gap-1.5">
               <Music className="w-3 h-3 text-emerald-400" />
-              <span>Spotify Playlists</span>
+              <span>Playlists</span>
             </p>
             <div className="flex flex-col gap-1 mt-1">
               {spotifyPlaylists.map((playlist: any) => (
@@ -445,7 +446,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <img 
-                            src={channel.avatarUrl || channel.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&q=80'} 
+                            src={channel.avatarUrl || channel.photoUrl || ARTWORK_PLACEHOLDER} 
                             alt={channel.name} 
                             className="w-8 h-8 rounded-full object-cover shrink-0" 
                           />
@@ -498,9 +499,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <span 
             className={`w-2 h-2 rounded-full ${
-              extensionConnected ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-emerald-400/80 ring-2 ring-emerald-400/20'
+              extensionConnected ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-zinc-600'
             }`} 
-            title={extensionConnected ? 'Connected' : 'Companion Active'}
+            title={extensionConnected ? 'Connected' : 'Not connected'}
           />
         </div>
 
@@ -514,14 +515,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               title="Extension Debug Inspector"
             >
               <Terminal className="w-3.5 h-3.5" />
-            </Link>
-            <Link
-              to="/music/settings"
-              onClick={onCloseMobile}
-              className="p-1 rounded-lg text-[#777777] hover:text-white transition-colors cursor-pointer"
-              title="Settings"
-            >
-              <Settings className="w-3.5 h-3.5" />
             </Link>
           </div>
         </div>

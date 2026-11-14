@@ -6,6 +6,7 @@ import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { getExploreNewReleases } from '../api/innertube';
 import { MusicTrack, Album } from '../types';
 import { CardGridSkeleton, TrackListSkeleton } from '../components/Skeletons';
+import { ARTWORK_PLACEHOLDER } from '../api/ytmParse';
 
 export const NewRoute: React.FC = () => {
   const navigate = useNavigate();
@@ -99,7 +100,7 @@ export const NewRoute: React.FC = () => {
               src={featured.artwork} 
               alt={featured.title} 
               onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80';
+                (e.target as HTMLImageElement).src = ARTWORK_PLACEHOLDER;
               }}
               className="w-full h-full object-cover" 
             />
@@ -190,7 +191,7 @@ export const NewRoute: React.FC = () => {
                     src={album.artwork} 
                     alt={album.title} 
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=400&q=80';
+                      (e.target as HTMLImageElement).src = ARTWORK_PLACEHOLDER;
                     }}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                   />
@@ -266,7 +267,7 @@ export const NewRoute: React.FC = () => {
                     src={video.artwork} 
                     alt={video.title} 
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80';
+                      (e.target as HTMLImageElement).src = ARTWORK_PLACEHOLDER;
                     }}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                   />

@@ -9,8 +9,9 @@ import {
   SpotifyPlaylist,
 } from '../data/spotify';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
+import { ARTWORK_PLACEHOLDER } from '../api/ytmParse';
 
-const FALLBACK_ART = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80';
+const FALLBACK_ART = ARTWORK_PLACEHOLDER;
 
 export const SpotifyRoute: React.FC = () => {
   const extensionConnected = useMusicPlayerStore(state => state.extensionConnected);

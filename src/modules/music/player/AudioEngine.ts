@@ -460,6 +460,11 @@ export class MusicAudioEngine {
     requestAnimationFrame(check);
   }
 
+  /** True while a fade-out has pushed gain below full — used to detect stuck-silent states */
+  public isFaded(): boolean {
+    return this.fadeGain < 0.99;
+  }
+
   /** Smooth fade back to full volume — call when a new track starts playing */
   public startFadeIn(ms = 900) {
     if (this.fadingDirection === 'in' && this.fadeGain >= 1) return;

@@ -6,10 +6,12 @@ import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { TrackRow } from '../components/TrackRow';
 import { getPlaylistDetails } from '../api/innertube';
 import { MusicTrack, Playlist } from '../types';
+import { ARTWORK_PLACEHOLDER } from '../api/ytmParse';
 
 export const PlaylistRoute: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const playTrack = useMusicPlayerStore(state => state.playTrack);
+  const appendToQueue = useMusicPlayerStore(state => state.appendToQueue);
 
   const { data: playlist, isLoading, error, refetch } = useQuery<Playlist | null>({
     queryKey: ['music-playlist', id],
@@ -75,7 +77,7 @@ export const PlaylistRoute: React.FC = () => {
                 src={playlist.artwork} 
                 alt={playlist.title} 
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80';
+                  (e.target as HTMLImageElement).src = ARTWORK_PLACEHOLDER;
                 }}
                 className="w-full h-full object-cover" 
               />
@@ -115,11 +117,12 @@ export const PlaylistRoute: React.FC = () => {
                   <span>Play</span>
                 </button>
 
-                {/* Add to Library Button (Circle) */}
+                {/* Add to Queue Button (Circle) */}
                 <button
                   type="button"
+                  onClick={() => tracks.length && appendToQueue(tracks)}
                   className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer border border-white/10"
-                  title="Add to Library"
+                  title="Add all tracks to queue"
                 >
                   <span className="text-lg font-light leading-none">+</span>
                 </button>

@@ -1,3 +1,4 @@
+import { ARTWORK_PLACEHOLDER } from '../api/ytmParse';
 /**
  * Xainy Music Domain Normalization Layer
  * Converts raw Innertube / YouTube Music / Spotify responses into clean, typed models.
@@ -63,7 +64,7 @@ export interface NormalizedShelf {
  */
 export function upscaleThumbnail(url?: string): string {
   if (!url || typeof url !== 'string') {
-    return 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&w=500&q=80';
+    return ARTWORK_PLACEHOLDER;
   }
 
   // Handle googleusercontent / ggpht urls

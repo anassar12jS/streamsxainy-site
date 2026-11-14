@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { extensionBridge, BridgeError } from '../extension/bridge';
 import { getInnertube } from '../api/innertube';
 import { NormalizedTrack, parseDuration } from './normalize';
+import { ARTWORK_PLACEHOLDER } from '../api/ytmParse';
 
 export interface SpotifyTrack {
   id: string;
@@ -151,7 +152,7 @@ export async function resolveSpotifyTrackToYtm(track: SpotifyTrack): Promise<Nor
   const title = track.name;
   const artist = track.artists?.map(a => a.name).join(', ') || 'Various Artists';
   const targetDurationSec = Math.round(track.duration_ms / 1000);
-  const artwork = track.album?.images?.[0]?.url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=500&q=80';
+  const artwork = track.album?.images?.[0]?.url || ARTWORK_PLACEHOLDER;
 
   try {
     const yt = await getInnertube();

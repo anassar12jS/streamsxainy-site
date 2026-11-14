@@ -8,6 +8,7 @@ import { extensionBridge } from '../extension/bridge';
 import { resetInnertube } from '../api/innertube';
 import { syncUserYouTubeMusicLibrary } from '../api/youtubeAuth';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
+import { ARTWORK_PLACEHOLDER } from '../api/ytmParse';
 
 export interface AccountItem {
   id: string;
@@ -212,7 +213,7 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <img 
-                        src={acc.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&q=80'} 
+                        src={acc.photoUrl || ARTWORK_PLACEHOLDER} 
                         alt={acc.name} 
                         className="w-9 h-9 rounded-full object-cover ring-1 ring-white/10 shrink-0" 
                       />

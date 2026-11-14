@@ -3,6 +3,7 @@ import { Play, Download, Sparkles, Trophy, Music, Disc, Clock, Share2, Layers } 
 import { replayRecorder } from '../api/replay';
 import { ReplayStats, MusicTrack } from '../types';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
+import { ARTWORK_PLACEHOLDER } from '../api/ytmParse';
 
 export const ReplayRoute: React.FC = () => {
   const [stats, setStats] = useState<ReplayStats>(() => replayRecorder.getStats());
@@ -278,7 +279,7 @@ export const ReplayRoute: React.FC = () => {
 
                   <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 ring-1 ring-white/10 bg-[#242426]">
                     <img 
-                      src={artist.avatar || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100&auto=format&fit=crop&q=80'} 
+                      src={artist.avatar || ARTWORK_PLACEHOLDER} 
                       alt="" 
                       className="w-full h-full object-cover" 
                     />

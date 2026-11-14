@@ -5,8 +5,8 @@ import { useSessionStore } from './store/useSessionStore';
 import './styles/tokens.css';
 import { useMusicPlayerStore } from './store/useMusicPlayerStore';
 import { MusicAudioEngine } from './player/AudioEngine';
-import { resolveStreamUrl, resolveVideoId, resolveAlternateVideoId, getRadioTracks, prefetchStreamUrl } from './api/innertube';
-import { tryHiresStream } from './api/hiresStream';
+import { resolveStreamUrl, resolveVideoId, resolveAlternateVideoId, getRadioTracks, prefetchStreamUrl, getInnertube } from './api/innertube';
+import { tryHiresStream, prefetchHiresStream } from './api/hiresStream';
 import type { MusicTrack } from './types';
 import { extensionBridge } from './extension/bridge';
 import { Sidebar } from './components/Sidebar';
@@ -249,6 +249,9 @@ export const MusicModule: React.FC = () => {
           const remaining = duration - currentTime;
           if (remaining > 0 && remaining <= 1.4) {
             engine.startFadeOut(Math.min(1400, remaining * 1000));
+          } else if (remaining > 1.4 && engine.isFaded()) {
+            // Seeked back out of the fade zone (or repeat-one restarted) — restore gain
+            engine.startFadeIn(300);
           }
         }
       },
@@ -297,6 +300,7 @@ export const MusicModule: React.FC = () => {
 
     const handleEnded = () => {
       if (engine.activeMode === 'html5') {
+        replayRecorder.onTrackEnd(true);
         handleTrackEnded();
       }
     };
@@ -304,6 +308,7 @@ export const MusicModule: React.FC = () => {
     const handleError = () => {
       if (engine.activeMode === 'html5') {
         console.warn('Audio playback error on HTML5 element');
+        setPlaybackStatus('error');
       }
     };
 
@@ -370,7 +375,10 @@ export const MusicModule: React.FC = () => {
           const st = useMusicPlayerStore.getState();
           for (let i = 1; i <= 2; i++) {
             const upcoming = st.queue[st.queueIndex + i];
-            if (upcoming) prefetchStreamUrl(upcoming);
+            if (upcoming) {
+              prefetchStreamUrl(upcoming);
+              if (st.audioQuality === 'lossless' && !upcoming.isLive) prefetchHiresStream(upcoming);
+            }
           }
         };
 
@@ -714,6 +722,42 @@ export const MusicModule: React.FC = () => {
       return next;
     }, { replace: true });
   }, [searchParams, setSearchParams]);
+
+  // Deep link: /music?track=<youtubeId> plays a shared track
+  useEffect(() => {
+    const trackId = searchParams.get('track');
+    if (!trackId) return;
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete('track');
+      return next;
+    }, { replace: true });
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const yt = await getInnertube();
+        const info: any = await yt.getBasicInfo(trackId);
+        const vd = info?.videoDetails || info?.basic_info?.video_details;
+        if (cancelled || !vd) return;
+        const track: MusicTrack = {
+          id: trackId,
+          title: vd.title || 'Shared track',
+          artist: vd.author || '',
+          album: '',
+          artwork: vd.thumbnail?.thumbnails?.slice(-1)[0]?.url || '',
+          duration: Math.round(Number(vd.lengthSeconds) || 0),
+          youtubeId: trackId,
+          source: 'innertube',
+        };
+        useMusicPlayerStore.getState().playTrack(track);
+      } catch (e) {
+        console.debug('Shared track load failed:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Re-check pending remote position whenever playback state flips to playing
   useEffect(() => {
