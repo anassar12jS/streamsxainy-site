@@ -39,6 +39,7 @@ export type PartyEventType =
   | 'host_left'
   | 'promoted'
   | 'member_joined'
+  | 'state_request'
   | 'chat';
 
 export type PartyEventListener = (type: PartyEventType, payload: any) => void;
@@ -222,6 +223,12 @@ export class ListenTogetherClient {
     this.send('chat', { memberId: this.memberId, name: this.memberName, text: clean, ts: Date.now() });
   }
 
+  /** Guest → host: ask for a fresh state snapshot addressed to us. */
+  public requestStateSync() {
+    if (!this.channel || this.isHost) return;
+    this.send('state_request', { memberId: this.memberId });
+  }
+
   /** Guest → host promotion after the host leaves. Re-tracks presence and
    *  notifies listeners so the app layer starts publishing state again. */
   private promoteToHost() {
@@ -362,6 +369,10 @@ export class ListenTogetherClient {
         break;
       case 'chat':
         this.emit('chat', raw);
+        break;
+      case 'state_request':
+        // A guest wants a fresh snapshot — host layer responds addressed to them
+        this.emit('state_request', raw);
         break;
     }
   }

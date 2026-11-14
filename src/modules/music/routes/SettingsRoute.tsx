@@ -76,6 +76,12 @@ export const SettingsRoute: React.FC = () => {
   const [spotifyUser, setSpotifyUser] = useState<{ name?: string; email?: string } | null>(null);
   const [spotifyProblem, setSpotifyProblem] = useState<string | null>(null);
   const [discordRpc, setDiscordRpc] = useState(isDiscordRpcEnabled());
+  const [discordInfo, setDiscordInfo] = useState<{
+    connected: boolean; enabled: boolean;
+    user?: { name?: string; username?: string } | null;
+    problem?: string | null;
+  } | null>(null);
+  const [discordBusy, setDiscordBusy] = useState(false);
 
   // Addons state
   const [addons, setAddons] = useState(getInstalledAddons());
@@ -140,6 +146,33 @@ export const SettingsRoute: React.FC = () => {
   const handleDiscordToggle = (on: boolean) => {
     setDiscordRpc(on);
     setDiscordRpcEnabled(on);
+    void extensionBridge.setDiscordEnabled(on);
+  };
+
+  // Real Discord connection state from the extension
+  useEffect(() => {
+    if (!extensionConnected) { setDiscordInfo(null); return; }
+    let cancelled = false;
+    const poll = async () => {
+      const st = await extensionBridge.getDiscordState();
+      if (!cancelled && st) setDiscordInfo(st);
+    };
+    void poll();
+    const id = window.setInterval(poll, 10000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [extensionConnected]);
+
+  const handleConnectDiscord = async () => {
+    setDiscordBusy(true);
+    try {
+      await extensionBridge.connectDiscord();
+      const st = await extensionBridge.getDiscordState();
+      if (st) setDiscordInfo(st);
+    } catch (e: any) {
+      setNotice({ message: e?.message || 'Could not connect Discord.', type: 'error' });
+    } finally {
+      setDiscordBusy(false);
+    }
   };
 
   const handleAddAddon = async (e: React.FormEvent) => {
@@ -388,15 +421,35 @@ export const SettingsRoute: React.FC = () => {
               <DiscordIcon className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-semibold text-sm text-white">Discord Rich Presence</h3>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${extensionConnected ? 'bg-white/10 text-[#a3a3a3]' : 'bg-amber-500/15 text-amber-400'}`}>
-                  {extensionConnected ? 'Ready' : 'No Extension'}
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                  !extensionConnected ? 'bg-amber-500/15 text-amber-400'
+                  : discordInfo?.connected ? 'bg-emerald-500/15 text-emerald-400'
+                  : 'bg-white/10 text-[#a3a3a3]'
+                }`}>
+                  {!extensionConnected ? 'No Extension'
+                    : discordInfo?.connected ? `Connected${discordInfo.user?.name ? ` · ${discordInfo.user.name}` : ''}`
+                    : discordInfo ? 'Not connected' : 'Checking…'}
                 </span>
               </div>
               <p className="text-xs text-[#a3a3a3] truncate mt-0.5">
-                Shows the currently playing track and artwork in Discord
+                {extensionConnected && discordInfo && !discordInfo.connected
+                  ? 'Link your Discord account once — the extension reads your discord.com session.'
+                  : 'Shows the currently playing track and artwork in Discord'}
               </p>
+              {extensionConnected && discordInfo && !discordInfo.connected && (
+                <button
+                  onClick={handleConnectDiscord}
+                  disabled={discordBusy}
+                  className="mt-2 px-3 py-1.5 rounded-lg bg-[#5865F2] hover:bg-[#4752C4] disabled:opacity-50 text-white text-[11px] font-bold transition-colors cursor-pointer"
+                >
+                  {discordBusy ? 'Connecting…' : 'Connect Discord'}
+                </button>
+              )}
+              {discordInfo?.problem && (
+                <p className="text-[10px] text-amber-400/80 mt-1">{discordInfo.problem}</p>
+              )}
             </div>
           </div>
         </Row>

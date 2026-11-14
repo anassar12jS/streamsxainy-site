@@ -4,7 +4,8 @@ import {
   Layers, Radio, Sparkles, Sliders, Music2, MessageSquare, Disc
 } from 'lucide-react';
 import { getInstalledAddons, saveInstalledAddons, fetchAddonManifest } from '../api/addons';
-import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
+import { useMusicPlayerStore, isDiscordRpcEnabled, setDiscordRpcEnabled } from '../store/useMusicPlayerStore';
+import { extensionBridge } from '../extension/bridge';
 import { SpotifyIcon, YouTubeMusicIcon, DiscordIcon, ExtensionIcon } from '../../../components/BrandIcons';
 
 interface MusicSettingsModalProps {
@@ -24,7 +25,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
 
   // Settings states
   const [lossless, setLossless] = useState(true);
-  const [discordRpc, setDiscordRpc] = useState(true);
+  const [discordRpc, setDiscordRpc] = useState(isDiscordRpcEnabled());
   const [spotifyCanvas, setSpotifyCanvas] = useState(true);
   const [jioUrl, setJioUrl] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('bitchord_jiosaavn_url') || '' : ''));
 
@@ -298,7 +299,12 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                 <input
                   type="checkbox"
                   checked={discordRpc}
-                  onChange={e => setDiscordRpc(e.target.checked)}
+                  onChange={e => {
+                    const on = e.target.checked;
+                    setDiscordRpc(on);
+                    setDiscordRpcEnabled(on);
+                    void extensionBridge.setDiscordEnabled(on);
+                  }}
                   className="accent-white w-4 h-4 cursor-pointer"
                 />
               </div>

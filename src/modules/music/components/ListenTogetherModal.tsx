@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Users, Copy, Check, Play, LogOut, Sparkles, Crown, AlertTriangle, Send, MessageCircle } from 'lucide-react';
+import { X, Users, Copy, Check, Play, LogOut, Sparkles, Crown, AlertTriangle, Send, MessageCircle, Link2, RefreshCw } from 'lucide-react';
 import { listenTogetherClient, isPartyBackendConfigured } from '../api/listenTogether';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 
@@ -36,6 +36,8 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
   const [hostLeft, setHostLeft] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; name: string; text: string; ts: number }>>([]);
   const [chatInput, setChatInput] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
@@ -68,6 +70,9 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
           ...prev.slice(-49),
           { id: `${payload.memberId}-${payload.ts}`, name: payload.name || 'Guest', text: payload.text, ts: payload.ts || Date.now() },
         ]);
+      } else if (type === 'state') {
+        // Fresh snapshot landed — show the sync flash briefly
+        setSyncing(false);
       } else if (type === 'error' && payload?.message) {
         setError(payload.message);
       }
@@ -112,6 +117,36 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
     navigator.clipboard.writeText(activeCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyInviteLink = () => {
+    if (!activeCode) return;
+    const url = `${window.location.origin}/music?party=${activeCode}`;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleSyncNow = () => {
+    setSyncing(true);
+    listenTogetherClient.requestStateSync();
+    // The host answers with a 'state' broadcast addressed to us — clear the
+    // spinner either way after a few seconds so it never sticks.
+    window.setTimeout(() => setSyncing(false), 4000);
+  };
+
+  const handleSendChat = (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = chatInput.trim();
+    if (!text) return;
+    // Broadcast has self:false — echo our own message locally so the sender
+    // sees it immediately (matches what everyone else receives).
+    setChatMessages(prev => [
+      ...prev.slice(-49),
+      { id: `local-${Date.now()}`, name: userName || 'You', text, ts: Date.now() },
+    ]);
+    listenTogetherClient.sendChat(text);
+    setChatInput('');
   };
 
   const handleLeaveParty = () => {
@@ -180,13 +215,22 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
                   </h4>
                 </div>
 
-                <button
-                  onClick={handleCopyCode}
-                  className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center gap-1.5 border border-white/10 transition-colors cursor-pointer"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copied ? 'Copied' : 'Copy'}</span>
-                </button>
+                <div className="flex flex-col gap-1.5 shrink-0">
+                  <button
+                    onClick={handleCopyCode}
+                    className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center gap-1.5 border border-white/10 transition-colors cursor-pointer"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copied ? 'Copied' : 'Code'}</span>
+                  </button>
+                  <button
+                    onClick={handleCopyInviteLink}
+                    className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center gap-1.5 border border-white/10 transition-colors cursor-pointer"
+                  >
+                    {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Link2 className="w-3.5 h-3.5" />}
+                    <span>{copiedLink ? 'Copied' : 'Invite link'}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Status + role */}
@@ -272,16 +316,7 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
                     </p>
                   ))}
                 </div>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const text = chatInput.trim();
-                    if (!text) return;
-                    listenTogetherClient.sendChat(text);
-                    setChatInput('');
-                  }}
-                  className="flex items-center gap-2 px-2.5 py-2 border-t border-white/5"
-                >
+                <form onSubmit={handleSendChat} className="flex items-center gap-2 px-2.5 py-2 border-t border-white/5">
                   <input
                     type="text"
                     value={chatInput}
@@ -300,10 +335,21 @@ export const ListenTogetherModal: React.FC<ListenTogetherModalProps> = ({
                 </form>
               </div>
 
+              {/* Guest sync + role note */}
               {!isHost && (
-                <p className="text-[10px] text-white/35 text-center font-mono">
-                  Guests follow the host's playback — only the host can change music.
-                </p>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[10px] text-white/35 font-mono leading-snug">
+                    Guests follow the host's playback.
+                  </p>
+                  <button
+                    onClick={handleSyncNow}
+                    disabled={syncing}
+                    className="shrink-0 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 disabled:opacity-50 text-white text-[10px] font-bold flex items-center gap-1.5 border border-white/10 transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />
+                    <span>{syncing ? 'Syncing…' : 'Sync now'}</span>
+                  </button>
+                </div>
               )}
 
               {/* Leave Button */}

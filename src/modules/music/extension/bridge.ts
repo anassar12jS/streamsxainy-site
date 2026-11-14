@@ -611,6 +611,36 @@ export class XainyMusicBridge {
       this.call('discord.presence', { track, options: {} }, { timeoutMs: 3000, retryOnWakeup: false }).catch(() => {});
     } catch {}
   }
+
+  /** Real Discord connection state from the extension (token + gateway status). */
+  public async getDiscordState(): Promise<{
+    available: boolean;
+    connected: boolean;
+    enabled: boolean;
+    user?: { name?: string; username?: string } | null;
+    problem?: string | null;
+  } | null> {
+    if (!this.status.available) return null;
+    try {
+      const res = await this.call<any>('discord.state', {}, { timeoutMs: 5000, retryOnWakeup: false });
+      return res ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Opens the extension's Discord connect flow (reads the discord.com session). */
+  public async connectDiscord(): Promise<any> {
+    return this.call('discord.connect', {}, { timeoutMs: 20000 });
+  }
+
+  /** Sync the extension-side enabled flag with the site's preference. */
+  public async setDiscordEnabled(enabled: boolean): Promise<void> {
+    if (!this.status.available) return;
+    try {
+      await this.call('discord.setEnabled', { enabled }, { timeoutMs: 5000, retryOnWakeup: false });
+    } catch {}
+  }
 }
 
 export const extensionBridge = XainyMusicBridge.getInstance();

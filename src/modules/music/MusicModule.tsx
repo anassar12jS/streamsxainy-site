@@ -558,6 +558,19 @@ export const MusicModule: React.FC = () => {
     }
   }, [playbackStatus]);
 
+  // Re-publish Discord presence whenever playback (re)starts — afterStart only
+  // fires on new tracks, so resume-after-pause would otherwise leave a stale
+  // or missing presence.
+  useEffect(() => {
+    if (playbackStatus !== 'playing' || !currentTrack) return;
+    extensionBridge.updateDiscordRpc({
+      title: currentTrack.title,
+      artist: currentTrack.artist,
+      duration: currentTrack.duration,
+      artwork: currentTrack.artwork,
+    });
+  }, [playbackStatus, currentTrack]);
+
   // 3b. Auto-advance past tracks that fail on every source (max 3 skips in a row)
   useEffect(() => {
     if (playbackStatus === 'playing') {
@@ -589,6 +602,8 @@ export const MusicModule: React.FC = () => {
   // 6. Listen Together — host publishes playback state, guests follow it
   const pendingRemoteRef = useRef<{ trackId: string; positionMs: number; anchorMs: number; isPlaying: boolean } | null>(null);
   const lastSeekBroadcastRef = useRef(0);
+  /** Last remote playhead the guest was told about — drives drift correction. */
+  const lastRemoteRef = useRef<{ trackId: string; positionMs: number; anchorMs: number; isPlaying: boolean } | null>(null);
 
   useEffect(() => {
     const client = listenTogetherClient;
@@ -629,6 +644,7 @@ export const MusicModule: React.FC = () => {
           anchorMs: payload.anchorMs,
           isPlaying: payload.isPlaying,
         };
+        lastRemoteRef.current = pendingRemoteRef.current;
       } else if (type === 'control' && payload?.action) {
         if (payload.action === 'pause') {
           if (typeof payload.positionMs === 'number' && payload.anchorMs) {
@@ -649,6 +665,25 @@ export const MusicModule: React.FC = () => {
         } else if (payload.action === 'seek' && typeof payload.positionMs === 'number') {
           handleSeek(payload.positionMs / 1000);
         }
+        // Refresh the drift-correction anchor on play/pause/seek controls too
+        if (payload.action === 'play' || payload.action === 'pause') {
+          lastRemoteRef.current = {
+            trackId: st.currentTrack?.id || '',
+            positionMs: payload.positionMs ?? st.currentTime * 1000,
+            anchorMs: payload.anchorMs ?? Date.now(),
+            isPlaying: payload.action === 'play',
+          };
+        } else if (payload.action === 'seek') {
+          lastRemoteRef.current = {
+            trackId: st.currentTrack?.id || '',
+            positionMs: payload.positionMs ?? st.currentTime * 1000,
+            anchorMs: payload.anchorMs ?? Date.now(),
+            isPlaying: st.playbackStatus === 'playing',
+          };
+        }
+      } else if (type === 'state_request' && client.isCurrentHost && payload?.memberId) {
+        // A guest asked for a fresh snapshot — answer addressed to them only
+        publishCurrentState(payload.memberId);
       } else if (type === 'member_joined' && payload?.hello && client.isCurrentHost) {
         // A guest just announced themselves — send the snapshot addressed to them
         publishCurrentState(payload.hello.memberId);
@@ -702,7 +737,32 @@ export const MusicModule: React.FC = () => {
       }
     });
 
+    // Guest drift correction — every 5s compare our playhead against the
+    // host-anchored position and snap if we've drifted >1.5s (buffering,
+    // tab throttling, missed broadcasts all cause slow drift).
+    const driftTimer = window.setInterval(() => {
+      const remote = lastRemoteRef.current;
+      const st = useMusicPlayerStore.getState();
+      if (!remote || client.isCurrentHost || !client.currentPartyCode) return;
+      if (!st.currentTrack || st.currentTrack.id !== remote.trackId) return;
+      const expected = client.computePlayheadMs(remote.positionMs, remote.anchorMs, remote.isPlaying) / 1000;
+      const actual = engineRef.current?.getCurrentTime?.() ?? st.currentTime;
+      if (Math.abs(expected - actual) > 1.5) {
+        handleSeek(expected);
+        // Re-anchor to now so we don't correct again next tick
+        lastRemoteRef.current = { ...remote, positionMs: Math.round(expected * 1000), anchorMs: client.getServerNowMs() };
+      }
+    }, 5000);
+
+    // Host heartbeat — republish the snapshot every 20s so late joiners and
+    // guests that missed a broadcast re-anchor to a fresh playhead.
+    const heartbeat = window.setInterval(() => {
+      if (client.isCurrentHost && client.currentPartyCode) publishCurrentState();
+    }, 20_000);
+
     return () => {
+      window.clearInterval(driftTimer);
+      window.clearInterval(heartbeat);
       unsubEvents();
       unsubStore();
       client.leaveParty();
