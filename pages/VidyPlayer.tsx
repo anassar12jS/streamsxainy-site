@@ -466,6 +466,14 @@ export const VidyPlayer: React.FC = () => {
     setHasTimedOut(false);
   }, [isAnime, animeProvider, provider, providerStorageKey, showToast, movieProviderOrder, animeProviderOrder]);
 
+  // Keep a stable ref to the latest failover callback — the loading-timeout
+  // effect must NOT depend on its identity, because provider-health bumps
+  // recreate the provider order → new callback → effect re-runs → isLoading
+  // flips back on → 12s later a working stream gets killed and cycled. That
+  // was the infinite reload loop.
+  const advanceStreamServerRef = useRef(advanceStreamServer);
+  advanceStreamServerRef.current = advanceStreamServer;
+
   const handleSelectProvider = (p: (typeof PROVIDERS)[number]) => {
     failoverAttempts.current = 0;
     setProviderState(p.id);
@@ -504,7 +512,7 @@ export const VidyPlayer: React.FC = () => {
       setProviderHealthVersion(v => v + 1);
       if (failoverAttempts.current < maxAttempts) {
         failoverAttempts.current += 1;
-        advanceStreamServer();
+        advanceStreamServerRef.current();
       } else {
         setHasTimedOut(true);
         setIsLoading(false);
@@ -512,7 +520,8 @@ export const VidyPlayer: React.FC = () => {
     }, 12000);
 
     return () => window.clearTimeout(loadingTimeout.current);
-  }, [provider, animeProvider, animeLang, season, episode, retryKey, isAnime, advanceStreamServer]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider, animeProvider, animeLang, season, episode, retryKey, isAnime]);
 
   // Handle postMessage playback events from providers
   useEffect(() => {
