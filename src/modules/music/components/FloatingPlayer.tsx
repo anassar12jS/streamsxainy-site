@@ -253,19 +253,22 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
               <button
                 type="button"
                 onClick={toggleShuffle}
-                className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-                  shuffle ? 'text-white' : 'hover:text-white'
+                className={`relative p-1.5 rounded-full transition-colors cursor-pointer hover:bg-white/10 ${
+                  shuffle ? 'text-white' : 'text-[#98989d] hover:text-white'
                 }`}
                 title={shuffle ? 'Shuffle On' : 'Shuffle Off'}
               >
                 <Shuffle className="w-3.5 h-3.5" />
+                {shuffle && (
+                  <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-white" />
+                )}
               </button>
 
               {/* Previous */}
               <button
                 type="button"
                 onClick={prevTrack}
-                className="p-1.5 rounded-full hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-full text-[#98989d] hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                 title="Previous Track"
               >
                 <SkipBack className="w-4 h-4 fill-current" />
@@ -285,11 +288,11 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                   </div>
                 ) : isPlaying ? (
                   <div className="w-7 h-7 flex items-center justify-center">
-                    <Pause className="w-5 h-5 fill-current" />
+                    <Pause className="w-[22px] h-[22px] fill-current" />
                   </div>
                 ) : (
                   <div className="w-7 h-7 flex items-center justify-center">
-                    <Play className="w-5 h-5 fill-current ml-0.5" />
+                    <Play className="w-[22px] h-[22px] fill-current ml-0.5" />
                   </div>
                 )}
               </button>
@@ -298,7 +301,7 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
               <button
                 type="button"
                 onClick={nextTrack}
-                className="p-1.5 rounded-full hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-full text-[#98989d] hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                 title="Next Track"
               >
                 <SkipForward className="w-4 h-4 fill-current" />
@@ -308,8 +311,8 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
               <button
                 type="button"
                 onClick={cycleRepeat}
-                className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-                  repeatMode !== 'off' ? 'text-white' : 'hover:text-white'
+                className={`relative p-1.5 rounded-full transition-colors cursor-pointer hover:bg-white/10 ${
+                  repeatMode !== 'off' ? 'text-white' : 'text-[#98989d] hover:text-white'
                 }`}
                 title={`Repeat: ${repeatMode}`}
               >
@@ -317,6 +320,9 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                   <Repeat1 className="w-3.5 h-3.5" />
                 ) : (
                   <Repeat className="w-3.5 h-3.5" />
+                )}
+                {repeatMode !== 'off' && (
+                  <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-white" />
                 )}
               </button>
             </div>
@@ -340,7 +346,7 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                     )}
                   </div>
                   
-                  <div className="min-w-0 flex flex-col justify-center items-start pr-1 w-[220px]">
+                  <div className="min-w-0 flex flex-col justify-center items-start pr-1 w-[236px]">
                     <div className="flex items-center gap-1.5 w-full">
                       <button
                         type="button"
@@ -384,16 +390,23 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                       )}
                     </div>
 
-                    {/* Sleek integrated micro-scrubber (click or drag to seek) */}
-                    <div 
-                      onPointerDown={handleScrubberPointerDown}
-                      className="w-full h-[3px] hover:h-[5px] bg-white/15 rounded-full cursor-pointer transition-all overflow-hidden mt-1.5 relative group touch-none"
-                      title={`Seek playback (${formatTime(currentTime)} / ${formatTime(duration)})`}
-                    >
+                    {/* Sleek integrated micro-scrubber (click or drag to seek) + remaining time */}
+                    <div className="flex items-center gap-2 mt-1.5 w-full">
                       <div 
-                        className="h-full bg-white rounded-full transition-all group-hover:bg-white"
-                        style={{ width: `${progressPercent}%` }}
-                      />
+                        onPointerDown={handleScrubberPointerDown}
+                        className="flex-1 h-[3px] hover:h-[5px] bg-white/15 rounded-full cursor-pointer transition-all overflow-hidden relative group touch-none"
+                        title={`Seek playback (${formatTime(currentTime)} / ${formatTime(duration)})`}
+                      >
+                        <div 
+                          className="h-full bg-white rounded-full transition-all group-hover:bg-white"
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
+                      {duration > 0 && (
+                        <span className="text-[10px] font-mono text-white/40 tabular-nums shrink-0 w-9 text-right select-none">
+                          -{formatTime(Math.max(0, duration - currentTime))}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -410,8 +423,8 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
               <button
                 type="button"
                 onClick={() => currentTrack && toggleLike(currentTrack.id)}
-                className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-                  isLiked ? 'text-amber-400' : 'hover:text-white'
+                className={`p-1.5 rounded-full transition-colors cursor-pointer hover:bg-white/10 ${
+                  isLiked ? 'text-amber-400' : 'text-[#98989d] hover:text-white'
                 }`}
                 title={isLiked ? 'Starred' : 'Add to favorites'}
               >
@@ -631,8 +644,8 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
               <button
                 type="button"
                 onClick={toggleLyrics}
-                className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-                  showLyrics ? 'text-white bg-white/15' : 'hover:text-white'
+                className={`p-1.5 rounded-full transition-colors cursor-pointer hover:bg-white/10 ${
+                  showLyrics ? 'text-white bg-white/15' : 'text-[#98989d] hover:text-white'
                 }`}
                 title="Lyrics"
               >
@@ -643,8 +656,8 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
               <button
                 type="button"
                 onClick={toggleQueue}
-                className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-                  showQueue ? 'text-white bg-white/15' : 'hover:text-white'
+                className={`p-1.5 rounded-full transition-colors cursor-pointer hover:bg-white/10 ${
+                  showQueue ? 'text-white bg-white/15' : 'text-[#98989d] hover:text-white'
                 }`}
                 title="Queue"
               >
@@ -672,7 +685,7 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                 <button
                   type="button"
                   onClick={toggleMute}
-                  className="p-1 rounded-full hover:text-white transition-colors cursor-pointer"
+                  className="p-1 rounded-full text-[#98989d] hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                   title={isMuted ? 'Unmute' : 'Mute'}
                 >
                   {isMuted || volume === 0 ? (
@@ -688,7 +701,8 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                   step={0.01}
                   value={isMuted ? 0 : volume}
                   onChange={(e) => setVolume(Number(e.target.value))}
-                  className="w-20 h-1 bg-white/20 accent-white rounded-full appearance-none cursor-pointer"
+                  className="am-volume"
+                  style={{ ['--vol' as string]: `${(isMuted ? 0 : volume) * 100}%` } as React.CSSProperties}
                   aria-label="Volume"
                 />
               </div>
