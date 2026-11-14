@@ -184,11 +184,18 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                 className="flex items-center gap-3 min-w-0 flex-1 text-left cursor-pointer py-0.5 rounded-xl focus-visible:outline-2 focus-visible:outline-white"
                 aria-label={`Open full-screen player for ${currentTrack.title}`}
               >
-                <img
-                  src={currentTrack.artwork}
-                  alt=""
-                  className="w-10 h-10 rounded-[8px] object-cover shrink-0 shadow-md border border-white/10"
-                />
+                <div className="relative shrink-0">
+                  <img
+                    src={currentTrack.artwork}
+                    alt=""
+                    className="w-10 h-10 rounded-[8px] object-cover shadow-md border border-white/10"
+                  />
+                  {isPlaying && (
+                    <div className="absolute -bottom-1 -right-1 px-1 py-0.5 rounded-md bg-black/70 backdrop-blur-sm">
+                      <span className="eq-bars text-white" style={{ height: 10 }}><i /><i /><i /></span>
+                    </div>
+                  )}
+                </div>
                 <div className="min-w-0 flex-1">
                   <p
                     className={`text-[14px] font-semibold truncate leading-tight ${
@@ -318,13 +325,20 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
             <div className="flex items-center gap-3 min-w-0 flex-initial">
               {currentTrack ? (
                 <div className="flex items-center gap-3 min-w-0">
-                  <img 
-                    src={currentTrack.artwork} 
-                    alt="" 
-                    onClick={() => setShowLyrics(true)}
-                    className="w-10 h-10 rounded-lg object-cover shrink-0 shadow-md border border-white/10 cursor-pointer hover:opacity-85 transition-opacity" 
-                    title="Expand Fullscreen Player"
-                  />
+                  <div className="relative shrink-0">
+                    <img 
+                      src={currentTrack.artwork} 
+                      alt="" 
+                      onClick={() => setShowLyrics(true)}
+                      className="w-10 h-10 rounded-lg object-cover shadow-md border border-white/10 cursor-pointer hover:opacity-85 transition-opacity" 
+                      title="Expand Fullscreen Player"
+                    />
+                    {isPlaying && (
+                      <div className="absolute -bottom-1 -right-1 px-1 py-0.5 rounded-md bg-black/70 backdrop-blur-sm">
+                        <span className="eq-bars text-white" style={{ height: 10 }}><i /><i /><i /></span>
+                      </div>
+                    )}
+                  </div>
                   
                   <div className="min-w-0 flex flex-col justify-center items-start pr-1 w-[220px]">
                     <div className="flex items-center gap-1.5 w-full">

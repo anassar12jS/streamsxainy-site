@@ -5,13 +5,14 @@ import { fetchLyrics } from '../api/lyrics';
 import { SteeredClock } from '../player/SteeredClock';
 
 // Dynamically import AmLyrics from @uimaxbai/am-lyrics/react if supported
-let AmLyricsComponent: any = null;
-try {
-  // @ts-ignore
-  import('@uimaxbai/am-lyrics/react').then(m => {
-    AmLyricsComponent = m.AmLyrics;
-  }).catch(() => {});
-} catch {}
+let AmLyricsLoader: Promise<any> | null = null;
+const loadAmLyrics = () => {
+  if (!AmLyricsLoader) {
+    // @ts-ignore
+    AmLyricsLoader = import('@uimaxbai/am-lyrics/react').then(m => m.AmLyrics).catch(() => null);
+  }
+  return AmLyricsLoader;
+};
 
 interface LyricsPanelProps {
   steeredClock?: SteeredClock;
@@ -29,8 +30,17 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
   const setLyrics = useMusicPlayerStore(state => state.setLyrics);
   const isLoadingLyrics = useMusicPlayerStore(state => state.isLoadingLyrics);
   const setIsLoadingLyrics = useMusicPlayerStore(state => state.setIsLoadingLyrics);
+  const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
+  const duration = useMusicPlayerStore(state => state.duration);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [AmLyricsComponent, setAmLyricsComponent] = useState<any>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    loadAmLyrics().then(c => { if (mounted && c) setAmLyricsComponent(() => c); });
+    return () => { mounted = false; };
+  }, []);
   const [steeredTime, setSteeredTime] = useState(0);
   const activeLineRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -136,6 +146,28 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
       </div>
 
       {/* Lyrics Content Container */}
+      {AmLyricsComponent ? (
+        /* Word/syllable-synced karaoke lyrics via @uimaxbai/am-lyrics —
+           queries lrc.red, BiniLyrics, Unison, LRCLib, Genius & LyricsPlus */
+        <div className="relative z-10 flex-1 min-h-0 px-3 sm:px-6">
+          <AmLyricsComponent
+            key={currentTrack.id}
+            songTitle={currentTrack.title}
+            songArtist={currentTrack.artist}
+            songAlbum={currentTrack.album}
+            songDurationMs={duration > 0 ? duration * 1000 : undefined}
+            currentTime={steeredTime * 1000}
+            paused={playbackStatus !== 'playing'}
+            autoScroll
+            highlightColor="#ff8093"
+            className="block h-full w-full"
+            onLineClick={(e: Event) => {
+              const ts = (e as CustomEvent<{ timestamp: number }>).detail?.timestamp;
+              if (typeof ts === 'number') onSeek(ts / 1000);
+            }}
+          />
+        </div>
+      ) : (
       <div 
         ref={scrollContainerRef}
         className="relative z-10 flex-1 overflow-y-auto px-6 sm:px-10 py-12 am-scrollbar space-y-6"
@@ -186,6 +218,7 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* Footer Branding */}
       <div className="relative z-10 px-6 py-3 border-t border-white/10 backdrop-blur-xl bg-black/30 flex items-center justify-between text-[11px] font-mono text-white/40">

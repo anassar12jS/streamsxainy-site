@@ -5,6 +5,7 @@ import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 export const QueueDrawer: React.FC = () => {
   const showQueue = useMusicPlayerStore(state => state.showQueue);
   const showLyrics = useMusicPlayerStore(state => state.showLyrics);
+  const setShowLyrics = useMusicPlayerStore(state => state.setShowLyrics);
   const setShowQueue = useMusicPlayerStore(state => state.setShowQueue);
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const queue = useMusicPlayerStore(state => state.queue);
@@ -14,6 +15,9 @@ export const QueueDrawer: React.FC = () => {
   const clearQueue = useMusicPlayerStore(state => state.clearQueue);
   const autoplayRadio = useMusicPlayerStore(state => state.autoplayRadio);
   const setAutoplayRadio = useMusicPlayerStore(state => state.setAutoplayRadio);
+  const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
+  const currentTime = useMusicPlayerStore(state => state.currentTime);
+  const duration = useMusicPlayerStore(state => state.duration);
 
   const [showMenu, setShowMenu] = useState(false);
 
@@ -27,6 +31,14 @@ export const QueueDrawer: React.FC = () => {
     const m = Math.floor(secs / 60);
     const s = Math.floor(secs % 60);
     return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const formatTotal = (tracks: typeof queue) => {
+    const total = tracks.reduce((sum, t) => sum + (t.duration || 0), 0);
+    if (!total) return '';
+    const h = Math.floor(total / 3600);
+    const m = Math.round((total % 3600) / 60);
+    return h > 0 ? `${h} hr ${m} min` : `${m} min`;
   };
 
   const playingFrom = currentTrack?.album 
@@ -84,11 +96,48 @@ export const QueueDrawer: React.FC = () => {
           </div>
         </div>
 
-        {/* Subtitle: Playing from [context] */}
+        {/* Subtitle: Playing from [context] · N songs · total time */}
         <p className="text-[12px] text-[#98989d] truncate mt-1 font-normal">
           Playing from {playingFrom}
+          {upNextTracks.length > 0 && (
+            <span className="text-[#666666]">
+              {' '}· {upNextTracks.length} song{upNextTracks.length === 1 ? '' : 's'} · {formatTotal(upNextTracks)}
+            </span>
+          )}
         </p>
       </div>
+
+      {/* Now Playing card */}
+      {currentTrack && (
+        <button
+          type="button"
+          onClick={() => setShowLyrics(true)}
+          className="mx-3 mt-3 shrink-0 w-[calc(100%-1.5rem)] text-left rounded-2xl bg-white/[0.06] hover:bg-white/[0.09] border border-white/[0.08] p-3 flex items-center gap-3 transition-colors cursor-pointer group"
+          title="Open fullscreen player"
+        >
+          <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-[#242426] shrink-0 border border-white/10">
+            <img src={currentTrack.artwork} alt="" className="w-full h-full object-cover" />
+            {playbackStatus === 'playing' && (
+              <div className="absolute inset-0 bg-black/45 flex items-center justify-center">
+                <span className="eq-bars text-white" style={{ height: 14 }}><i /><i /><i /></span>
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#ff8093] mb-0.5">Now Playing</p>
+            <p className="text-[14px] font-semibold text-white truncate leading-tight">{currentTrack.title}</p>
+            <p className="text-[12px] text-[#98989d] truncate leading-tight mt-0.5">{currentTrack.artist}</p>
+            {/* Mini progress */}
+            <div className="mt-1.5 h-[3px] bg-white/15 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-white rounded-full transition-[width] duration-300"
+                style={{ width: `${duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0}%` }}
+              />
+            </div>
+          </div>
+          <Play className="w-4 h-4 text-white/40 group-hover:text-white shrink-0 transition-colors" />
+        </button>
+      )}
 
       {/* ======================================================================= */}
       {/* 2. TRACK LIST: Clean Apple Music Rows Matching Image 2                  */}
