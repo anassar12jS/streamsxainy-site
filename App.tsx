@@ -25,6 +25,7 @@ const Search = lazy(() => import('./pages/Search').then(m => ({ default: m.Searc
 const DMCA = lazy(() => import('./pages/Legal').then(m => ({ default: m.DMCA })));
 const Privacy = lazy(() => import('./pages/Legal').then(m => ({ default: m.Privacy })));
 const Terms = lazy(() => import('./pages/Legal').then(m => ({ default: m.Terms })));
+const NotFound = lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
 
 const PageLoadingFallback = () => (
   <div className="min-h-[70vh] w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 animate-fade-in">
@@ -165,6 +166,7 @@ const App: React.FC = () => {
                 <Route path="/dmca" element={<DMCA />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/terms" element={<Terms />} />
+                <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
         </ErrorBoundary>
