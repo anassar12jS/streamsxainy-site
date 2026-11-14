@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { 
   Heart, Clock, Play, Shuffle, Music2, Users, Disc, 
-  Sparkles, Youtube, RefreshCw, Plus, ExternalLink, Mic2, Compass
+  Sparkles, RefreshCw, Plus, ExternalLink, Mic2, Compass
 } from 'lucide-react';
+import { YouTubeMusicIcon } from '../../../components/BrandIcons';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { useQuery } from '@tanstack/react-query';
 import { getLibrarySection, getHomeShelves, getPlaylistDetails } from '../api/innertube';
@@ -147,8 +148,8 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
       {/* 1. YouTube Music Account Link Card */}
       <div className="p-4 sm:p-5 rounded-2xl bg-[#141414] border border-white/5 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3.5 text-center sm:text-left">
-          <div className="w-11 h-11 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 border border-white/15">
-            <Youtube className="w-5 h-5 fill-current" />
+          <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/15">
+            <YouTubeMusicIcon className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center justify-center sm:justify-start gap-2">

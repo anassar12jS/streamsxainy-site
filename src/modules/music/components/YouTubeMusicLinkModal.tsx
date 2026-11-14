@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { 
   X, Check, RefreshCw, Link as LinkIcon, ExternalLink, 
-  Music, ListMusic, Sparkles, Youtube, CheckCircle2, AlertCircle
+  Music, ListMusic, Sparkles, CheckCircle2, AlertCircle
 } from 'lucide-react';
+import { YouTubeMusicIcon } from '../../../components/BrandIcons';
 import { 
   getLinkedYouTubeAccount, saveLinkedYouTubeAccount, 
   syncUserYouTubeMusicLibrary, importPlaylistFromYouTube,
@@ -108,8 +109,8 @@ export const YouTubeMusicLinkModal: React.FC<YouTubeMusicLinkModalProps> = ({
         {/* Header */}
         <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-white/5 via-[#18181b] to-[#18181b]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-white/10 text-white flex items-center justify-center border border-white/20">
-              <Youtube className="w-5 h-5 fill-current" />
+            <div className="w-9 h-9 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
+              <YouTubeMusicIcon className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
