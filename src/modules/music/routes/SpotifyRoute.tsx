@@ -4,9 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Music2, Heart, Loader2, AlertTriangle, LogIn, RefreshCw } from 'lucide-react';
 import {
   getSpotifyAuthState,
-  getSpotifyPlaylists,
+  getAllSpotifyPlaylists,
   signInSpotify,
-  SpotifyPlaylist,
 } from '../data/spotify';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { ARTWORK_PLACEHOLDER } from '../api/ytmParse';
@@ -28,7 +27,7 @@ export const SpotifyRoute: React.FC = () => {
 
   const playlistsQuery = useQuery({
     queryKey: ['spotify-playlists'],
-    queryFn: () => getSpotifyPlaylists(0),
+    queryFn: getAllSpotifyPlaylists,
     enabled: Boolean(authQuery.data?.authenticated),
     staleTime: 1000 * 60 * 10,
     retry: 1,
