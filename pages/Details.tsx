@@ -453,9 +453,13 @@ export const Details: React.FC = () => {
   };
 
   // Helper metadata
-  const backdropUrl = detail?.backdrop_path 
-    ? (detail.backdrop_path.startsWith('http') ? detail.backdrop_path : `${TMDB_IMAGE_BASE}${detail.backdrop_path}`) 
+  const backdropPath = detail?.backdrop_path || '';
+  const backdropUrl = backdropPath
+    ? (backdropPath.startsWith('http') ? backdropPath : `${TMDB_BACKDROP_W1280}${backdropPath}`)
     : '';
+  const backdropSrcSet = backdropPath && !backdropPath.startsWith('http')
+    ? `${TMDB_BACKDROP_W780}${backdropPath} 780w, ${TMDB_BACKDROP_W1280}${backdropPath} 1280w, https://image.tmdb.org/t/p/original${backdropPath} 1920w`
+    : undefined;
   const posterUrl = detail?.poster_path 
     ? (detail.poster_path.startsWith('http') ? detail.poster_path : `${TMDB_POSTER_BASE}${detail.poster_path}`) 
     : POSTER_FALLBACK_SVG;
@@ -803,12 +807,14 @@ export const Details: React.FC = () => {
       </div>
 
       {/* Cinematic Hero Section */}
-      <div ref={heroRef} className="relative w-full min-h-[580px] lg:min-h-[660px] flex flex-col justify-end overflow-visible">
+      <div ref={heroRef} className="relative w-full min-h-[420px] sm:min-h-[480px] lg:min-h-[540px] flex flex-col justify-end overflow-visible">
         {/* Layer 1: High Resolution Backdrop Image */}
         {backdropUrl ? (
           <div className="absolute inset-0 z-0 overflow-hidden">
             <img 
               src={backdropUrl} 
+              srcSet={backdropSrcSet}
+              sizes="100vw"
               alt={title} 
               className="w-full h-full object-cover object-center lg:object-top transform scale-105 filter brightness-95 contrast-105" 
             />
@@ -850,7 +856,7 @@ export const Details: React.FC = () => {
         </div>
 
         {/* Layer 3: Hero Content Body */}
-        <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 w-full">
+        <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-8 sm:pb-10 w-full">
           <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-8 items-end">
             
             {/* Poster Card Column (Desktop) */}

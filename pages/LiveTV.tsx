@@ -348,7 +348,7 @@ export const LiveTV: React.FC = () => {
 
       <div className="flex-1 min-h-0 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Player & Info */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
+        <div className="lg:col-span-2 flex flex-col gap-4 min-h-0 max-h-[52vh] lg:max-h-none overflow-y-auto custom-scrollbar pr-1">
           
           {/* Video Player */}
           <div className="w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl relative group border border-[var(--border-color)]">
