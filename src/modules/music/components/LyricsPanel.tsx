@@ -90,6 +90,7 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
   if (!showLyrics || !currentTrack) return null;
 
   // Find active line index
+  const hasWordTiming = Boolean(activeLyrics?.synced?.some(l => l.words && l.words.length > 0));
   const activeLineIdx = activeLyrics?.synced
     ? activeLyrics.synced.findIndex((line, i) => {
         const nextTime = activeLyrics.synced![i + 1]?.time ?? Infinity;
@@ -156,6 +157,7 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({
             songArtist={currentTrack.artist}
             songAlbum={currentTrack.album}
             songDurationMs={duration > 0 ? duration * 1000 : undefined}
+            ttml={hasWordTiming ? activeLyrics?.ttml : undefined}
             currentTime={steeredTime * 1000}
             paused={playbackStatus !== 'playing'}
             autoScroll

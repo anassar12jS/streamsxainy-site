@@ -56,9 +56,16 @@ export interface Playlist {
   tracks: MusicTrack[];
 }
 
+export interface SyncedLyricWord {
+  text: string;
+  start: number; // seconds
+  end: number;   // seconds
+}
+
 export interface SyncedLyricLine {
   time: number; // in seconds
   text: string;
+  words?: SyncedLyricWord[];
 }
 
 export interface LyricsData {

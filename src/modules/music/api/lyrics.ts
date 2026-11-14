@@ -65,6 +65,23 @@ export async function fetchLyrics(artist: string, title: string, duration?: numb
     return null;
   };
 
+  // 0. PaxSenix proxy — Apple Music word-timed lyrics first, then Spotify/LRC.
+  //    Server-side so the API key never ships to the client.
+  try {
+    const paxUrl = `/api/paxsenix-lyrics?artist=${encodeURIComponent(cleanedArtist || artist)}&title=${encodeURIComponent(cleanedTitle || title)}${duration ? `&duration=${duration}` : ''}`;
+    const res = await extensionBridge.proxyFetch(paxUrl);
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.provider && (data.synced?.length || data.plain)) {
+        return {
+          plain: data.plain || '',
+          synced: data.synced || [],
+          ttml: data.ttml || '',
+        };
+      }
+    }
+  } catch {}
+
   // 1. LRCLIB: Try exact get without duration constraint (avoids 404 from 2-3s difference)
   try {
     const getUrl = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(cleanedArtist || artist)}&track_name=${encodeURIComponent(cleanedTitle || title)}`;
