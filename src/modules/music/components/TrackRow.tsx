@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Pause, Heart, MoreHorizontal, Plus, Disc, Loader2, ListPlus, Moon } from 'lucide-react';
+import { Play, Pause, Heart, MoreHorizontal, Plus, Disc, Loader2, ListPlus, Moon, Link2, User, Disc3 } from 'lucide-react';
 import { MusicTrack } from '../types';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { prefetchStreamUrl } from '../api/innertube';
@@ -254,6 +254,38 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                 <Moon className="w-3.5 h-3.5" />
                 <span>Play &amp; sleep after song</span>
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const url = `${window.location.origin}/music/search?q=${encodeURIComponent(`${track.artist} ${track.title}`)}`;
+                  navigator.clipboard?.writeText(url).catch(() => {});
+                  setShowMenu(false);
+                }}
+                className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white cursor-pointer"
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                <span>Copy Link</span>
+              </button>
+              {track.artistId && (
+                <Link
+                  to={`/music/artist/${track.artistId}`}
+                  onClick={() => setShowMenu(false)}
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white cursor-pointer"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Go to Artist</span>
+                </Link>
+              )}
+              {track.albumId && (
+                <Link
+                  to={`/music/album/${track.albumId}`}
+                  onClick={() => setShowMenu(false)}
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white cursor-pointer"
+                >
+                  <Disc3 className="w-3.5 h-3.5" />
+                  <span>Go to Album</span>
+                </Link>
+              )}
             </div>
           )}
         </div>

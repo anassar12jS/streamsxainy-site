@@ -21,6 +21,7 @@ export interface HiresStream {
   url: string;
   codec?: string;
   container?: string;
+  format?: string;
   sampleRate?: number;
   bitDepth?: number;
   bitrate?: number;
