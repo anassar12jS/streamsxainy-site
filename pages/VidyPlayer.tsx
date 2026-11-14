@@ -417,6 +417,23 @@ export const VidyPlayer: React.FC = () => {
         return isEpisode
           ? `https://vidfast.pro/tv/${id}/${season}/${episode}?autoPlay=true`
           : `https://vidfast.pro/movie/${id}`;
+      case 'vidsrc-to':
+        return isEpisode
+          ? `https://vidsrc.to/embed/tv/${id}/${season}/${episode}`
+          : `https://vidsrc.to/embed/movie/${id}`;
+      case 'vidsrc-me':
+        return isEpisode
+          ? `https://vidsrc.me/embed/tv/${id}/${season}/${episode}`
+          : `https://vidsrc.me/embed/movie/${id}`;
+      case '2embed':
+        return isEpisode
+          ? `https://www.2embed.cc/embedtv/${externalId}/${season}/${episode}`
+          : `https://www.2embed.cc/embed/${externalId}`;
+      case 'multiembed': {
+        const mmParams = new URLSearchParams({ video_id: String(externalId), tmdb: '1' });
+        if (isEpisode) { mmParams.set('s', String(season)); mmParams.set('e', String(episode)); }
+        return `https://multiembed.mov/?${mmParams.toString()}`;
+      }
       default: {
         const ishowParams = new URLSearchParams({
           branding: 'streamsxainy',

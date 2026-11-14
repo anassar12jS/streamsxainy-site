@@ -14,6 +14,10 @@ export const PROVIDERS = [
   { id: 'vidsrc-wtf', name: 'VidSrc WTF', speed: 'Fast ⚡', quality: '1080p', badge: 'Mirror 1' },
   { id: 'vidora', name: 'Vidora Stream', speed: 'Adaptive 🌐', quality: 'Multi-Res', badge: 'Mirror 2' },
   { id: 'vidfastpro', name: 'VidFast HQ', speed: 'Rapid ⚡', quality: '1080p', badge: 'Mirror 3' },
+  { id: 'vidsrc-to', name: 'VidSrc TO', speed: 'Fast ⚡', quality: '1080p', badge: 'Mirror 4' },
+  { id: 'vidsrc-me', name: 'VidSrc ME', speed: 'Fast ⚡', quality: '1080p', badge: 'Mirror 5' },
+  { id: '2embed', name: '2Embed', speed: 'Fast ⚡', quality: '1080p', badge: 'Mirror 6' },
+  { id: 'multiembed', name: 'MultiEmbed', speed: 'Fast ⚡', quality: '1080p', badge: 'Mirror 7' },
 ] as const;
 
 export type ProviderId = typeof PROVIDERS[number]['id'];
