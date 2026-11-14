@@ -2,13 +2,12 @@
 
 # 🎬 StreamHub
 
-### The Ultimate Cinema, Sports & Anime Streaming Hub
-*A modern, ultra-fast, multi-source entertainment platform with live TV, sports schedules, and multi-server playback.*
+### Cinema, Anime, Live TV, Sports & Hi-Res Music — All in One Hub
+*A cinema-grade progressive web app with multi-server playback, real FLAC streaming, live sports feeds, IPTV, and social listening.*
 
-[![React](https://img.shields.io/badge/React-19.2-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Vite](https://img.shields.io/badge/Vite-7.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-4.x-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Vite](https://img.shields.io/badge/Vite-5.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Tech Stack](#-tech-stack) • [Keyboard Shortcuts](#-keyboard-shortcuts) • [Author](#-author) • [Disclaimer](#-legal-disclaimer)
@@ -19,91 +18,96 @@
 
 ## 🌟 Overview
 
-**StreamHub** is a cinema-grade progressive web application built for movie buffs, anime enthusiasts, and live sports fans. It aggregates high-performance streaming mirrors, real-time sports satellite feeds, IPTV channels, and comprehensive metadata from TMDB and AniList into a seamless, distraction-free interface.
+**StreamHub** aggregates movies, TV, anime, live sports, IPTV channels, and a full music streaming module into one fast, themeable interface. Playback uses third-party embed providers with automatic failover and per-user health tracking, while the music module streams real lossless audio through a multi-provider resolver.
 
 ---
 
 ## 🚀 Features
 
 ### 🎥 Cinema & TV Shows
-- **Multi-Server Failover Engine**: Instant switching between 8+ streaming nodes including Vidy, VidLink, VidSrc, Videasy, Vidora, CinemaOS, and VidFast.
-- **Rich Media Details**: TMDB-backed synopsis, ratings, trailers, cast lists, crew bios, and similar content recommendations.
-- **Binge Mode & TV Navigation**: Quick season and episode drawers with automatic next-episode progression.
-- **Cross-Session Resume**: Saves your watch time, season, and episode progress directly in local storage.
+- **Multi-Server Failover Engine**: 14 embed providers (iShowStream, Vidy, VidLink, VidSrc ×3, Videasy XYZ, VidFast, 2Embed, MultiEmbed, and more) with automatic failover, per-user health scoring, and a loading timeout that advances servers automatically.
+- **Overlay Subtitles**: Movies and episodes get synced subtitles fetched server-side from OpenSubtitles/SubDL via SubKong — CC toggle, ±sync offset (persisted per title), and 16-language picker in the player.
+- **Rich Media Details**: TMDB-backed synopsis, ratings, trailers, cast, galleries (backdrops/posters/logos), and recommendations.
+- **Binge Mode & TV Navigation**: Season/episode drawers, next-episode progression, resume-from-progress.
+- **Continue Watching**: Progress persisted per title with resume prompts.
+
+### 🎵 Xainy Music Module
+- **Hi-Res Lossless Audio**: Real FLAC pipeline resolving through Monochrome (Tidal-backed), Netease, Joox/Kugou/Migu (Meting), and Internet Archive — with FLAC header verification, honest codec badges, Range-safe same-origin proxying, and next-track prefetch.
+- **YouTube Music Integration**: InnerTube search/browse/playback via a server-side Vercel proxy — works without any extension.
+- **Spotify Support**: Companion browser extension bridges your Spotify library — all playlists in the sidebar, playlist track normalization, YTM-matched playback.
+- **Listen Together**: Real-time synced listening rooms over Supabase Realtime with host-authoritative playback, drift correction, chat, and host migration.
+- **Immersive Player**: Full-screen now-playing with synced lyrics (LRCLIB + YTM timed lyrics), artwork-tinted ambient UI, queue drawer, sleep timer, replay stats, and Media Session API controls.
+- **Installable PWA**: Add `/music` to your home screen — standalone display, service worker, offline app shell.
 
 ### ⚽ Live Sports Center
-- **Satellite & Web Feeds**: Live sports streaming with multi-provider failover (`Streamed`, `VIPRow`, `StreamEast`, and HD mirrors).
-- **Match Countdown Clocks**: Real-time ticker countdowns to kickoff in your local timezone.
-- **Ad & Popup Shield**: Built-in sandbox mode that neutralizes aggressive popups from third-party sports streams.
-- **Category Filter Pills**: Football ⚽, Basketball 🏀, UFC/MMA 🥊, Formula 1 🏎️, NFL 🏈, MLB ⚾, NHL 🏒, Tennis 🎾, and Cricket 🏏.
-- **Live Match Hopper**: Hop directly between live sports fixtures without leaving the cinema player.
+- **Live Scores & Match Center**: Real-time fixtures with stats, lineups, win-probability, incidents timeline, and direct stream links.
+- **Region Timezone Engine**: Kickoff times recalculate per selected region with live clocks.
+- **Multiview**: Watch 2–4 matches simultaneously in split screen.
+- **Match Hopper**: Jump between live fixtures without leaving the player.
 
 ### ⛩️ Dedicated Anime Portal
-- **AniList Sync**: Airing schedules, next episode counters, romaji/english titles, and seasonal rankings.
-- **Dual Server Pipeline**: AniEmbed and MegaVid streaming servers.
-- **Sub / Dub Toggle**: Instant switching between original Japanese audio with subtitles and English dubbing.
+- **AniList Sync**: Airing schedules, seasonal rankings, romaji/english titles.
+- **5 Anime Servers**: AniEmbed, MegaVid, Vidly, Anixo, iShowStream with sub/dub toggle.
 
 ### 📺 Global Live TV Guide
-- **Electronic Program Guide (EPG)**: Browse hundreds of regional and international IPTV channels.
-- **Categorized Feeds**: News, Entertainment, Kids, Movies, Sports, and Music.
-- **HLS Native Player**: Low-latency video playback using `hls.js`.
+- **EPG Integration**: Now/next program data per channel.
+- **Categorized Feeds**: News, Entertainment, Kids, Movies, Sports, Music — with favorites and recents.
+- **Native HLS Playback** via `hls.js`, Picture-in-Picture support.
 
 ### 🔍 Spotlight Command Search (`Cmd + K` / `Ctrl + K`)
-- Instant keyboard-accessible modal search across movies, TV series, anime, actors, and directors.
-- Live debounced query matching with poster previews and keyboard arrow navigation.
+Instant search across movies, series, anime, and people with keyboard navigation.
 
-### 🎨 Personalization & Cinema Ambiance
-- **Dynamic Theming**: Choose between 5 theme accents (Purple, Red, Blue, Green, Orange).
-- **OLED Dark & High-Contrast Light Modes**: Pure dark tones for late-night viewing and crisp light layouts.
-- **Personal Watchlist**: Bookmark favorites across cinema, anime, and live sports matches.
+### 🎨 Personalization
+- **5 Theme Accents** + OLED dark / light modes, custom accent hex.
+- **Watchlist, History & Continue Watching** — all local-first, no account required.
+- **Legal pages**: DMCA, Privacy Policy, Terms of Service.
 
 ---
 
 ## 💻 Tech Stack
 
-- **Frontend**: [React 19](https://react.dev/) with functional components & custom hooks
-- **Type Safety**: [TypeScript](https://www.typescriptlang.org/) strict mode
-- **Build System**: [Vite 7](https://vitejs.dev/) with automated route code-splitting
-- **Data Fetching & Cache**: [TanStack Query v5](https://tanstack.com/query) with optimistic stale-while-revalidate caching
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/) with native CSS variables for theme switching
-- **Icons**: [Lucide React](https://lucide.dev/)
-- **Streaming & Media**: [HLS.js](https://github.com/video-dev/hls.js/) for live broadcast playback
-- **APIs**:
-  - [The Movie Database (TMDB) API](https://www.themoviedb.org/documentation/api)
-  - [AniList GraphQL API](https://anilist.gitbook.io/anilist-apiv2-docs/)
-  - Real-time sports fixture endpoints & IPTV feeds
+- **Frontend**: React 18 + TypeScript (strict), Vite 5, React Router 6
+- **State & Data**: Zustand, TanStack Query v5
+- **Styling**: Tailwind CSS (Play CDN) + CSS-variable theming
+- **Media**: Shaka Player (DASH), hls.js (HLS), Web Audio API analyser
+- **Backend**: Vercel serverless functions — `api/hires-stream.js` (FLAC resolver + proxy), `api/subs.js` (subtitle resolver), `api/youtubei.js` (InnerTube proxy), `api/football-data/`, `api/stream.js`
+- **Realtime**: Supabase Realtime (Listen Together rooms)
+- **APIs**: TMDB, AniList GraphQL, SubKong (OpenSubtitles/SubDL), LRCLIB, Monochrome/Netease/Meting/Archive audio providers
+- **Extension**: Companion Chromium extension for YouTube/Spotify session bridging
+- **PWA**: Web manifest + service worker (`public/sw.js`)
 
 ---
 
 ## ⚡ Quick Start
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (version 18 or higher recommended)
-- `npm` or `pnpm`
+- Node.js 18+ and npm
 
 ### Installation
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/anassar12jS/StreamHub.git
-   cd StreamHub
-   ```
+```bash
+git clone https://github.com/anassar12jS/streamsxainy-site.git
+cd streamsxainy-site
+npm install
+npm run dev
+```
 
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+Open [http://localhost:5173](http://localhost:5173).
 
-3. **Start development server:**
-   ```bash
-   npm run dev
-   ```
-   Open [http://localhost:3000](http://localhost:3000) in your browser.
+### Environment Variables
 
-4. **Build for production:**
-   ```bash
-   npm run build
-   ```
+Copy `.env.example` → `.env.local`. Server-side secrets (never `VITE_`-prefixed):
+
+| Variable | Purpose |
+| :--- | :--- |
+| `FOOTBALL_DATA_TOKEN` | Football-Data API (sports scores) |
+| `VITE_TMDB_API_KEY` | TMDB metadata |
+| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | Listen Together realtime rooms (optional) |
+
+> **Note**: `/api/*` serverless functions only run on Vercel. Locally, hires/subtitle/YouTube-Music-proxy calls fail soft and the app falls back to public sources. For full local parity, use `vercel dev`.
+
+### Deployment
+Push to GitHub → import into [Vercel](https://vercel.com) → done. `vercel.json` handles SPA rewrites and security headers.
 
 ---
 
@@ -111,27 +115,33 @@
 
 | Shortcut | Action |
 | :--- | :--- |
-| <kbd>Cmd</kbd> + <kbd>K</kbd> / <kbd>Ctrl</kbd> + <kbd>K</kbd> | Open Spotlight Command Search |
+| <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>K</kbd> | Spotlight Command Search |
 | <kbd>/</kbd> | Focus Search Bar |
-| <kbd>Esc</kbd> | Close Modal / Search Drawer |
-| <kbd>F</kbd> | Toggle Cinema Fullscreen (in Player) |
-| <kbd>Space</kbd> | Play / Pause Stream |
+| <kbd>Esc</kbd> | Close Modal / Drawer |
+| <kbd>F</kbd> | Toggle Cinema Fullscreen (Player) |
+| <kbd>P</kbd> / <kbd>N</kbd> | Previous / Next Episode |
+
+**Music player**: <kbd>Space</kbd> play/pause · <kbd>←</kbd>/<kbd>→</kbd> seek · <kbd>Shift</kbd>+<kbd>←</kbd>/<kbd>→</kbd> ±10s · <kbd>M</kbd> mute · <kbd>L</kbd> like · <kbd>Q</kbd> queue · <kbd>?</kbd> shortcuts
 
 ---
 
 ## 📂 Project Structure
 
 ```text
-StreamHub/
-├── components/          # Reusable UI components (Navbar, Footer, Modals, Sliders)
-├── pages/               # Routed views (Home, Details, VidyPlayer, Sports, LiveTV, Anime)
-├── services/            # API clients, scrapers, and persistence layers (TMDB, AniList, Sports)
-├── types/               # TypeScript interfaces and domain schemas
-├── public/              # Static assets, SVG favicons, and manifest files
-├── App.tsx              # Main routing hub with lazy-loaded Suspense code-splitting
-├── index.html           # HTML5 entry with preconnect hints and SVG tab logo
-├── index.tsx            # React root mount and QueryClient provider
-└── vite.config.ts       # Optimized Vite build and server config
+├── api/                  # Vercel serverless functions
+│   ├── hires-stream.js   #   FLAC/lossless resolver + media proxy
+│   ├── subs.js           #   Subtitle resolver (SubKong → SRT cues)
+│   ├── youtubei.js       #   YouTube InnerTube proxy
+│   ├── stream.js         #   Generic stream proxy
+│   └── football-data/    #   Sports data proxy
+├── server/hires/         # FLAC provider implementations (Monochrome, Netease, Meting, Archive, Deezer)
+├── components/           # Shared UI (Navbar, Footer, CommandSearchModal, SettingsModal…)
+├── pages/                # Routes (Home, Discover, Details, VidyPlayer, Sports, LiveTV, Anime, Legal)
+├── services/             # API clients & persistence (tmdb, anilist, sports, epg, storage, subtitles…)
+├── src/modules/music/    # Xainy Music module (player, routes, store, extension bridge, api)
+├── public/               # PWA manifest, service worker, icons, sitemap, robots
+├── App.tsx               # Routing hub with lazy-loaded code-splitting
+└── vercel.json           # SPA rewrites + security headers
 ```
 
 ---
@@ -147,12 +157,12 @@ Developed and maintained by **Anas**:
 
 ## ⚖️ Legal Disclaimer
 
-StreamHub is an open-source media discovery and indexation tool. It does not host, upload, or store any video files, media streams, or copyrighted material on its own servers. All streams and metadata are provided by third-party services and APIs. Please review local copyright laws before accessing third-party streaming resources.
+StreamHub is a media discovery and playback-aggregation tool. It does not host, upload, or store video files or copyrighted material on its own servers; playback is provided through third-party embed providers. Music streaming resolves public catalog sources and your own connected accounts (YouTube Music / Spotify via the companion extension). Please review our [DMCA Policy](/dmca), [Privacy Policy](/privacy), and [Terms of Service](/terms), and consult local copyright laws before use.
 
 ---
 
 <div align="center">
-  <sub>Built with ❤️ for cinephiles and sports fans worldwide.</sub>
+  <sub>Built with ❤️ for cinephiles, sports fans, and music lovers worldwide.</sub>
 </div>
 
 ## Sports data setup
@@ -161,4 +171,4 @@ Football-Data credentials are server-only. For local development, put `FOOTBALL_
 
 The Vercel function at `api/football-data/[...path].js` proxies the supported Football-Data endpoints and applies shared short-term caching. Match pages stop waiting after eight seconds if an upstream feed is slow. When every feed fails, the UI shows no sample fixtures as live data.
 
-F1 and combat sports coverage utilize live event schedules and direct streams.
+F1 and combat sports coverage utilizes live event schedules and direct streams.
