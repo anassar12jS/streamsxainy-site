@@ -315,11 +315,35 @@ export const VidyPlayer: React.FC = () => {
     : !isEpisode || (savedProgress?.season === season && savedProgress?.episode === episode);
   const progress = progressMatchesSelection ? savedProgress?.currentTime : undefined;
 
+  // Resume position SNAPSHOT for embed URLs. Must not track live savedProgress —
+  // saveProgress writes every ~5s and each write would change `progress`, which
+  // changes embedUrl, which reloads the iframe → infinite reload loop on any
+  // provider that puts the resume timestamp in its URL (vidy.st, ishowstream,
+  // vidsrc.sh, aniembed). This state only updates when the selection changes.
+  const [resumeTime, setResumeTime] = useState<number | undefined>(() => {
+    const sp = Number.isSafeInteger(id) ? getProgressForId(id) : undefined;
+    const matches = isAnime
+      ? sp?.episode === episode
+      : !isEpisode || (sp?.season === season && sp?.episode === episode);
+    return matches ? sp?.currentTime : undefined;
+  });
+  const resumeKeyRef = useRef('');
+  useEffect(() => {
+    const key = `${mediaType}:${id}:${season}:${episode}`;
+    if (resumeKeyRef.current === key) return;
+    resumeKeyRef.current = key;
+    const sp = Number.isSafeInteger(id) ? getProgressForId(id) : undefined;
+    const matches = isAnime
+      ? sp?.episode === episode
+      : !isEpisode || (sp?.season === season && sp?.episode === episode);
+    setResumeTime(matches ? sp?.currentTime : undefined);
+  }, [mediaType, id, season, episode, isAnime, isEpisode]);
+
   const themeHex = getThemeHex();
   const externalId = details?.external_ids?.imdb_id || id;
 
   const vidyParams = new URLSearchParams({ color: themeHex, autoplay: 'true' });
-  if (progress && progress > 0) vidyParams.set('progress', String(Math.floor(progress)));
+  if (resumeTime && resumeTime > 0) vidyParams.set('progress', String(Math.floor(resumeTime)));
   if (isEpisode || isAnime) {
     vidyParams.set('nextEpisode', 'true');
     vidyParams.set('episodeSelector', 'true');
@@ -353,13 +377,13 @@ export const VidyPlayer: React.FC = () => {
           subtitle: animeLang === 'dub' ? 'English' : 'Japanese',
         });
         if (themeHex) ishowParams.set('color', themeHex);
-        if (progress && progress > 0) ishowParams.set('progress', String(Math.floor(progress)));
+        if (resumeTime && resumeTime > 0) ishowParams.set('progress', String(Math.floor(resumeTime)));
         return isEpisode
           ? `https://ishowstream.cc/embed/tv/${id}/${season}/${episode}?${ishowParams.toString()}`
           : `https://ishowstream.cc/embed/movie/${id}?${ishowParams.toString()}`;
       }
       if (effectiveAnilistId) {
-        const tParam = progress && progress > 0 ? `&t=${Math.floor(progress)}` : '';
+        const tParam = resumeTime && resumeTime > 0 ? `&t=${Math.floor(resumeTime)}` : '';
         return `https://aniembed.se/e/${effectiveAnilistId}/${episode}?lang=${animeLang}&autoplay=1${tParam}`;
       }
     }
@@ -372,7 +396,7 @@ export const VidyPlayer: React.FC = () => {
           subtitle: 'English',
         });
         if (themeHex) ishowParams.set('color', themeHex);
-        if (progress && progress > 0) ishowParams.set('progress', String(Math.floor(progress)));
+        if (resumeTime && resumeTime > 0) ishowParams.set('progress', String(Math.floor(resumeTime)));
         return isEpisode
           ? `https://ishowstream.cc/embed/tv/${id}/${season}/${episode}?${ishowParams.toString()}`
           : `https://ishowstream.cc/embed/movie/${id}?${ishowParams.toString()}`;
@@ -391,7 +415,7 @@ export const VidyPlayer: React.FC = () => {
           : `https://vidsrc.wtf/api/1/movie/?id=${id}`;
       case 'vidsrc-sh': {
         const vidsrcParams = new URLSearchParams({ autoplay: '1' });
-        if (progress && progress > 0) vidsrcParams.set('startAt', String(Math.floor(progress)));
+        if (resumeTime && resumeTime > 0) vidsrcParams.set('startAt', String(Math.floor(resumeTime)));
         if (isEpisode) vidsrcParams.set('autonext', '1');
         return isEpisode
           ? `https://vidsrc.sh/embed/tv/${externalId}/${season}/${episode}?${vidsrcParams.toString()}`
@@ -437,13 +461,13 @@ export const VidyPlayer: React.FC = () => {
           subtitle: 'English',
         });
         if (themeHex) ishowParams.set('color', themeHex);
-        if (progress && progress > 0) ishowParams.set('progress', String(Math.floor(progress)));
+        if (resumeTime && resumeTime > 0) ishowParams.set('progress', String(Math.floor(resumeTime)));
         return isEpisode
           ? `https://ishowstream.cc/embed/tv/${id}/${season}/${episode}?${ishowParams.toString()}`
           : `https://ishowstream.cc/embed/movie/${id}?${ishowParams.toString()}`;
       }
     }
-  }, [provider, animeProvider, animeLang, isEpisode, isAnime, id, externalId, season, episode, effectiveAnilistId, progress, themeHex]);
+  }, [provider, animeProvider, animeLang, isEpisode, isAnime, id, externalId, season, episode, effectiveAnilistId, resumeTime, themeHex]);
 
   const advanceStreamServer = useCallback((manual = false) => {
     if (isAnime) {
@@ -613,6 +637,7 @@ export const VidyPlayer: React.FC = () => {
 
   const handleStartOver = () => {
     removeFromProgress(id);
+    setResumeTime(undefined);
     failoverAttempts.current = 0;
     setIsLoading(true);
     setHasTimedOut(false);
