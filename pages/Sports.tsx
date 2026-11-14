@@ -1853,6 +1853,7 @@ export const Sports: React.FC = () => {
 
   // User preference: Default league = La Liga ('laliga')
   const [tabMode, setTabMode] = useState<'live' | 'upcoming' | 'favorites' | 'standings'>('live');
+  const [featuredDismissed, setFeaturedDismissed] = useState(false);
   const [selectedLeague, setSelectedLeague] = useState<string>('laliga');
   const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>('grid');
   const [selectedCompetition, setSelectedCompetition] = useState('ALL');
@@ -2272,135 +2273,6 @@ export const Sports: React.FC = () => {
   return (
     <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] pb-24 transition-colors duration-300">
       
-      {/* 🌍 DYNAMIC REGION & TIMEZONE TICKER BAR */}
-      <div className="bg-[var(--bg-card)]/80 border-b border-[var(--border-subtle)] py-2 px-4 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-          
-          {/* Live Clock with Selected Region */}
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 font-black text-[rgb(var(--primary-color))] bg-[rgb(var(--primary-color))]/15 border border-[rgb(var(--primary-color))]/30 px-3 py-1 rounded-full shadow-sm">
-              <span className="text-base leading-none">{selectedRegion.flag}</span>
-              <span className="uppercase">{selectedRegion.name.split(' /')[0]}</span>
-              <span className="text-[10px] text-[var(--text-muted)] font-mono">(clock · {selectedRegionOffset})</span>
-            </span>
-
-            <RegionClock region={selectedRegion} />
-          </div>
-
-          {/* Region Selector Interactive Button & Dropdown */}
-          <div className="relative flex items-center gap-2">
-            <span className="text-[11px] text-[var(--text-muted)] hidden sm:inline flex items-center gap-1">
-              <Globe className="w-3.5 h-3.5 text-[rgb(var(--primary-color))]" />
-              <span>Kickoff Timezone:</span>
-            </span>
-            
-            <button
-              type="button"
-              onClick={() => setIsRegionDropdownOpen(!isRegionDropdownOpen)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--bg-card)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] hover:border-[rgb(var(--primary-color))]/50 text-xs font-bold text-[var(--text-main)] shadow-sm transition-all"
-            >
-              <span className="text-sm">{selectedRegion.flag}</span>
-              <span className="truncate max-w-[130px] sm:max-w-none">{selectedRegion.name}</span>
-              <span className="text-[10px] font-mono text-[rgb(var(--primary-color))] bg-[rgb(var(--primary-color))]/10 px-1.5 py-0.2 rounded border border-[rgb(var(--primary-color))]/20">
-                {selectedRegionOffset}
-              </span>
-              <ChevronDown className={`w-3.5 h-3.5 text-[var(--text-muted)] transition-transform ${isRegionDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {/* Dropdown Menu */}
-            {isRegionDropdownOpen && (
-              <>
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={() => setIsRegionDropdownOpen(false)} 
-                />
-                <div className="absolute right-0 top-full mt-2 w-80 max-h-96 overflow-y-auto rounded-2xl bg-[#121216] border border-white/15 p-2.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 fancy-scrollbar">
-                  <div className="px-3 py-2 border-b border-white/10 mb-2">
-                    <p className="text-[11px] font-black uppercase tracking-wider text-[rgb(var(--primary-color))] flex items-center gap-1.5">
-                      <Globe className="w-3.5 h-3.5" />
-                      <span>Select Kickoff Timezone</span>
-                    </p>
-                    <p className="text-[10px] text-white/50 mt-0.5">
-                      All match kickoffs, dates, and schedules recalculate instantly
-                    </p>
-                  </div>
-
-                  {/* Fast Region Presets Grid */}
-                  <div className="grid grid-cols-2 gap-1 mb-2 pb-2 border-b border-white/10">
-                    <button
-                      onClick={() => handleRegionChange('morocco')}
-                      className={`px-2.5 py-1.5 rounded-lg text-left text-[11px] font-bold flex items-center gap-1.5 ${
-                        selectedRegion.id === 'morocco' ? 'bg-[rgb(var(--primary-color))]/25 text-[rgb(var(--primary-color))] border border-[rgb(var(--primary-color))]/40' : 'bg-white/5 hover:bg-white/10 text-white/80'
-                      }`}
-                    >
-                      <span>🇲🇦</span>
-                      <span className="truncate">Morocco ({getRegionOffsetLabel('morocco', 'Africa/Casablanca')})</span>
-                    </button>
-                    <button
-                      onClick={() => handleRegionChange('spain')}
-                      className={`px-2.5 py-1.5 rounded-lg text-left text-[11px] font-bold flex items-center gap-1.5 ${
-                        selectedRegion.id === 'spain' ? 'bg-[rgb(var(--primary-color))]/25 text-[rgb(var(--primary-color))] border border-[rgb(var(--primary-color))]/40' : 'bg-white/5 hover:bg-white/10 text-white/80'
-                      }`}
-                    >
-                      <span>🇪🇸</span>
-                      <span className="truncate">Spain ({getRegionOffsetLabel('spain', 'Europe/Madrid')})</span>
-                    </button>
-                    <button
-                      onClick={() => handleRegionChange('uk')}
-                      className={`px-2.5 py-1.5 rounded-lg text-left text-[11px] font-bold flex items-center gap-1.5 ${
-                        selectedRegion.id === 'uk' ? 'bg-[rgb(var(--primary-color))]/25 text-[rgb(var(--primary-color))] border border-[rgb(var(--primary-color))]/40' : 'bg-white/5 hover:bg-white/10 text-white/80'
-                      }`}
-                    >
-                      <span>🇬🇧</span>
-                      <span className="truncate">UK ({getRegionOffsetLabel('uk', 'Europe/London')})</span>
-                    </button>
-                    <button
-                      onClick={() => handleRegionChange('france')}
-                      className={`px-2.5 py-1.5 rounded-lg text-left text-[11px] font-bold flex items-center gap-1.5 ${
-                        selectedRegion.id === 'france' ? 'bg-[rgb(var(--primary-color))]/25 text-[rgb(var(--primary-color))] border border-[rgb(var(--primary-color))]/40' : 'bg-white/5 hover:bg-white/10 text-white/80'
-                      }`}
-                    >
-                      <span>🇫🇷</span>
-                      <span className="truncate">France ({getRegionOffsetLabel('france', 'Europe/Paris')})</span>
-                    </button>
-                  </div>
-
-                  {/* Complete Regions List */}
-                  {REGIONS.map(reg => {
-                    const isSelected = reg.id === selectedRegion.id;
-                    return (
-                      <button
-                        key={reg.id}
-                        onClick={() => handleRegionChange(reg.id)}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors text-xs mb-1 ${
-                          isSelected 
-                            ? 'bg-[rgb(var(--primary-color))]/20 text-[rgb(var(--primary-color))] font-bold border border-[rgb(var(--primary-color))]/40' 
-                            : 'hover:bg-white/10 text-white/80 hover:text-white'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-base shrink-0">{reg.flag}</span>
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold text-white">{reg.name}</p>
-                            <p className="text-[10px] text-white/50 truncate">{reg.country}</p>
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-mono shrink-0 px-2 py-0.5 rounded bg-white/10 text-white/70 ml-2 font-bold">
-                          {reg.id === selectedRegion.id && apiTimezoneOffsetLabel
-                            ? apiTimezoneOffsetLabel
-                            : formatTimezoneOffset(clockNow, reg.scheduleTz || reg.tz)}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-
-        </div>
-      </div>
-
       {/* 🔴 REAL-TIME LIVE SCORES & KICKOFF PULSE TICKER */}
       <LiveScoresTicker
         matches={matches}
@@ -2414,7 +2286,7 @@ export const Sports: React.FC = () => {
       />
 
       {/* Featured Headline Marquee Banner (Stadium Atmosphere - Real Madrid vs Barcelona) */}
-      {featuredMatch && !hasActiveFilters && (
+      {featuredMatch && !hasActiveFilters && !featuredDismissed && tabMode === 'live' && (
         <div className="relative border-b border-[var(--border-subtle)] bg-[var(--bg-card)] overflow-hidden">
           {/* Ambient Stadium Lighting */}
           <div className="absolute inset-0 bg-[rgb(var(--primary-color))]/[0.07] pointer-events-none" />
@@ -2422,6 +2294,15 @@ export const Sports: React.FC = () => {
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="shine-sweep absolute top-0 bottom-0 w-1/3 bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
           </div>
+          {/* Dismiss */}
+          <button
+            type="button"
+            onClick={() => setFeaturedDismissed(true)}
+            aria-label="Dismiss featured match"
+            className="absolute top-3 right-3 z-20 p-1.5 rounded-full bg-black/50 hover:bg-black/80 border border-white/15 text-white/60 hover:text-white transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-7 relative z-10">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
               
@@ -2512,6 +2393,136 @@ export const Sports: React.FC = () => {
       {/* Control Sticky Toolbar */}
       <div className="sticky top-0 z-30 bg-[#0c0d12]/98 backdrop-blur-xl border-b border-[var(--border-subtle)] shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col gap-3">
+          
+          {/* Region & timezone (merged into toolbar) */}
+          <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-[var(--border-subtle)]/60">
+<div className="w-full flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+                    
+                    {/* Live Clock with Selected Region */}
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1.5 font-black text-[rgb(var(--primary-color))] bg-[rgb(var(--primary-color))]/15 border border-[rgb(var(--primary-color))]/30 px-3 py-1 rounded-full shadow-sm">
+                        <span className="text-base leading-none">{selectedRegion.flag}</span>
+                        <span className="uppercase">{selectedRegion.name.split(' /')[0]}</span>
+                        <span className="text-[10px] text-[var(--text-muted)] font-mono">(clock · {selectedRegionOffset})</span>
+                      </span>
+          
+                      <RegionClock region={selectedRegion} />
+                    </div>
+          
+                    {/* Region Selector Interactive Button & Dropdown */}
+                    <div className="relative flex items-center gap-2">
+                      <span className="text-[11px] text-[var(--text-muted)] hidden sm:inline flex items-center gap-1">
+                        <Globe className="w-3.5 h-3.5 text-[rgb(var(--primary-color))]" />
+                        <span>Kickoff Timezone:</span>
+                      </span>
+                      
+                      <button
+                        type="button"
+                        onClick={() => setIsRegionDropdownOpen(!isRegionDropdownOpen)}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--bg-card)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] hover:border-[rgb(var(--primary-color))]/50 text-xs font-bold text-[var(--text-main)] shadow-sm transition-all"
+                      >
+                        <span className="text-sm">{selectedRegion.flag}</span>
+                        <span className="truncate max-w-[130px] sm:max-w-none">{selectedRegion.name}</span>
+                        <span className="text-[10px] font-mono text-[rgb(var(--primary-color))] bg-[rgb(var(--primary-color))]/10 px-1.5 py-0.2 rounded border border-[rgb(var(--primary-color))]/20">
+                          {selectedRegionOffset}
+                        </span>
+                        <ChevronDown className={`w-3.5 h-3.5 text-[var(--text-muted)] transition-transform ${isRegionDropdownOpen ? 'rotate-180' : ''}`} />
+                      </button>
+          
+                      {/* Dropdown Menu */}
+                      {isRegionDropdownOpen && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={() => setIsRegionDropdownOpen(false)} 
+                          />
+                          <div className="absolute right-0 top-full mt-2 w-80 max-h-96 overflow-y-auto rounded-2xl bg-[#121216] border border-white/15 p-2.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 fancy-scrollbar">
+                            <div className="px-3 py-2 border-b border-white/10 mb-2">
+                              <p className="text-[11px] font-black uppercase tracking-wider text-[rgb(var(--primary-color))] flex items-center gap-1.5">
+                                <Globe className="w-3.5 h-3.5" />
+                                <span>Select Kickoff Timezone</span>
+                              </p>
+                              <p className="text-[10px] text-white/50 mt-0.5">
+                                All match kickoffs, dates, and schedules recalculate instantly
+                              </p>
+                            </div>
+          
+                            {/* Fast Region Presets Grid */}
+                            <div className="grid grid-cols-2 gap-1 mb-2 pb-2 border-b border-white/10">
+                              <button
+                                onClick={() => handleRegionChange('morocco')}
+                                className={`px-2.5 py-1.5 rounded-lg text-left text-[11px] font-bold flex items-center gap-1.5 ${
+                                  selectedRegion.id === 'morocco' ? 'bg-[rgb(var(--primary-color))]/25 text-[rgb(var(--primary-color))] border border-[rgb(var(--primary-color))]/40' : 'bg-white/5 hover:bg-white/10 text-white/80'
+                                }`}
+                              >
+                                <span>🇲🇦</span>
+                                <span className="truncate">Morocco ({getRegionOffsetLabel('morocco', 'Africa/Casablanca')})</span>
+                              </button>
+                              <button
+                                onClick={() => handleRegionChange('spain')}
+                                className={`px-2.5 py-1.5 rounded-lg text-left text-[11px] font-bold flex items-center gap-1.5 ${
+                                  selectedRegion.id === 'spain' ? 'bg-[rgb(var(--primary-color))]/25 text-[rgb(var(--primary-color))] border border-[rgb(var(--primary-color))]/40' : 'bg-white/5 hover:bg-white/10 text-white/80'
+                                }`}
+                              >
+                                <span>🇪🇸</span>
+                                <span className="truncate">Spain ({getRegionOffsetLabel('spain', 'Europe/Madrid')})</span>
+                              </button>
+                              <button
+                                onClick={() => handleRegionChange('uk')}
+                                className={`px-2.5 py-1.5 rounded-lg text-left text-[11px] font-bold flex items-center gap-1.5 ${
+                                  selectedRegion.id === 'uk' ? 'bg-[rgb(var(--primary-color))]/25 text-[rgb(var(--primary-color))] border border-[rgb(var(--primary-color))]/40' : 'bg-white/5 hover:bg-white/10 text-white/80'
+                                }`}
+                              >
+                                <span>🇬🇧</span>
+                                <span className="truncate">UK ({getRegionOffsetLabel('uk', 'Europe/London')})</span>
+                              </button>
+                              <button
+                                onClick={() => handleRegionChange('france')}
+                                className={`px-2.5 py-1.5 rounded-lg text-left text-[11px] font-bold flex items-center gap-1.5 ${
+                                  selectedRegion.id === 'france' ? 'bg-[rgb(var(--primary-color))]/25 text-[rgb(var(--primary-color))] border border-[rgb(var(--primary-color))]/40' : 'bg-white/5 hover:bg-white/10 text-white/80'
+                                }`}
+                              >
+                                <span>🇫🇷</span>
+                                <span className="truncate">France ({getRegionOffsetLabel('france', 'Europe/Paris')})</span>
+                              </button>
+                            </div>
+          
+                            {/* Complete Regions List */}
+                            {REGIONS.map(reg => {
+                              const isSelected = reg.id === selectedRegion.id;
+                              return (
+                                <button
+                                  key={reg.id}
+                                  onClick={() => handleRegionChange(reg.id)}
+                                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors text-xs mb-1 ${
+                                    isSelected 
+                                      ? 'bg-[rgb(var(--primary-color))]/20 text-[rgb(var(--primary-color))] font-bold border border-[rgb(var(--primary-color))]/40' 
+                                      : 'hover:bg-white/10 text-white/80 hover:text-white'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="text-base shrink-0">{reg.flag}</span>
+                                    <div className="min-w-0">
+                                      <p className="truncate font-semibold text-white">{reg.name}</p>
+                                      <p className="text-[10px] text-white/50 truncate">{reg.country}</p>
+                                    </div>
+                                  </div>
+                                  <span className="text-[10px] font-mono shrink-0 px-2 py-0.5 rounded bg-white/10 text-white/70 ml-2 font-bold">
+                                    {reg.id === selectedRegion.id && apiTimezoneOffsetLabel
+                                      ? apiTimezoneOffsetLabel
+                                      : formatTimezoneOffset(clockNow, reg.scheduleTz || reg.tz)}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+          
+                  </div>
+          
+          </div>
           
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             
