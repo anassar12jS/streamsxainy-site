@@ -5,6 +5,7 @@
 
 export const PROVIDERS = [
   { id: 'ishowstream', name: 'iShowStream', speed: 'Ultra Fast ⚡', quality: '4K · 1080p', badge: 'Fastest' },
+  { id: 'vidapi', name: 'VidAPI', speed: 'Fast ⚡', quality: '1080p', badge: 'New' },
   { id: 'vidy', name: 'Vidy Prime', speed: 'Fast ⚡', quality: '1080p', badge: 'Popular' },
   { id: 'vidlypro', name: 'Vidly Pro', speed: 'Ultra ⚡', quality: '4K · 1080p', badge: 'Fast 4K' },
   { id: 'vidlink', name: 'VidLink Pro', speed: 'Instant 🚀', quality: 'FHD · Audio', badge: 'Top Rated' },

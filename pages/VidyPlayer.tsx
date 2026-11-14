@@ -401,6 +401,10 @@ export const VidyPlayer: React.FC = () => {
           ? `https://ishowstream.cc/embed/tv/${id}/${season}/${episode}?${ishowParams.toString()}`
           : `https://ishowstream.cc/embed/movie/${id}?${ishowParams.toString()}`;
       }
+      case 'vidapi':
+        return isEpisode
+          ? `https://vidapi.xyz/embed/tv/${id}/${season}/${episode}`
+          : `https://vidapi.xyz/embed/movie/${id}`;
       case 'vidy':
         return isEpisode
           ? `https://vidy.st/tv/${id}/${season}/${episode}?${vidyParams.toString()}`
