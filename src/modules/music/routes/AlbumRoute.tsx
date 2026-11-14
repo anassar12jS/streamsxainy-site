@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Play, Shuffle, Disc, Clock, Heart, MoreHorizontal, ArrowLeft } from 'lucide-react';
+import { Play, Shuffle, Disc, Clock, Heart, MoreHorizontal, ArrowLeft, Check } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getAlbumDetails } from '../api/innertube';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
@@ -43,6 +43,17 @@ export const AlbumRoute: React.FC = () => {
     } else {
       playTrack(track, album?.tracks || [track]);
     }
+  };
+
+  const [addedFlash, setAddedFlash] = React.useState(false);
+  const addedTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleAddAll = () => {
+    if (!album?.tracks?.length) return;
+    appendToQueue(album.tracks);
+    setAddedFlash(true);
+    if (addedTimer.current) clearTimeout(addedTimer.current);
+    addedTimer.current = setTimeout(() => setAddedFlash(false), 1600);
   };
 
   const formatDuration = (secs: number) => {
@@ -149,7 +160,7 @@ export const AlbumRoute: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handlePlayAll(true)}
-                  className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer border border-white/10"
+                  className="w-10 h-10 rounded-full bg-white hover:bg-white/90 text-black flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-lg"
                   title="Shuffle album"
                 >
                   <Shuffle className="w-4 h-4" />
@@ -166,11 +177,13 @@ export const AlbumRoute: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => album?.tracks?.length && appendToQueue(album.tracks)}
-                  className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer border border-white/10"
-                  title="Add all songs to queue"
+                  onClick={handleAddAll}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-lg ${
+                    addedFlash ? 'bg-emerald-400 text-black' : 'bg-white hover:bg-white/90 text-black'
+                  }`}
+                  title={addedFlash ? 'Added to queue' : 'Add all songs to queue'}
                 >
-                  <span className="text-lg font-light leading-none">+</span>
+                  {addedFlash ? <Check className="w-4 h-4" strokeWidth={3} /> : <span className="text-lg font-light leading-none">+</span>}
                 </button>
               </div>
             </div>

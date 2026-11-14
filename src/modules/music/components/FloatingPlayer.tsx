@@ -344,16 +344,31 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
                         </span>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={openArtist}
-                      title="Go to artist"
-                      className="text-[11px] text-[#98989d] hover:text-white hover:underline truncate w-full text-left cursor-pointer leading-snug"
-                    >
-                      {playbackStatus === 'error'
-                        ? 'Playback failed — press → or tap next to skip'
-                        : `${resolving ? 'Opening…' : currentTrack.artist} ${currentTrack.album ? `— ${currentTrack.album}` : ''}`}
-                    </button>
+                    <div className="flex items-center gap-1 text-[11px] text-[#98989d] w-full min-w-0 leading-snug">
+                      <button
+                        type="button"
+                        onClick={openArtist}
+                        title="Go to artist"
+                        className="hover:text-white hover:underline truncate text-left cursor-pointer"
+                      >
+                        {playbackStatus === 'error'
+                          ? 'Playback failed — press → or tap next to skip'
+                          : resolving === 'artist' ? 'Opening…' : currentTrack.artist}
+                      </button>
+                      {currentTrack.album && playbackStatus !== 'error' && (
+                        <>
+                          <span className="text-[#55555f] shrink-0">·</span>
+                          <button
+                            type="button"
+                            onClick={openAlbum}
+                            title="Go to album"
+                            className="hover:text-white hover:underline truncate text-left cursor-pointer"
+                          >
+                            {resolving === 'album' ? 'Opening…' : currentTrack.album}
+                          </button>
+                        </>
+                      )}
+                    </div>
 
                     {/* Sleek integrated micro-scrubber (click or drag to seek) */}
                     <div 

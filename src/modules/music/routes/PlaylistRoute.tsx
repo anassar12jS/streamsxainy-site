@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Play, Shuffle, Heart, Music2, Share2, Sparkles, ArrowLeft, Disc, Loader2 } from 'lucide-react';
+import { Play, Shuffle, Heart, Music2, Share2, Sparkles, ArrowLeft, Disc, Loader2, Check } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { TrackRow } from '../components/TrackRow';
@@ -24,6 +24,16 @@ export const PlaylistRoute: React.FC = () => {
   });
 
   const tracks: MusicTrack[] = playlist?.tracks || [];
+  const [addedFlash, setAddedFlash] = React.useState(false);
+  const addedTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleAddAll = () => {
+    if (!tracks.length) return;
+    appendToQueue(tracks);
+    setAddedFlash(true);
+    if (addedTimer.current) clearTimeout(addedTimer.current);
+    addedTimer.current = setTimeout(() => setAddedFlash(false), 1600);
+  };
 
   const handlePlayAll = (shuffle = false) => {
     if (tracks.length === 0) return;
@@ -100,7 +110,7 @@ export const PlaylistRoute: React.FC = () => {
                   type="button"
                   onClick={() => handlePlayAll(true)}
                   disabled={tracks.length === 0}
-                  className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-40 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer border border-white/10"
+                  className="w-10 h-10 rounded-full bg-white hover:bg-white/90 text-black flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-lg"
                   title="Shuffle playlist"
                 >
                   <Shuffle className="w-4 h-4" />
@@ -120,11 +130,14 @@ export const PlaylistRoute: React.FC = () => {
                 {/* Add to Queue Button (Circle) */}
                 <button
                   type="button"
-                  onClick={() => tracks.length && appendToQueue(tracks)}
-                  className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer border border-white/10"
-                  title="Add all tracks to queue"
+                  onClick={handleAddAll}
+                  disabled={tracks.length === 0}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-lg ${
+                    addedFlash ? 'bg-emerald-400 text-black' : 'bg-white hover:bg-white/90 text-black disabled:opacity-40'
+                  }`}
+                  title={addedFlash ? 'Added to queue' : 'Add all tracks to queue'}
                 >
-                  <span className="text-lg font-light leading-none">+</span>
+                  {addedFlash ? <Check className="w-4 h-4" strokeWidth={3} /> : <span className="text-lg font-light leading-none">+</span>}
                 </button>
               </div>
             </div>

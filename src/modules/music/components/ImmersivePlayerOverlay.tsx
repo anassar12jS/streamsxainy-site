@@ -59,6 +59,32 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
   const sleepTimerMinutes = useMusicPlayerStore(state => state.sleepTimerMinutes);
   const setSleepTimer = useMusicPlayerStore(state => state.setSleepTimer);
 
+  const [resolvingNav, setResolvingNav] = useState<'artist' | 'album' | null>(null);
+
+  const openArtist = async () => {
+    if (!currentTrack || resolvingNav) return;
+    setResolvingNav('artist');
+    try {
+      const cached = currentTrack.artistId;
+      const id = cached || await resolveArtistId(currentTrack);
+      if (id) navigate(`/music/artist/${id}`);
+    } finally {
+      setResolvingNav(null);
+    }
+  };
+
+  const openAlbum = async () => {
+    if (!currentTrack || resolvingNav) return;
+    setResolvingNav('album');
+    try {
+      const cached = currentTrack.albumId;
+      const id = cached || await resolveAlbumId(currentTrack);
+      if (id) navigate(`/music/album/${id}`);
+    } finally {
+      setResolvingNav(null);
+    }
+  };
+
   const activeLyrics = useMusicPlayerStore(state => state.activeLyrics);
   const setLyrics = useMusicPlayerStore(state => state.setLyrics);
   const isLoadingLyrics = useMusicPlayerStore(state => state.isLoadingLyrics);
@@ -1059,10 +1085,30 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
               </div>
             </div>
 
-            {/* Subtitle: Artist — Album */}
-            <p className="text-sm text-[#8e8e93] font-normal truncate -mt-2">
-              {currentTrack.artist} {currentTrack.album ? `— ${currentTrack.album}` : ''}
-            </p>
+            {/* Subtitle: Artist · Album — each navigates to its own page */}
+            <div className="flex items-center justify-center gap-1.5 text-[13px] sm:text-sm text-[#8e8e93] font-normal truncate -mt-2">
+              <button
+                type="button"
+                onClick={openArtist}
+                title="Go to artist"
+                className="hover:text-white hover:underline transition-colors cursor-pointer truncate"
+              >
+                {resolvingNav === 'artist' ? 'Opening…' : currentTrack.artist}
+              </button>
+              {currentTrack.album && (
+                <>
+                  <span className="text-[#55555f]">·</span>
+                  <button
+                    type="button"
+                    onClick={openAlbum}
+                    title="Go to album"
+                    className="hover:text-white hover:underline transition-colors cursor-pointer truncate"
+                  >
+                    {resolvingNav === 'album' ? 'Opening…' : currentTrack.album}
+                  </button>
+                </>
+              )}
+            </div>
 
             {/* Quality metadata — clean unboxed typography */}
             {(() => {
