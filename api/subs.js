@@ -1,6 +1,6 @@
 // Subtitle resolver: SubKong API (aggregates OpenSubtitles + SubDL) -> SRT cues JSON.
 // GET /api/subs?imdb=tt0133093&season=1&episode=2&lang=English&title=The%20Matrix
-const { unzipSync, strFromU8 } = require('fflate');
+import { unzipSync, strFromU8 } from 'fflate';
 
 const SUBKONG = 'https://www.subkong.com';
 const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
@@ -69,7 +69,7 @@ function scoreSub(s, title, isSeries) {
   return score;
 }
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   const q = req.query || {};
   const imdb = String(q.imdb || '').trim();
   const langIn = String(q.lang || 'en').trim().toLowerCase();
