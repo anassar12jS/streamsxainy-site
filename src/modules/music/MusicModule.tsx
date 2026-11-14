@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, useLocation, Link, useSearchParams } from 'react-router-dom';
-import { Menu, Home, Compass, Library, Search } from 'lucide-react';
+import { Home, LayoutGrid, Library, Search, User } from 'lucide-react';
+import { useSessionStore } from './store/useSessionStore';
 import './styles/tokens.css';
 import { useMusicPlayerStore } from './store/useMusicPlayerStore';
 import { MusicAudioEngine } from './player/AudioEngine';
@@ -83,6 +84,7 @@ export const MusicModule: React.FC = () => {
   const sleepTimerMode = useMusicPlayerStore(state => state.sleepTimerMode);
   const sleepTimerEndsAt = useMusicPlayerStore(state => state.sleepTimerEndsAt);
   const errorStreakRef = useRef(0);
+  const activeChannel = useSessionStore(state => state.activeChannel);
 
   // --- Endless playback: when the queue runs low, queue songs YouTube Music thinks fit next ---
   const radioSeeds = useRef<Set<string>>(new Set());
@@ -395,7 +397,7 @@ export const MusicModule: React.FC = () => {
               await engineRef.current.loadStream(hires.url, false);
               if (!isCancelled) {
                 const m = hires.meta;
-                const isFlac = m.codec === 'flac' || m.format === 'flac';
+                const isFlac = m.codec === 'flac' || m.container === 'flac';
                 const flacLabel = isFlac
                   ? (m.sampleRate ? `FLAC ${m.bitDepth ? `${m.bitDepth}-bit/` : ''}${Math.round(m.sampleRate / 100) / 10}kHz` : 'FLAC')
                   : (m.quality || 'Hi-res audio');
@@ -835,34 +837,54 @@ export const MusicModule: React.FC = () => {
         onOpenYouTubeLink={() => setIsYtLinkOpen(true)}
       />
 
-      {/* Main Content Scroll View: Xainy Music #0f0f0f with 140px bottom padding */}
+      {/* Main Content Scroll View: Pure black on mobile, #0f0f0f on desktop */}
       <main 
-        className="flex-1 min-w-0 h-full overflow-y-auto px-4 sm:px-8 pt-4 sm:pt-6 am-scrollbar bg-[#0f0f0f]"
-        style={{ paddingBottom: '140px' }}
+        className="flex-1 min-w-0 h-full overflow-y-auto px-4 sm:px-8 pt-3 sm:pt-6 am-scrollbar bg-black lg:bg-[#0f0f0f] pb-[172px] lg:pb-[140px]"
       >
-        {/* Mobile top navigation header */}
-        <div className="lg:hidden flex items-center justify-between pb-3 mb-4 border-b border-white/10 shrink-0">
+        {/* Mobile top navigation header: 3-wave icon on left + circular profile avatar on right */}
+        <div className="lg:hidden flex items-center justify-between pt-1 pb-2 shrink-0">
           <button
             type="button"
             onClick={() => setIsMobileSidebarOpen(true)}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/15 text-white transition-colors cursor-pointer"
-            title="Open navigation menu"
+            className="min-w-[44px] min-h-[44px] -ml-2 flex items-center justify-center rounded-full text-white hover:bg-white/10 transition-colors cursor-pointer"
+            aria-label="Open navigation menu"
+            title="Menu"
           >
-            <Menu className="w-4 h-4" />
+            <svg viewBox="0 0 36 26" className="w-8 h-6" fill="none" aria-hidden="true">
+              <path d="M3 7.5C11 11.5 23 11.5 33 6.5" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" />
+              <path d="M4.5 14C12 17.8 23.5 17.8 32 13" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" />
+              <path d="M7 20.5C14 23.8 23.5 23.8 30.5 19.5" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" />
+            </svg>
           </button>
-          <span className="font-bold text-sm text-white tracking-tight">Xainy Music</span>
-          <div className="w-8" />
+
+          <button
+            type="button"
+            onClick={() => setIsYtLinkOpen(true)}
+            className="w-10 h-10 min-w-[44px] min-h-[44px] rounded-full bg-white/[0.08] border border-white/15 flex items-center justify-center overflow-hidden hover:bg-white/15 transition-colors cursor-pointer"
+            aria-label={activeChannel ? `Account: ${activeChannel.name}` : 'YouTube Music account'}
+            title={activeChannel ? activeChannel.name : 'Sign in to YouTube Music'}
+          >
+            {activeChannel?.avatarUrl ? (
+              <img src={activeChannel.avatarUrl} alt={activeChannel.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-7 h-7 rounded-full border border-white/25 flex items-center justify-center text-white/75">
+                <User className="w-4 h-4" />
+              </div>
+            )}
+          </button>
         </div>
         
-        {/* Extension Detection Banner */}
-        <ExtensionBanner />
+        {/* Extension Detection Banner (desktop only — mobile uses inline compact card) */}
+        <div className="hidden lg:block">
+          <ExtensionBanner />
+        </div>
 
         {/* Subroutes with Suspense + per-route fade transition */}
         <Suspense fallback={<RouteLoadingSkeleton />}>
           <div key={location.pathname} className="animate-route-fade">
           <Routes>
-            <Route path="/" element={<BrowseRoute />} />
-            <Route path="/browse" element={<BrowseRoute />} />
+            <Route path="/" element={<BrowseRoute onOpenAccountModal={() => setIsYtLinkOpen(true)} />} />
+            <Route path="/browse" element={<BrowseRoute onOpenAccountModal={() => setIsYtLinkOpen(true)} />} />
             <Route path="/new" element={<NewRoute />} />
             <Route path="/search" element={<SearchRoute />} />
             <Route path="/album/:id" element={<AlbumRoute />} />
@@ -890,28 +912,30 @@ export const MusicModule: React.FC = () => {
         </Suspense>
       </main>
 
-      {/* Mobile bottom tab bar — floating liquid-glass pill, hidden on desktop */}
-      <nav className="lg:hidden fixed bottom-[calc(0.7rem+env(safe-area-inset-bottom))] inset-x-3 z-40">
-        <div className="relative flex items-stretch justify-around h-14 rounded-[1.4rem] bg-white/[0.09] backdrop-blur-2xl border border-white/[0.16] shadow-[0_16px_50px_rgba(0,0,0,0.65),inset_0_1px_0_rgba(255,255,255,0.14)] overflow-hidden">
-          <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+      {/* Mobile bottom tab bar — floating frosted pill matching reference */}
+      <nav aria-label="Music navigation" className="lg:hidden fixed bottom-[calc(0.65rem+env(safe-area-inset-bottom))] inset-x-3 z-40">
+        <div className="relative grid grid-cols-4 items-center h-[60px] rounded-full bg-[#1a1a1d]/88 backdrop-blur-2xl border border-white/[0.12] shadow-[0_16px_48px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.1)] px-1.5 overflow-hidden">
           {([
             { to: '/music', label: 'Home', icon: Home, exact: true },
-            { to: '/music/new', label: 'Explore', icon: Compass, exact: false },
+            { to: '/music/new', label: 'Explore', icon: LayoutGrid, exact: false },
             { to: '/music/library', label: 'Library', icon: Library, exact: false },
             { to: '/music/search', label: 'Search', icon: Search, exact: false },
           ] as const).map(tab => {
             const Icon = tab.icon;
-            const active = tab.exact ? location.pathname === tab.to : location.pathname.startsWith(tab.to);
+            const active = tab.exact
+              ? location.pathname === '/music' || location.pathname === '/music/' || location.pathname === '/music/browse'
+              : location.pathname.startsWith(tab.to);
             return (
               <Link
                 key={tab.to}
                 to={tab.to}
-                className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 rounded-2xl transition-colors cursor-pointer ${
-                  active ? 'text-white bg-white/[0.12]' : 'text-white/40 hover:text-white/70'
+                aria-current={active ? 'page' : undefined}
+                className={`relative flex flex-col items-center justify-center gap-0.5 min-h-[44px] h-12 rounded-full transition-colors cursor-pointer ${
+                  active ? 'text-white bg-white/[0.11]' : 'text-white/50 hover:text-white/80'
                 }`}
               >
-                <Icon className="w-5 h-5" />
-                <span className="text-[9px] font-semibold tracking-wide">{tab.label}</span>
+                <Icon className={`w-5 h-5 ${active && tab.label === 'Home' ? 'fill-white' : ''}`} />
+                <span className="text-[10px] font-medium tracking-tight">{tab.label}</span>
               </Link>
             );
           })}

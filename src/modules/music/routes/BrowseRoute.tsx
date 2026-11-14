@@ -9,7 +9,7 @@ import { GlobalSearchBar } from '../components/GlobalSearchBar';
 import { MediaShelf, ShelfItem } from '../components/MediaShelf';
 import { TrackRow } from '../components/TrackRow';
 import { FeedSkeleton } from '../components/Skeletons';
-import type { HomeItem, HomeShelf } from '../api/ytmParse';
+import { ARTWORK_PLACEHOLDER, type HomeItem, type HomeShelf } from '../api/ytmParse';
 import type { MusicTrack } from '../types';
 
 /** Home: live YouTube Music home feed (personalised when a session is connected). */
@@ -39,7 +39,11 @@ const saveCachedShelves = (channelId: string, data: HomeShelf[]) => {
   } catch {}
 };
 
-export const BrowseRoute: React.FC = () => {
+interface BrowseRouteProps {
+  onOpenAccountModal?: () => void;
+}
+
+export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) => {
   const navigate = useNavigate();
   const playTrack = useMusicPlayerStore(state => state.playTrack);
   const recentlyPlayed = useMusicPlayerStore(state => state.recentlyPlayed);
@@ -124,12 +128,71 @@ export const BrowseRoute: React.FC = () => {
 
   const visibleShelves = shelves?.filter(s => !hiddenShelves.has(s.id));
 
+  // Identify the first track-heavy shelf (preferring "Quick picks") for the tall portrait carousel on mobile
+  const featuredMobileShelfId = React.useMemo(() => {
+    if (!visibleShelves) return undefined;
+    const named = visibleShelves.find(s => /quick picks/i.test(s.title) && s.items.some(i => i.kind === 'track'));
+    if (named) return named.id;
+    const firstAllTracks = visibleShelves.find(s => {
+      const tCount = s.items.filter(i => i.kind === 'track').length;
+      return tCount === s.items.length && tCount >= 2;
+    });
+    return firstAllTracks?.id;
+  }, [visibleShelves]);
+
   const renderShelf = (shelf: HomeShelf) => {
     const tracks = shelf.items.flatMap(i => (i.kind === 'track' ? [i.track] : []));
     const allTracks = tracks.length === shelf.items.length;
+    const isFeaturedMobile = shelf.id === featuredMobileShelfId && tracks.length > 0;
 
-    // A shelf made only of songs: big art tiles on mobile (reference layout),
-    // dense TrackRow list on desktop where there's room for durations/menus.
+    if (isFeaturedMobile) {
+      const rows = tracks.slice(0, 8);
+      return (
+        <section key={shelf.id} className="space-y-3">
+          <h3 className="text-[20px] sm:text-2xl font-bold lg:font-black text-white tracking-tight px-0.5 lg:px-1">
+            {shelf.title}
+          </h3>
+
+          {/* Mobile: Tall featured portrait cards matching Reference 1 */}
+          <div className="lg:hidden flex gap-3.5 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory am-scrollbar">
+            {tracks.slice(0, 12).map(t => (
+              <button
+                key={`mq-${t.id}`}
+                type="button"
+                onClick={() => playTrack(t, tracks)}
+                className="w-[72vw] max-w-[288px] aspect-[4/4.4] rounded-2xl overflow-hidden relative shrink-0 snap-start border border-white/10 bg-[#141416] text-left cursor-pointer group active:scale-[0.99] transition-transform focus-visible:outline-2 focus-visible:outline-white"
+              >
+                <img
+                  src={t.artwork || ARTWORK_PLACEHOLDER}
+                  alt={t.title}
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-4">
+                  <p className="text-[18px] font-bold text-white leading-tight truncate">
+                    {t.title}
+                  </p>
+                  <p className="text-[14px] text-white/75 leading-snug truncate mt-0.5">
+                    {t.artist}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Desktop: 2-column TrackRow list */}
+          <div className="hidden lg:grid lg:grid-cols-2 gap-x-6">
+            {rows.map(t => (
+              <TrackRow key={t.id} track={t} showAlbum={false} playlistContext={tracks} />
+            ))}
+          </div>
+        </section>
+      );
+    }
+
+    // Secondary track-only shelf: square horizontal carousel on mobile, 2-col TrackRow grid on desktop
     if (allTracks && tracks.length >= 4) {
       const rows = tracks.slice(0, 8);
       return (
@@ -170,10 +233,10 @@ export const BrowseRoute: React.FC = () => {
 
   return (
     <div
-      className="relative space-y-10 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4 overflow-x-hidden"
+      className="relative space-y-6 lg:space-y-10 animate-fade-in pb-32 max-w-7xl mx-auto px-0.5 sm:px-4 overflow-x-hidden"
       style={{ fontFamily: 'var(--bitchord-font)' }}
     >
-      {/* Ambient tint: now-playing artwork washed over the whole page, feathered on all edges */}
+      {/* Ambient tint: crisp black on mobile (< lg), gentle artwork glow on desktop */}
       {currentTrack?.artwork && (
         <div
           className="fixed inset-0 pointer-events-none z-0"
@@ -182,7 +245,7 @@ export const BrowseRoute: React.FC = () => {
           <img
             src={currentTrack.artwork}
             alt=""
-            className="w-full h-full object-cover opacity-[0.38] blur-[120px] scale-110"
+            className="w-full h-full object-cover opacity-[0.12] lg:opacity-[0.38] blur-[120px] scale-110"
             style={{
               maskImage:
                 'linear-gradient(to bottom, black 0%, rgba(0,0,0,0.55) 35%, rgba(0,0,0,0.28) 65%, transparent 90%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
@@ -196,49 +259,57 @@ export const BrowseRoute: React.FC = () => {
       )}
 
       <div className="relative">
-        <GlobalSearchBar />
-
-        <div className="flex items-end justify-between gap-4 relative mt-1">
-        <div className="relative">
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-            {(() => {
-              const h = new Date().getHours();
-              return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-            })()}
-          </h1>
-          <p className="text-xs text-[#b3b3b3] mt-1">
-            {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-            {activeChannel ? ` • Picks for ${activeChannel.name}` : ' • YouTube Music home'}
-          </p>
+        {/* Desktop Search Bar & Greeting Header */}
+        <div className="hidden lg:block">
+          <GlobalSearchBar />
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {shelves && shelves.length > 1 && (
+
+        {/* Mobile "Listen Now" Hero Heading */}
+        <h1 className="lg:hidden text-[32px] font-extrabold text-white tracking-tight leading-none px-0.5">
+          Listen Now
+        </h1>
+
+        <div className="hidden lg:flex items-end justify-between gap-4 relative mt-1">
+          <div className="relative">
+            <h1 className="text-4xl font-extrabold text-white tracking-tight">
+              {(() => {
+                const h = new Date().getHours();
+                return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+              })()}
+            </h1>
+            <p className="text-xs text-[#b3b3b3] mt-1">
+              {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+              {activeChannel ? ` • Picks for ${activeChannel.name}` : ' • YouTube Music home'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {shelves && shelves.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setCustomizing(prev => !prev)}
+                className={`px-3.5 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  customizing ? 'bg-white text-black' : 'bg-white/10 hover:bg-white/20 text-white'
+                }`}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                Shelves
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setCustomizing(prev => !prev)}
-              className={`px-3.5 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-                customizing ? 'bg-white text-black' : 'bg-white/10 hover:bg-white/20 text-white'
-              }`}
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-60 cursor-pointer"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              Shelves
+              <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+              Refresh
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-60 cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-        </div>
+          </div>
         </div>
 
         {/* Shelf customization — show/hide home shelves */}
         {customizing && shelves && shelves.length > 0 && (
-          <div className="mt-3 rounded-2xl bg-[#141414]/90 backdrop-blur border border-white/10 p-3 flex flex-wrap gap-2">
+          <div className="hidden lg:flex mt-3 rounded-2xl bg-[#141414]/90 backdrop-blur border border-white/10 p-3 flex-wrap gap-2">
             {shelves.map(s => {
               const hidden = hiddenShelves.has(s.id);
               return (
@@ -261,8 +332,29 @@ export const BrowseRoute: React.FC = () => {
         )}
       </div>
 
-      {/* Quick access tiles */}
-      <div className="relative grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* Mobile Compact Sign-in Prompt Card matching Reference 1 */}
+      {!activeChannel && (
+        <div className="lg:hidden relative rounded-2xl bg-[#161618] border border-white/[0.08] px-4 py-3.5 flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[14px] font-semibold text-white leading-snug">
+              Sign in to YouTube Music
+            </p>
+            <p className="text-[11.5px] text-[#98989d] leading-snug mt-0.5">
+              Get personalized recommendations for you
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenAccountModal}
+            className="px-3.5 py-2 min-h-[38px] rounded-full bg-white text-black text-[13px] font-semibold shrink-0 hover:bg-white/90 active:scale-[0.97] transition-all cursor-pointer whitespace-nowrap"
+          >
+            Sign in
+          </button>
+        </div>
+      )}
+
+      {/* Desktop Quick access tiles */}
+      <div className="hidden lg:grid relative grid-cols-4 gap-4">
         {([
           { to: '/music/library/liked', label: 'Liked Songs', sub: 'Your favorites', icon: Heart, bg: 'from-rose-500/80 to-pink-700/80' },
           { to: '/music/radio', label: 'Radio', sub: 'Live stations', icon: Radio, bg: 'from-violet-500/80 to-purple-800/80' },
@@ -273,37 +365,37 @@ export const BrowseRoute: React.FC = () => {
             key={to}
             type="button"
             onClick={() => navigate(to)}
-            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${bg} p-4 sm:p-5 text-left shadow-lg hover:scale-[1.02] active:scale-[0.99] transition-transform cursor-pointer group`}
+            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${bg} p-5 text-left shadow-lg hover:scale-[1.02] active:scale-[0.99] transition-transform cursor-pointer group`}
           >
-            <Icon className="w-6 h-6 text-white/90 mb-6 sm:mb-8 group-hover:scale-110 transition-transform" />
-            <p className="text-white font-bold text-sm sm:text-base leading-tight">{label}</p>
-            <p className="text-white/70 text-[11px] sm:text-xs mt-0.5">{sub}</p>
+            <Icon className="w-6 h-6 text-white/90 mb-8 group-hover:scale-110 transition-transform" />
+            <p className="text-white font-bold text-base leading-tight">{label}</p>
+            <p className="text-white/70 text-xs mt-0.5">{sub}</p>
           </button>
         ))}
       </div>
 
-      {/* Jump Back In — resume recent listens instantly */}
+      {/* Desktop Jump Back In — resume recent listens instantly */}
       {recentlyPlayed.length > 0 && (
-        <div className="relative">
-        <MediaShelf
-          title="Jump Back In"
-          subtitle="Recently played"
-          items={recentlyPlayed.slice(0, 12).map(t => ({
-            id: `recent-${t.id}`,
-            title: t.title,
-            subtitle: t.artist,
-            artwork: t.artwork,
-            tracks: [t],
-            onClick: () => playTrack(t, recentlyPlayed),
-          }))}
-        />
+        <div className="hidden lg:block relative">
+          <MediaShelf
+            title="Jump Back In"
+            subtitle="Recently played"
+            items={recentlyPlayed.slice(0, 12).map(t => ({
+              id: `recent-${t.id}`,
+              title: t.title,
+              subtitle: t.artist,
+              artwork: t.artwork,
+              tracks: [t],
+              onClick: () => playTrack(t, recentlyPlayed),
+            }))}
+          />
         </div>
       )}
 
       {isLoading ? (
         <FeedSkeleton />
       ) : error || !shelves?.length ? (
-        <div className="relative rounded-2xl bg-[#141414] border border-white/10 p-6 flex items-start gap-3">
+        <div className="relative rounded-2xl bg-[#141414] border border-white/10 p-5 sm:p-6 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-white/60 shrink-0 mt-0.5" />
           <div className="space-y-2">
             <p className="text-sm text-white font-semibold">Couldn't load the YouTube Music home feed</p>
@@ -314,14 +406,14 @@ export const BrowseRoute: React.FC = () => {
             <button
               type="button"
               onClick={() => refetch()}
-              className="text-xs font-semibold text-white underline underline-offset-4 cursor-pointer"
+              className="inline-flex items-center min-h-[44px] lg:min-h-0 text-xs font-semibold text-white underline underline-offset-4 cursor-pointer"
             >
               Try again
             </button>
           </div>
         </div>
       ) : (
-        <div className="relative space-y-10">
+        <div className="relative space-y-7 lg:space-y-10">
           {(visibleShelves ?? []).map((shelf, i) => (
             <div
               key={shelf.id}
@@ -331,6 +423,23 @@ export const BrowseRoute: React.FC = () => {
               {renderShelf(shelf)}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Mobile Jump Back In at bottom when recentlyPlayed has history */}
+      {recentlyPlayed.length > 0 && (
+        <div className="lg:hidden relative">
+          <MediaShelf
+            title="Jump Back In"
+            items={recentlyPlayed.slice(0, 12).map(t => ({
+              id: `recent-m-${t.id}`,
+              title: t.title,
+              subtitle: t.artist,
+              artwork: t.artwork,
+              tracks: [t],
+              onClick: () => playTrack(t, recentlyPlayed),
+            }))}
+          />
         </div>
       )}
     </div>

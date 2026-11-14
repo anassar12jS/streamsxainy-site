@@ -403,6 +403,9 @@ export class MusicAudioEngine {
 
   public seek(seconds: number): void {
     const target = Math.max(0, seconds);
+    if (this.fadeGain < 1 || this.fadingDirection === 'out') {
+      this.startFadeIn(250);
+    }
     if (this.activeMode === 'youtube' && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
       try {
         this.ytPlayer.seekTo(target, true);
