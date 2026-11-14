@@ -12,6 +12,7 @@ import { getDetails, getSeasonDetails, getRecommendations } from '../services/tm
 import { searchAnimeByTitle, getAnimeById, mapAniListToTMDBDetail } from '../services/anilist';
 import { getProgressForId, getTheme, saveProgress, addToWatchlist, removeFromWatchlist, isInWatchlist, removeFromProgress } from '../services/storage';
 import { PROVIDERS, ANIME_PROVIDERS, ProviderId, AnimeProviderId, getHealthBook, bumpProviderHealth, providersByHealth, healthDotClass } from '../services/streamProviders';
+import { fetchSubtitles, cueIndexAt, SUBTITLE_LANGUAGES, SubtitleTrack } from '../services/subtitles';
 import { MediaType, TMDBResult } from '../types';
 import { TMDB_POSTER_BASE, TMDB_IMAGE_BASE, TMDB_PROFILE_BASE, TMDB_BACKDROP_W1280 } from '../constants';
 
@@ -93,6 +94,17 @@ export const VidyPlayer: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isWatchlisted, setIsWatchlisted] = useState<boolean>(false);
 
+  // Overlay subtitles (Synced via provider timeupdate postMessages)
+  const [subsOn, setSubsOn] = useState<boolean>(() => safeStorageGet('vidy:subs-on') !== '0');
+  const [subLang, setSubLang] = useState<string>(() => safeStorageGet('vidy:sub-lang') || 'en');
+  const subOffsetKey = `vidy:sub-off:${mediaType}:${id}:${isEpisode ? `${season}x${episode}` : 'movie'}`;
+  const [subOffset, setSubOffset] = useState<number>(() => {
+    const v = parseFloat(safeStorageGet(subOffsetKey) || '0');
+    return Number.isFinite(v) ? v : 0;
+  });
+  const [videoTime, setVideoTime] = useState<number>(0);
+  const lastTimePush = useRef(0);
+
   const toastTimerRef = useRef<number | null>(null);
   const confirmedPlaybackFor = useRef<string>('');
 
@@ -126,6 +138,7 @@ export const VidyPlayer: React.FC = () => {
   }, [aniListQuery.data]);
 
   const details = detailsQuery.data || aniListConverted;
+  const imdbId: string | undefined = (details as any)?.external_ids?.imdb_id || (details as any)?.imdb_id || undefined;
 
   // Query Recommendations for "You May Also Like" below player
   const recommendationsQuery = useQuery({
@@ -143,6 +156,35 @@ export const VidyPlayer: React.FC = () => {
     const isJapanese = details.original_language === 'ja' || (details as any).origin_country?.includes('JP');
     return Boolean(isAnimation && isJapanese);
   }, [anilistIdParam, aniListConverted, details]);
+
+  // Overlay subtitle track (movies + TV only; anime embeds carry their own subs)
+  const subsQuery = useQuery<SubtitleTrack | null>({
+    queryKey: ['overlay-subs', imdbId, isEpisode ? season : 0, isEpisode ? episode : 0, subLang],
+    queryFn: () => fetchSubtitles({
+      imdbId,
+      season: isEpisode ? season : undefined,
+      episode: isEpisode ? episode : undefined,
+      lang: subLang,
+      title: details?.title || details?.name || '',
+    }),
+    enabled: Boolean(imdbId) && !isAnimeDetected && subsOn,
+    staleTime: 1000 * 60 * 30,
+    retry: 0,
+  });
+  const subTrack = subsQuery.data || null;
+
+  // Reload persisted sync offset when the episode/title changes
+  useEffect(() => {
+    const v = parseFloat(safeStorageGet(subOffsetKey) || '0');
+    setSubOffset(Number.isFinite(v) ? v : 0);
+    setVideoTime(0);
+  }, [subOffsetKey]);
+
+  const activeCue = useMemo(() => {
+    if (!subsOn || !subTrack?.cues?.length) return null;
+    const idx = cueIndexAt(subTrack.cues, videoTime + subOffset);
+    return idx >= 0 ? subTrack.cues[idx] : null;
+  }, [subsOn, subTrack, videoTime, subOffset]);
 
   // Lookup AniList ID automatically if missing for an anime title
   const anilistLookupQuery = useQuery({
@@ -483,6 +525,12 @@ export const VidyPlayer: React.FC = () => {
         }
 
         if (currentTime !== undefined && duration !== undefined && duration > 0) {
+          // Feed overlay subtitle sync (throttled to ~4 updates/sec)
+          const nowTs = Date.now();
+          if (nowTs - lastTimePush.current > 250) {
+            lastTimePush.current = nowTs;
+            setVideoTime(currentTime);
+          }
           // Real playback data arrived — this provider works. Reward it once.
           const healthKey = isAnime ? `anime:${animeProvider}` : `movie:${provider}`;
           if (confirmedPlaybackFor.current !== healthKey) {
@@ -1165,6 +1213,61 @@ export const VidyPlayer: React.FC = () => {
                       <ExternalLink className="w-3.5 h-3.5" /> Open in New Tab
                     </a>
                   </div>
+                </div>
+              )}
+
+              {/* Overlay subtitles synced to provider playback time */}
+              {activeCue && !isLoading && !hasTimedOut && (
+                <div className="absolute inset-x-0 bottom-[13%] z-30 flex justify-center px-6 sm:px-16 pointer-events-none">
+                  <p
+                    className="max-w-3xl text-center text-white text-sm sm:text-lg font-semibold leading-snug whitespace-pre-line"
+                    style={{ textShadow: '0 1px 2px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.7)' }}
+                  >
+                    {activeCue.text}
+                  </p>
+                </div>
+              )}
+
+              {/* Subtitle controls: CC toggle, sync offset, language */}
+              {!isAnimeDetected && imdbId && (
+                <div className="absolute top-3 left-3 z-40 flex items-center gap-1 bg-black/60 backdrop-blur-md border border-white/15 rounded-full px-1.5 py-1">
+                  <button
+                    type="button"
+                    onClick={() => { setSubsOn(v => { safeStorageSet('vidy:subs-on', v ? '0' : '1'); return !v; }); }}
+                    className={`p-1.5 rounded-full transition-colors cursor-pointer ${subsOn ? 'text-[rgb(var(--primary-color))] bg-white/10' : 'text-white/60 hover:text-white'}`}
+                    title={subsOn ? 'Subtitles on — click to hide' : 'Subtitles off — click to show'}
+                    aria-label="Toggle subtitles"
+                  >
+                    <Subtitles className="w-4 h-4" />
+                  </button>
+                  {subsOn && subTrack && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setSubOffset(v => { const n = Math.max(-15, Math.round((v - 0.5) * 2) / 2); safeStorageSet(subOffsetKey, String(n)); return n; })}
+                        className="px-1.5 py-1 rounded-full text-[10px] font-bold text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                        title="Subtitles earlier"
+                      >−</button>
+                      <span className="text-[9px] font-mono text-white/50 tabular-nums w-8 text-center" title="Subtitle sync offset">
+                        {subOffset > 0 ? `+${subOffset}` : subOffset}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSubOffset(v => { const n = Math.min(15, Math.round((v + 0.5) * 2) / 2); safeStorageSet(subOffsetKey, String(n)); return n; })}
+                        className="px-1.5 py-1 rounded-full text-[10px] font-bold text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                        title="Subtitles later"
+                      >+</button>
+                      <select
+                        value={subLang}
+                        onChange={(e) => { setSubLang(e.target.value); safeStorageSet('vidy:sub-lang', e.target.value); }}
+                        className="bg-transparent text-[10px] font-semibold text-white/70 hover:text-white outline-none cursor-pointer pr-1"
+                        title="Subtitle language"
+                        aria-label="Subtitle language"
+                      >
+                        {SUBTITLE_LANGUAGES.map(l => <option key={l.code} value={l.code} className="bg-[#141418]">{l.label}</option>)}
+                      </select>
+                    </>
+                  )}
                 </div>
               )}
             </div>
