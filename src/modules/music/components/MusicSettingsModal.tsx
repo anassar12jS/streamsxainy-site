@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { getInstalledAddons, saveInstalledAddons, fetchAddonManifest } from '../api/addons';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
+import { SpotifyIcon, YouTubeMusicIcon, DiscordIcon, ExtensionIcon } from '../../../components/BrandIcons';
 
 interface MusicSettingsModalProps {
   isOpen: boolean;
@@ -154,10 +155,16 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                 </label>
                 <div className="p-4 rounded-2xl bg-[#141416] border border-white/10 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className={`w-3 h-3 rounded-full ${extensionConnected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                    <div className="relative">
+                      <span className={`w-3 h-3 rounded-full ${extensionConnected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                      <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-md bg-[#1e1e22] border border-white/10 flex items-center justify-center">
+                        <ExtensionIcon className="w-2.5 h-2.5 text-white/80" />
+                      </span>
+                    </div>
                     <div>
-                      <p className="text-xs font-bold text-white">
+                      <p className="text-xs font-bold text-white flex items-center gap-1.5">
                         {extensionConnected ? 'Companion Connected' : 'Extension Standby'}
+                        <YouTubeMusicIcon className="w-3.5 h-3.5" />
                       </p>
                       <p className="text-[11px] text-white/50">
                         {extensionConnected ? 'Full YouTube Music engine active' : 'Install companion extension for signed-in sessions'}
@@ -279,9 +286,14 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
               
               {/* Discord RPC */}
               <div className="p-4 rounded-2xl bg-[#141416] border border-white/10 flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-white">Discord Rich Presence</h4>
-                  <p className="text-[11px] text-white/50">Shows "Listening to Xainy Music" with track & album artwork</p>
+                <div className="flex items-center gap-3">
+                  <span className="w-8 h-8 rounded-xl bg-[#5865F2]/15 border border-[#5865F2]/30 flex items-center justify-center shrink-0">
+                    <DiscordIcon className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">Discord Rich Presence</h4>
+                    <p className="text-[11px] text-white/50">Shows "Listening to Xainy Music" with track & album artwork</p>
+                  </div>
                 </div>
                 <input
                   type="checkbox"
@@ -293,9 +305,14 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
 
               {/* Spotify Canvas */}
               <div className="p-4 rounded-2xl bg-[#141416] border border-white/10 flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-white">Spotify Canvas Video Backgrounds</h4>
-                  <p className="text-[11px] text-white/50">Plays looping artist visualizer behind now-playing artwork</p>
+                <div className="flex items-center gap-3">
+                  <span className="w-8 h-8 rounded-xl bg-[#1DB954]/15 border border-[#1DB954]/30 flex items-center justify-center shrink-0">
+                    <SpotifyIcon className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">Spotify Canvas Video Backgrounds</h4>
+                    <p className="text-[11px] text-white/50">Plays looping artist visualizer behind now-playing artwork</p>
+                  </div>
                 </div>
                 <input
                   type="checkbox"

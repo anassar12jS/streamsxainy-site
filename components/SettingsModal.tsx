@@ -9,6 +9,7 @@ import {
   getAutoplayNext, setAutoplayNext, clearAllWatchData
 } from '../services/storage';
 import { StreamProvider } from '../types';
+import { YouTubeMusicIcon, SpotifyIcon } from '../src/components/BrandIcons';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -380,6 +381,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </button>
               </div>
 
+            </div>
+          )}
+
+          {/* Music services note */}
+          {activeTab === 'streaming' && (
+            <div className="flex items-center gap-2.5 p-3.5 rounded-2xl bg-[var(--bg-input)] border border-[var(--border-subtle)]">
+              <YouTubeMusicIcon className="w-5 h-5 shrink-0" />
+              <SpotifyIcon className="w-5 h-5 shrink-0" />
+              <p className="text-[11px] text-[var(--text-muted)] leading-snug">
+                Music playback is powered by YouTube Music and Spotify through the Xainy companion extension — manage it in Xainy Music Preferences.
+              </p>
             </div>
           )}
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  X, Check, RefreshCw, Youtube, ExternalLink, Sparkles, 
+  X, Check, RefreshCw, ExternalLink, Sparkles, 
   CheckCircle2, AlertCircle, ShieldCheck, UserCheck, Layers
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -9,6 +9,7 @@ import { resetInnertube } from '../api/innertube';
 import { syncUserYouTubeMusicLibrary } from '../api/youtubeAuth';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { ARTWORK_PLACEHOLDER } from '../api/ytmParse';
+import { YouTubeMusicIcon } from '../../../components/BrandIcons';
 
 export interface AccountItem {
   id: string;
@@ -128,8 +129,8 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
         {/* Header */}
         <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between bg-[#161616]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-white/10 text-white flex items-center justify-center border border-white/15">
-              <Youtube className="w-4 h-4 fill-current" />
+            <div className="w-8 h-8 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center">
+              <YouTubeMusicIcon className="w-[18px] h-[18px]" />
             </div>
             <div>
               <h3 className="text-sm font-semibold text-white tracking-tight flex items-center gap-1.5">
