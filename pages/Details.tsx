@@ -458,7 +458,7 @@ export const Details: React.FC = () => {
     ? (backdropPath.startsWith('http') ? backdropPath : `${TMDB_BACKDROP_W1280}${backdropPath}`)
     : '';
   const backdropSrcSet = backdropPath && !backdropPath.startsWith('http')
-    ? `${TMDB_BACKDROP_W780}${backdropPath} 780w, ${TMDB_BACKDROP_W1280}${backdropPath} 1280w, https://image.tmdb.org/t/p/original${backdropPath} 1920w`
+    ? `${TMDB_BACKDROP_W780}${backdropPath} 780w, ${TMDB_BACKDROP_W1280}${backdropPath} 1280w`
     : undefined;
   const posterUrl = detail?.poster_path 
     ? (detail.poster_path.startsWith('http') ? detail.poster_path : `${TMDB_POSTER_BASE}${detail.poster_path}`) 
@@ -815,7 +815,9 @@ export const Details: React.FC = () => {
               src={backdropUrl} 
               srcSet={backdropSrcSet}
               sizes="100vw"
-              alt={title} 
+              alt={title}
+              loading="eager"
+              fetchPriority="high"
               className="w-full h-full object-cover object-center lg:object-top transform scale-105 filter brightness-95 contrast-105" 
             />
             {/* Vignette gradients for immaculate readability */}
