@@ -834,7 +834,7 @@ export const Details: React.FC = () => {
         {/* Layer 2: Breadcrumbs & Back Navigation */}
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2 w-full flex items-center justify-between">
           <nav className="flex items-center gap-2 text-xs font-medium text-[var(--text-muted)]">
-            <Link to="/" className="hover:text-[var(--text-main)] transition-colors flex items-center gap-1">
+            <Link to={location.pathname.startsWith('/app') ? '/app' : '/'} className="hover:text-[var(--text-main)] transition-colors flex items-center gap-1">
               <Home className="w-3.5 h-3.5" />
               <span>Home</span>
             </Link>

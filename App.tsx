@@ -26,6 +26,7 @@ const DMCA = lazy(() => import('./pages/Legal').then(m => ({ default: m.DMCA }))
 const Privacy = lazy(() => import('./pages/Legal').then(m => ({ default: m.Privacy })));
 const Terms = lazy(() => import('./pages/Legal').then(m => ({ default: m.Terms })));
 const NotFound = lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
+const AppHome = lazy(() => import('./pages/AppHome').then(m => ({ default: m.AppHome })));
 
 const PageLoadingFallback = () => (
   <div className="min-h-[70vh] w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 animate-fade-in">
@@ -128,7 +129,8 @@ const App: React.FC = () => {
   // Check if we are in player or music mode to isolate layout
   const isPlayer = location.hash === '#player' || location.pathname.includes('/watch') || location.pathname.includes('/sports/watch');
   const isMusic = location.pathname.startsWith('/music');
-  const hideSiteChrome = isPlayer || isMusic;
+  const isApp = location.pathname.startsWith('/app');
+  const hideSiteChrome = isPlayer || isMusic || isApp;
 
   if (!isAppReady) return <SplashScreen />;
 
@@ -162,6 +164,11 @@ const App: React.FC = () => {
                 <Route path="/anime" element={<Anime onSelect={handleMediaSelect} />} />
                 <Route path="/livetv" element={<LiveTV />} />
                 <Route path="/music/*" element={<MusicModule />} />
+                <Route path="/app" element={<AppHome />} />
+                <Route path="/app/movie/:id" element={<Details />} />
+                <Route path="/app/tv/:id" element={<Details />} />
+                <Route path="/app/watch/:mediaType/:id/:season?/:episode?" element={<VidyPlayer />} />
+                <Route path="/app/person/:id" element={<Person onSelect={handleMediaSelect} />} />
                 <Route path="/person/:id" element={<Person onSelect={handleMediaSelect} />} />
                 <Route path="/dmca" element={<DMCA />} />
                 <Route path="/privacy" element={<Privacy />} />
