@@ -119,7 +119,7 @@ const InteractiveRow = React.memo(({
   if (!items || items.length === 0) return null;
 
   return (
-    <Reveal className="mb-12 relative group/row">
+    <Reveal className="mb-12 relative group/row cv-row">
       <div className="flex items-center justify-between mb-4 px-4 sm:px-6">
         <div className="flex items-center gap-3">
           {Icon && (
@@ -217,8 +217,37 @@ const Top10Showcase = React.memo(({
     }
   };
 
+  // Cursor-follow tilt + image drift, same feel as MediaCard
+  const reducedMotion = useMemo(
+    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    []
+  );
+  const handleCardMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (reducedMotion) return;
+    const card = e.currentTarget;
+    const img = card.querySelector('img');
+    if (!img) return;
+    const r = card.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width - 0.5;
+    const py = (e.clientY - r.top) / r.height - 0.5;
+    const prev = (card as any).__raf as number | undefined;
+    if (prev) cancelAnimationFrame(prev);
+    (card as any).__raf = requestAnimationFrame(() => {
+      card.style.transform = `perspective(800px) rotateX(${(-py * 5).toFixed(2)}deg) rotateY(${(px * 5).toFixed(2)}deg) scale(1.03)`;
+      img.style.transform = `translate(${(px * 12).toFixed(1)}px, ${(py * 12).toFixed(1)}px) scale(1.06)`;
+    });
+  };
+  const handleCardLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = e.currentTarget;
+    const img = card.querySelector('img');
+    const prev = (card as any).__raf as number | undefined;
+    if (prev) cancelAnimationFrame(prev);
+    card.style.transform = '';
+    if (img) img.style.transform = '';
+  };
+
   return (
-    <Reveal className="mb-14 relative group/top10 z-10">
+    <Reveal className="mb-14 relative group/top10 z-10 cv-row">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 px-4 sm:px-6">
         <div className="flex items-center gap-3">
           <div className="w-1.5 h-8 bg-gradient-to-b from-[rgb(var(--primary-color))] to-pink-500 rounded-full" />
@@ -299,8 +328,10 @@ const Top10Showcase = React.memo(({
           return (
           <div 
             key={itemKey} 
-            className="snap-start relative min-w-[270px] sm:min-w-[340px] aspect-[16/9] rounded-2xl cursor-pointer group transition-all duration-300 hover:scale-[1.03] hover:z-20 shrink-0"
+            className="snap-start relative min-w-[270px] sm:min-w-[340px] aspect-[16/9] rounded-2xl cursor-pointer group transition-[box-shadow,border-color] duration-300 hover:scale-[1.03] hover:z-20 shrink-0 will-change-transform"
             onClick={() => onSelect(item)}
+            onMouseMove={handleCardMove}
+            onMouseLeave={handleCardLeave}
           >
             {/* Rank 3D Numbers */}
             <div 
@@ -321,7 +352,7 @@ const Top10Showcase = React.memo(({
               <img 
                 src={imgSrc} 
                 alt={item.name || item.title} 
-                className="w-full h-full object-cover opacity-85 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
+                className="w-full h-full object-cover opacity-85 group-hover:opacity-100 group-hover:scale-105 transition-opacity duration-500"
                 loading="lazy"
                 onError={(e) => {
                   e.currentTarget.onerror = null;
@@ -952,7 +983,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
 
         {/* Continue Watching Row */}
         {continueWatchingList.length > 0 && activeCategory === 'all' && (
-          <Reveal className="mb-10 animate-fade-in">
+          <Reveal className="mb-10 animate-fade-in cv-row">
             <div className="flex items-center justify-between mb-4 px-4 sm:px-6">
               <div className="flex items-center gap-3">
                 <div className="p-1.5 rounded-xl bg-gradient-to-tr from-[rgb(var(--primary-color))] to-pink-500 text-white shadow-md">
@@ -1077,7 +1108,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
 
         {/* Curated Genre & Mood Discovery Strip */}
         {activeCategory === 'all' && (
-          <Reveal className="mb-12">
+          <Reveal className="mb-12 cv-row">
             <div className="flex items-center justify-between mb-4 px-4 sm:px-6">
               <div className="flex items-center gap-3">
                 <div className="p-1.5 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-600/30 text-amber-400">

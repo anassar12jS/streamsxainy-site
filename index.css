@@ -76,6 +76,12 @@ body {
   contain-intrinsic-size: 185px 278px;
 }
 
+/* Row-level containment — browser skips layout/paint for off-screen shelves */
+.cv-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 520px;
+}
+
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;

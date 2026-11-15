@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { TMDBResult, MediaType } from '../types';
 import { TMDB_POSTER_BASE, TMDB_POSTER_SMALL } from '../constants';
@@ -19,6 +19,16 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onClick, onWatchlist
   const queryClient = useQueryClient();
   const [inWatchlist, setInWatchlist] = useState(false);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const posterRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const rafRef = useRef(0);
+  const tiltEnabled = useRef(false);
+
+  useEffect(() => {
+    tiltEnabled.current = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return () => cancelAnimationFrame(rafRef.current);
+  }, []);
 
   useEffect(() => {
     if (item.id) {
@@ -41,6 +51,31 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onClick, onWatchlist
   const posterSrcSet = isTmdbPoster && item.poster_path
     ? `${TMDB_POSTER_SMALL}${item.poster_path} 185w, ${TMDB_POSTER_BASE}${item.poster_path} 342w`
     : undefined;
+
+  // CinemaOS-style cursor follow: poster tilts in 3D and the image drifts
+  // toward the pointer. Pure DOM writes inside rAF — zero re-renders.
+  const handleMouseMove = (e: React.MouseEvent) => {
+    const card = cardRef.current;
+    const poster = posterRef.current;
+    const img = imgRef.current;
+    if (!card || !poster || !img || !tiltEnabled.current) return;
+    const r = card.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width - 0.5;
+    const py = (e.clientY - r.top) / r.height - 0.5;
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      poster.style.transform = `perspective(800px) rotateX(${(-py * 7).toFixed(2)}deg) rotateY(${(px * 7).toFixed(2)}deg)`;
+      img.style.transform = `translate(${(px * 10).toFixed(1)}px, ${(py * 10).toFixed(1)}px) scale(1.07)`;
+    });
+  };
+
+  const handleMouseLeave = () => {
+    cancelAnimationFrame(rafRef.current);
+    const poster = posterRef.current;
+    const img = imgRef.current;
+    if (poster) poster.style.transform = '';
+    if (img) img.style.transform = '';
+  };
 
   const handleIntentPrefetch = () => {
     // 1. Preload route code chunk
@@ -82,12 +117,15 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onClick, onWatchlist
 
   return (
     <div
+      ref={cardRef}
       role="button"
       tabIndex={0}
       aria-label={`View details for ${title}`}
       className="group relative flex-shrink-0 w-[148px] sm:w-[170px] md:w-[185px] text-left cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary-color))] rounded-2xl select-none"
       style={{ containIntrinsicSize: '185px 278px' }}
       onClick={() => onClick(item)}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -99,7 +137,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onClick, onWatchlist
       onFocus={handleIntentPrefetch}
     >
       {/* Poster Container */}
-      <div className="aspect-[2/3] rounded-2xl overflow-hidden shadow-lg shadow-black/25 bg-[var(--bg-card)] relative border border-[var(--border-subtle)] group-hover:border-[rgb(var(--primary-color))]/50 group-hover:shadow-[rgb(var(--primary-color))]/20 transition-all duration-300">
+      <div ref={posterRef} className="aspect-[2/3] rounded-2xl overflow-hidden shadow-lg shadow-black/25 bg-[var(--bg-card)] relative border border-[var(--border-subtle)] group-hover:border-[rgb(var(--primary-color))]/50 group-hover:shadow-[rgb(var(--primary-color))]/20 transition-[border-color,box-shadow] duration-300 will-change-transform">
         
         {/* Instant Blur-Up Ambient Placeholder (Zero Pop-In) */}
         <div 
@@ -110,13 +148,14 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onClick, onWatchlist
         />
 
         <img 
+          ref={imgRef}
           src={posterUrl} 
           srcSet={posterSrcSet}
           sizes="(max-width: 640px) 148px, (max-width: 768px) 170px, 185px"
           alt={title} 
           width={185}
           height={278}
-          className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-105 ${
+          className={`w-full h-full object-cover transition-[opacity,filter] duration-500 group-hover:scale-105 ${
             isImageLoaded ? 'opacity-100 blur-0 scale-100' : 'opacity-0 blur-sm scale-95'
           }`}
           loading="lazy"
