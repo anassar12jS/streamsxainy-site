@@ -429,10 +429,13 @@ export const VidyPlayer: React.FC = () => {
         return isEpisode
           ? `https://videasy.xyz/embed/tv/${id}/${season}/${episode}`
           : `https://videasy.xyz/embed/movie/${id}`;
-      case 'cinemaos':
+      case 'cinemaos': {
+        const cinemaParams = new URLSearchParams({ theme: themeHex });
+        if (resumeTime && resumeTime > 0) cinemaParams.set('progress', String(Math.floor(resumeTime)));
         return isEpisode
-          ? `https://cinemaos.tech/player/${id}/${season}/${episode}`
-          : `https://cinemaos.tech/player/${id}`;
+          ? `https://cinemaos.tech/player/${id}/${season}/${episode}?${cinemaParams.toString()}`
+          : `https://cinemaos.tech/player/${id}?${cinemaParams.toString()}`;
+      }
       case 'vidlink':
         return isEpisode
           ? `https://vidlink.pro/tv/${id}/${season}/${episode}?${vidLinkParams.toString()}&nextbutton=true`
