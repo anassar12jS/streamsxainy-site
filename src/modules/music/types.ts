@@ -11,11 +11,13 @@ export interface MusicTrack {
   isDash?: boolean;
   isrc?: string;
   youtubeId?: string;
+  /** SoundCloud permalink (track or set) — resolved to a stream at play time */
+  soundcloudUrl?: string;
   year?: string;
   genre?: string;
   isExplicit?: boolean;
   isLive?: boolean;
-  source?: 'innertube' | 'addon' | 'stream' | 'curated';
+  source?: 'innertube' | 'addon' | 'stream' | 'curated' | 'soundcloud';
 }
 
 export interface Album {

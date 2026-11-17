@@ -4,6 +4,7 @@ import { Play, Pause, Heart, MoreHorizontal, Plus, Disc, Loader2, ListPlus, Moon
 import { MusicTrack } from '../types';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { prefetchStreamUrl } from '../api/innertube';
+import { prefetchSoundCloudStream } from '../api/soundcloud';
 
 interface TrackRowProps {
   track: MusicTrack;
@@ -58,7 +59,11 @@ export const TrackRow: React.FC<TrackRowProps> = ({
   return (
     <div
       onClick={handlePlayClick}
-      onMouseEnter={() => { if (!isCurrent && track.youtubeId) prefetchStreamUrl(track); }}
+      onMouseEnter={() => {
+        if (isCurrent) return;
+        if (track.source === 'soundcloud' || track.soundcloudUrl) prefetchSoundCloudStream(track);
+        else if (track.youtubeId) prefetchStreamUrl(track);
+      }}
       className={`group grid grid-cols-12 items-center px-3 sm:px-4 py-2 rounded-[6px] transition-colors duration-150 cursor-pointer select-none relative ${
         isCurrent
           ? 'bg-white/[0.08] text-white'

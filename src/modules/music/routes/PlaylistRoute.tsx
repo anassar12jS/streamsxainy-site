@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { TrackRow } from '../components/TrackRow';
 import { getPlaylistDetails } from '../api/innertube';
+import { getImportedSoundCloudPlaylist } from '../api/soundcloud';
 import { MusicTrack, Playlist } from '../types';
 import { ARTWORK_PLACEHOLDER } from '../api/ytmParse';
 
@@ -15,7 +16,11 @@ export const PlaylistRoute: React.FC = () => {
 
   const { data: playlist, isLoading, error, refetch } = useQuery<Playlist | null>({
     queryKey: ['music-playlist', id],
-    queryFn: () => getPlaylistDetails(id || ''),
+    queryFn: () => {
+      if (!id) return Promise.resolve(null);
+      if (id.startsWith('sc-pl-')) return Promise.resolve(getImportedSoundCloudPlaylist(id));
+      return getPlaylistDetails(id);
+    },
     enabled: Boolean(id),
     staleTime: 1000 * 60 * 15,
     gcTime: 1000 * 60 * 60 * 24,

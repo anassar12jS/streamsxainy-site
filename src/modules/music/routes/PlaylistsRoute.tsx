@@ -5,6 +5,7 @@ import { RefreshCw, ThumbsUp, ListMusic, AlertCircle } from 'lucide-react';
 import { CardGridSkeleton } from '../components/Skeletons';
 import { getLibraryPlaylists } from '../api/innertube';
 import { getImportedYouTubePlaylists } from '../api/youtubeAuth';
+import { getImportedSoundCloudPlaylists } from '../api/soundcloud';
 import { useSessionStore } from '../store/useSessionStore';
 import type { Playlist } from '../types';
 
@@ -31,7 +32,10 @@ export const PlaylistsRoute: React.FC = () => {
     .map(p => ({ ...p, id: p.id.replace(/^yt-pl-/, '') }))
     .filter(p => p.id !== 'liked-music' && !liveIds.has(p.id));
 
-  const playlists = [...(data ?? []), ...imported];
+  // SoundCloud imports live in local storage and don't need a YouTube session.
+  const scPlaylists = getImportedSoundCloudPlaylists();
+
+  const playlists = [...(data ?? []), ...imported, ...scPlaylists];
 
   return (
     <div className="space-y-8 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4" style={{ fontFamily: 'var(--bitchord-font)' }}>
@@ -49,15 +53,36 @@ export const PlaylistsRoute: React.FC = () => {
       </div>
 
       {authStatus !== 'authenticated' ? (
-        <div className="rounded-2xl bg-[#141414] border border-white/10 p-6 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-white/60 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm text-white font-semibold">YouTube Music isn't connected</p>
-            <p className="text-xs text-[#b3b3b3] mt-1">
-              {errorMessage || 'Connect your account from the switcher at the bottom of the sidebar.'}
-            </p>
+        <>
+          <div className="rounded-2xl bg-[#141414] border border-white/10 p-6 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-white/60 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm text-white font-semibold">YouTube Music isn't connected</p>
+              <p className="text-xs text-[#b3b3b3] mt-1">
+                {errorMessage || 'Connect your account from the switcher at the bottom of the sidebar.'}
+              </p>
+            </div>
           </div>
-        </div>
+          {scPlaylists.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-5 pt-4">
+              {scPlaylists.map(pl => (
+                <div key={pl.id} onClick={() => navigate(`/music/playlist/${pl.id}`)} className="group cursor-pointer text-left">
+                  <div className="relative aspect-square rounded-[8px] overflow-hidden bg-[#1e1e1e] mb-2 shadow-md group-hover:scale-[1.02] transition-transform duration-200 border border-white/5">
+                    {pl.artwork ? (
+                      <img src={pl.artwork} alt={pl.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-white/30">
+                        <ListMusic className="w-1/3 h-1/3" />
+                      </div>
+                    )}
+                  </div>
+                  <h4 className="text-sm font-semibold text-white truncate text-left group-hover:underline">{pl.title}</h4>
+                  <p className="text-xs text-[#98989d] truncate mt-0.5 text-left">{pl.subtitle}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       ) : isLoading ? (
         <CardGridSkeleton count={12} />
       ) : error ? (

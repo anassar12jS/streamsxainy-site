@@ -18,6 +18,7 @@ import { replayRecorder } from './api/replay';
 import { fetchLyrics } from './api/lyrics';
 import { getResilientAudioFallback } from './api/fallbackAudio';
 import { getAudiusAudioStream } from './api/audiusStream';
+import { resolveSoundCloudStream, prefetchSoundCloudStream } from './api/soundcloud';
 import { ARTWORK_PLACEHOLDER } from './api/ytmParse';
 import { listenTogetherClient } from './api/listenTogether';
 
@@ -376,8 +377,12 @@ export const MusicModule: React.FC = () => {
           for (let i = 1; i <= 2; i++) {
             const upcoming = st.queue[st.queueIndex + i];
             if (upcoming) {
-              prefetchStreamUrl(upcoming);
-              if (st.audioQuality === 'lossless' && !upcoming.isLive) prefetchHiresStream(upcoming);
+              if (upcoming.source === 'soundcloud' || upcoming.soundcloudUrl) {
+                prefetchSoundCloudStream(upcoming);
+              } else {
+                prefetchStreamUrl(upcoming);
+                if (st.audioQuality === 'lossless' && !upcoming.isLive) prefetchHiresStream(upcoming);
+              }
             }
           }
         };
@@ -393,6 +398,30 @@ export const MusicModule: React.FC = () => {
             }
           }
           return;
+        }
+
+        // 1b. SoundCloud imports: resolve the real SC stream first so exclusive
+        //     tracks never get replaced by a same-named YouTube upload.
+        if (currentTrack.source === 'soundcloud' || currentTrack.soundcloudUrl) {
+          try {
+            const sc = await resolveSoundCloudStream(currentTrack);
+            if (engineRef.current) {
+              await engineRef.current.loadStream(sc.streamUrl, sc.isHls);
+              if (!isCancelled) {
+                useMusicPlayerStore.getState().setActiveStreamInfo({
+                  label: `SoundCloud${sc.isHls ? ' · HLS' : ''}`,
+                  isLossless: false,
+                });
+                setPlaybackStatus('playing');
+                afterStart();
+              }
+              return;
+            }
+          } catch (scErr) {
+            console.warn('SoundCloud stream failed:', scErr);
+            if (!isCancelled) setPlaybackStatus('error');
+            return;
+          }
         }
 
         // 2. HI-RES: real FLAC from multi-source lossless resolver (Monochrome/Netease/Archive)

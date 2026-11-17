@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { 
-  Heart, Clock, Play, Shuffle, Music2, Users, Disc, 
+  Heart, Clock, Play, Shuffle, Music2, Users, Disc, Cloud, Loader2,
   Sparkles, RefreshCw, Plus, ExternalLink, Mic2, Compass
 } from 'lucide-react';
 import { YouTubeMusicIcon } from '../../../components/BrandIcons';
@@ -16,6 +16,7 @@ import {
   getImportedYouTubePlaylists, LinkedYouTubeAccount 
 } from '../api/youtubeAuth';
 import { YouTubeAccountModal } from '../components/YouTubeAccountModal';
+import { getImportedSoundCloudTracks, importSoundCloud } from '../api/soundcloud';
 import { MusicTrack, Playlist } from '../types';
 
 interface LibraryRouteProps {
@@ -34,11 +35,35 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
   const [ytAccount, setYtAccount] = useState<LinkedYouTubeAccount>(() => getLinkedYouTubeAccount());
   const [importedTracks, setImportedTracks] = useState<MusicTrack[]>(() => getImportedYouTubeTracks());
   const [importedPlaylists, setImportedPlaylists] = useState<Playlist[]>(() => getImportedYouTubePlaylists());
+  const [scTracks, setScTracks] = useState<MusicTrack[]>(() => getImportedSoundCloudTracks());
+  const [scInput, setScInput] = useState('');
+  const [scStatus, setScStatus] = useState<string | null>(null);
+  const [isScImporting, setIsScImporting] = useState(false);
 
   const handleSyncUpdate = () => {
     setYtAccount(getLinkedYouTubeAccount());
     setImportedTracks(getImportedYouTubeTracks());
     setImportedPlaylists(getImportedYouTubePlaylists());
+    setScTracks(getImportedSoundCloudTracks());
+  };
+
+  const handleImportSoundCloud = async () => {
+    const input = scInput.trim();
+    if (!input || isScImporting) return;
+    setIsScImporting(true);
+    setScStatus(null);
+    try {
+      const result = await importSoundCloud(input);
+      setScStatus(result.isPlaylist
+        ? `Imported "${result.title}" (${result.tracks.length} tracks)`
+        : `Added "${result.title}" to your songs`);
+      setScInput('');
+      handleSyncUpdate();
+    } catch (e) {
+      setScStatus((e as Error).message || 'SoundCloud import failed.');
+    } finally {
+      setIsScImporting(false);
+    }
   };
 
   // Re-read imported data whenever a sync / account switch / playlist import finishes
@@ -48,7 +73,7 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
   }, []);
 
   // Compile all known songs across library
-  const allKnownTracks = [...importedTracks, ...recentlyPlayed];
+  const allKnownTracks = [...importedTracks, ...scTracks, ...recentlyPlayed];
 
   const activeChannelId = useSessionStore(state => state.activeChannelId);
   const path = location.pathname;
@@ -178,6 +203,45 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
           {ytAccount.isLinked ? <RefreshCw className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
           <span>{ytAccount.isLinked ? 'Switch YouTube Account' : 'Connect YouTube Account'}</span>
         </button>
+      </div>
+
+      {/* 1b. SoundCloud Import Card */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-[#141414] border border-white/5 shadow-xl">
+        <div className="flex items-center gap-3.5 mb-3">
+          <div className="w-11 h-11 rounded-xl bg-[#ff5500]/15 flex items-center justify-center shrink-0 border border-[#ff5500]/25">
+            <Cloud className="w-6 h-6 text-[#ff5500]" />
+          </div>
+          <div>
+            <h3 className="text-sm sm:text-base font-semibold text-white">Import from SoundCloud</h3>
+            <p className="text-xs text-[#b3b3b3] mt-0.5 font-normal">
+              Paste a track or playlist URL — SoundCloud-exclusive songs play right here.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2.5">
+          <input
+            type="text"
+            value={scInput}
+            onChange={(e) => setScInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void handleImportSoundCloud(); }}
+            placeholder="https://soundcloud.com/artist/track-or-set"
+            className="flex-1 bg-[#1e1e1e] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-[#6a6a6a] focus:outline-none focus:border-white/30 transition-colors"
+          />
+          <button
+            type="button"
+            onClick={() => void handleImportSoundCloud()}
+            disabled={isScImporting || !scInput.trim()}
+            className="px-5 py-2.5 rounded-xl bg-[#ff5500] hover:bg-[#ff6600] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shrink-0"
+          >
+            {isScImporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+            <span>{isScImporting ? 'Importing…' : 'Import'}</span>
+          </button>
+        </div>
+        {scStatus && (
+          <p className={`text-xs mt-2.5 ${scStatus.startsWith('Imported') || scStatus.startsWith('Added') ? 'text-emerald-400' : 'text-red-400'}`}>
+            {scStatus}
+          </p>
+        )}
       </div>
 
       {/* 2. Top Header & Navigation Tabs */}
