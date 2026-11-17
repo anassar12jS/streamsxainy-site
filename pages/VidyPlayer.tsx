@@ -10,10 +10,11 @@ import {
 } from 'lucide-react';
 import { getDetails, getSeasonDetails, getRecommendations } from '../services/tmdb';
 import { searchAnimeByTitle, getAnimeById, mapAniListToTMDBDetail } from '../services/anilist';
-import { getProgressForId, getTheme, saveProgress, addToWatchlist, removeFromWatchlist, isInWatchlist, removeFromProgress } from '../services/storage';
+import { getProgressForId, getTheme, saveProgress, addToWatchlist, removeFromWatchlist, isInWatchlist, removeFromProgress, getAutoplayNext } from '../services/storage';
+import { getStreams, getEpisodeStreams } from '../services/addonService';
 import { PROVIDERS, ANIME_PROVIDERS, ProviderId, AnimeProviderId, getHealthBook, bumpProviderHealth, providersByHealth, healthDotClass } from '../services/streamProviders';
 import { fetchSubtitles, cueIndexAt, SUBTITLE_LANGUAGES, SubtitleTrack } from '../services/subtitles';
-import { MediaType, TMDBResult } from '../types';
+import { MediaType, TMDBResult, Stream } from '../types';
 import { TMDB_POSTER_BASE, TMDB_IMAGE_BASE, TMDB_PROFILE_BASE, TMDB_BACKDROP_W1280 } from '../constants';
 
 const getThemeHex = () => {
@@ -45,11 +46,20 @@ const formatResumeTime = (secs: number): string => {
     : `${m}:${String(r).padStart(2, '0')}`;
 };
 
+const NON_BROWSER_VIDEO_RE = /\.(m3u8|mkv|avi|ts)(\?|$)/i;
+
+const isBrowserPlayableStream = (stream: Stream): boolean => {
+  if (!stream.url || !/^https?:\/\//i.test(stream.url)) return false;
+  if (stream.behaviorHints?.notWebReady) return false;
+  return !NON_BROWSER_VIDEO_RE.test(stream.url);
+};
+
 export const VidyPlayer: React.FC = () => {
   const { mediaType: mediaTypeParam, id: idParam, season: seasonParam, episode: episodeParam } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const playerRef = useRef<HTMLIFrameElement>(null);
+  const directVideoRef = useRef<HTMLVideoElement>(null);
   const loadingTimeout = useRef<number | undefined>(undefined);
   const lastSavedTime = useRef(0);
   const failoverAttempts = useRef(0);
@@ -85,6 +95,7 @@ export const VidyPlayer: React.FC = () => {
     return saved === 'dub' ? 'dub' : 'sub';
   });
   const [retryKey, setRetryKey] = useState(0);
+  const [directStreamIndex, setDirectStreamIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [hasTimedOut, setHasTimedOut] = useState(false);
   const [isTheaterMode, setIsTheaterMode] = useState<boolean>(false);
@@ -196,6 +207,33 @@ export const VidyPlayer: React.FC = () => {
 
   const effectiveAnilistId = anilistIdParam || aniListConverted?.id || anilistLookupQuery.data || (isAnimeDetected ? id : undefined);
   const isAnime = Boolean(anilistIdParam || isAnimeDetected || aniListConverted);
+
+  const isDirectMode = provider === 'direct' && !isAnime;
+  const directStreamsQuery = useQuery({
+    queryKey: ['direct-streams', imdbId, isEpisode ? `${season}x${episode}` : 'movie'],
+    queryFn: () => isEpisode
+      ? getEpisodeStreams(imdbId!, season, episode, { timeoutMs: 25000 })
+      : getStreams(MediaType.MOVIE, imdbId!, { timeoutMs: 25000 }),
+    enabled: isDirectMode && Boolean(imdbId),
+    staleTime: 1000 * 60 * 5,
+    retry: 0,
+  });
+  const playableDirectStreams = useMemo(
+    () => (directStreamsQuery.data?.streams || []).filter(isBrowserPlayableStream),
+    [directStreamsQuery.data]
+  );
+  const directStream = playableDirectStreams[directStreamIndex];
+  const isDirectPlayback = isDirectMode && Boolean(directStream?.url);
+
+  useEffect(() => {
+    setDirectStreamIndex(0);
+  }, [provider, imdbId, isEpisode ? `${season}x${episode}` : 'movie', retryKey]);
+
+  useEffect(() => {
+    if (playableDirectStreams.length > 0 && directStreamIndex >= playableDirectStreams.length) {
+      setDirectStreamIndex(0);
+    }
+  }, [playableDirectStreams.length, directStreamIndex]);
 
   // Sync watchlist status
   useEffect(() => {
@@ -461,6 +499,8 @@ export const VidyPlayer: React.FC = () => {
         if (isEpisode) { mmParams.set('s', String(season)); mmParams.set('e', String(episode)); }
         return `https://multiembed.mov/?${mmParams.toString()}`;
       }
+      case 'direct':
+        return '';
       default: {
         const ishowParams = new URLSearchParams({
           branding: 'streamsxainy',
@@ -476,21 +516,23 @@ export const VidyPlayer: React.FC = () => {
     }
   }, [provider, animeProvider, animeLang, isEpisode, isAnime, id, externalId, season, episode, effectiveAnilistId, resumeTime, themeHex]);
 
-  const advanceStreamServer = useCallback((manual = false) => {
+  const externalUrl = isDirectMode ? directStream?.url : embedUrl;
+
+  const advanceStreamServer = useCallback((manual = false, message?: string, persistChoice = true) => {
     if (isAnime) {
       const order = animeProviderOrder;
       const idx = order.findIndex(p => p.id === animeProvider);
       const next = order[(idx + 1) % order.length];
       setAnimeProvider(next.id);
-      safeStorageSet('vidy:anime-provider', next.id);
-      showToast(manual ? `Switched to ${next.name}` : `Stream timed out — trying ${next.name}`);
+      if (persistChoice) safeStorageSet('vidy:anime-provider', next.id);
+      showToast(message || (manual ? `Switched to ${next.name}` : `Stream timed out — trying ${next.name}`));
     } else {
       const order = movieProviderOrder;
       const idx = order.findIndex(p => p.id === provider);
       const next = order[(idx + 1) % order.length];
       setProviderState(next.id);
-      safeStorageSet(providerStorageKey, next.id);
-      showToast(manual ? `Switched to ${next.name}` : `Stream timed out — trying ${next.name}`);
+      if (persistChoice) safeStorageSet(providerStorageKey, next.id);
+      showToast(message || (manual ? `Switched to ${next.name}` : `Stream timed out — trying ${next.name}`));
     }
     if (manual) failoverAttempts.current = 0;
     setIsLoading(true);
@@ -530,6 +572,33 @@ export const VidyPlayer: React.FC = () => {
     showToast(lang === 'sub' ? 'Audio set to Subtitled (JP)' : 'Audio set to English Dub (EN)');
   };
 
+  const failDirectAndFallback = (penalizeProvider = true, message = 'Direct streams unavailable — trying next server') => {
+    if (penalizeProvider) {
+      bumpProviderHealth('movie:direct', 'fail');
+      setProviderHealthVersion(v => v + 1);
+    }
+    advanceStreamServerRef.current(true, message, false);
+  };
+
+  const handleDirectPlaybackFailure = (reason: 'error' | 'timeout' | 'empty') => {
+    if (reason === 'empty' || directStreamIndex + 1 >= playableDirectStreams.length) {
+      failDirectAndFallback(
+        reason !== 'empty',
+        reason === 'empty' ? 'No playable direct streams — trying next server' : 'Direct streams unavailable — trying next server'
+      );
+      return;
+    }
+    const nextIndex = directStreamIndex + 1;
+    setDirectStreamIndex(nextIndex);
+    setIsLoading(true);
+    setHasTimedOut(false);
+    const label = reason === 'timeout' ? 'timed out' : 'failed';
+    showToast(`Direct stream ${label} — trying ${nextIndex + 1}/${playableDirectStreams.length}`);
+  };
+
+  const handleDirectPlaybackFailureRef = useRef(handleDirectPlaybackFailure);
+  handleDirectPlaybackFailureRef.current = handleDirectPlaybackFailure;
+
   // Loading safety timeout with automatic provider failover
   useEffect(() => {
     setIsLoading(true);
@@ -537,6 +606,10 @@ export const VidyPlayer: React.FC = () => {
 
     window.clearTimeout(loadingTimeout.current);
     loadingTimeout.current = window.setTimeout(() => {
+      if (provider === 'direct' && !isAnime) {
+        handleDirectPlaybackFailureRef.current('timeout');
+        return;
+      }
       const maxAttempts = isAnime ? ANIME_PROVIDERS.length - 1 : PROVIDERS.length - 1;
       const timedOutKey = isAnime ? `anime:${animeProvider}` : `movie:${provider}`;
       bumpProviderHealth(timedOutKey, 'fail');
@@ -548,11 +621,11 @@ export const VidyPlayer: React.FC = () => {
         setHasTimedOut(true);
         setIsLoading(false);
       }
-    }, 12000);
+    }, provider === 'direct' && !isAnime ? 30000 : 12000);
 
     return () => window.clearTimeout(loadingTimeout.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, animeProvider, animeLang, season, episode, retryKey, isAnime]);
+  }, [provider, animeProvider, animeLang, season, episode, retryKey, isAnime, directStreamIndex]);
 
   // Handle postMessage playback events from providers
   useEffect(() => {
@@ -617,6 +690,16 @@ export const VidyPlayer: React.FC = () => {
     return () => window.removeEventListener('message', handleMessage);
   }, [details, mediaType, isEpisode, isAnime, animeProvider, provider, season, episode, effectiveAnilistId]);
 
+  // Direct mode has no iframe onLoad to clear the loading state — if the
+  // configured addons return nothing browser-playable, move to the next
+  // embed mirror instead of sitting on a black screen.
+  useEffect(() => {
+    if (!isDirectMode || !detailsQuery.isFetched) return;
+    if (!imdbId || (directStreamsQuery.isFetched && playableDirectStreams.length === 0)) {
+      handleDirectPlaybackFailureRef.current('empty');
+    }
+  }, [isDirectMode, detailsQuery.isFetched, imdbId, directStreamsQuery.isFetched, playableDirectStreams.length]);
+
   // Ensure item is tracked in Continue Watching upon starting playback
   useEffect(() => {
     if (details && id > 0) {
@@ -653,7 +736,8 @@ export const VidyPlayer: React.FC = () => {
   };
 
   const openFullscreen = () => {
-    void playerRef.current?.requestFullscreen?.();
+    const target = isDirectPlayback ? directVideoRef.current : playerRef.current;
+    void target?.requestFullscreen?.();
   };
 
   const handleEpisodeChange = (newEp: number, targetSeason: number = season) => {
@@ -670,6 +754,58 @@ export const VidyPlayer: React.FC = () => {
   const handleSeasonChange = (newSeason: number) => {
     if (newSeason === season) return;
     handleEpisodeChange(1, newSeason);
+  };
+
+  const markDirectPlaybackOk = () => {
+    const healthKey = 'movie:direct';
+    if (confirmedPlaybackFor.current !== healthKey) {
+      confirmedPlaybackFor.current = healthKey;
+      bumpProviderHealth(healthKey, 'ok');
+      setProviderHealthVersion(v => v + 1);
+    }
+  };
+
+  const handleDirectLoaded = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    markDirectPlaybackOk();
+    window.clearTimeout(loadingTimeout.current);
+    setIsLoading(false);
+    setHasTimedOut(false);
+    if (resumeTime && resumeTime > 0) {
+      try { video.currentTime = resumeTime; } catch { /* some streams report duration late */ }
+    }
+  };
+
+  const handleDirectTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    const nowTs = Date.now();
+    if (nowTs - lastTimePush.current > 250) {
+      lastTimePush.current = nowTs;
+      setVideoTime(video.currentTime);
+    }
+    markDirectPlaybackOk();
+    const now = Date.now();
+    if (video.duration > 0 && now - lastSavedTime.current > 5000) {
+      lastSavedTime.current = now;
+      saveProgress({
+        id,
+        anilist_id: effectiveAnilistId,
+        media_type: mediaType,
+        title: details?.title || details?.name || '',
+        poster_path: details?.poster_path || null,
+        season: isEpisode && !isAnime ? season : undefined,
+        episode: (isEpisode || isAnime) ? episode : undefined,
+        currentTime: video.currentTime,
+        duration: video.duration,
+        progress: (video.currentTime / video.duration) * 100,
+      });
+    }
+  };
+
+  const handleDirectEnded = () => {
+    if (isEpisode && getAutoplayNext() && episode < totalEpisodesInSeason) {
+      handleEpisodeChange(episode + 1);
+    }
   };
 
   // Keyboard Shortcuts: F (fullscreen), T (theater), L (lights), N (next), P (prev), R (reload)
@@ -864,7 +1000,7 @@ export const VidyPlayer: React.FC = () => {
 
             {/* Open in External Tab */}
             <a 
-              href={embedUrl} 
+              href={externalUrl || undefined} 
               target="_blank" 
               rel="noreferrer" 
               className="p-2 rounded-xl text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors border border-white/10 cursor-pointer" 
@@ -1012,7 +1148,7 @@ export const VidyPlayer: React.FC = () => {
           </div>
         ) : (
           /* ========================================================================= */
-          /* IF REGULAR MOVIE / TV: SHOW THE 9 SELECTABLE PLAYER SERVERS               */
+          /* IF REGULAR MOVIE / TV: SHOW THE SELECTABLE PLAYER SERVERS               */
           /* ========================================================================= */
           <div className="bg-[#111115] border border-white/10 rounded-2xl p-3 sm:p-4 shadow-xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3">
@@ -1033,7 +1169,7 @@ export const VidyPlayer: React.FC = () => {
             </div>
 
             {/* Provider Buttons Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10 gap-2">
               {PROVIDERS.map((p, idx) => {
                 const isActive = provider === p.id;
                 return (
@@ -1183,21 +1319,40 @@ export const VidyPlayer: React.FC = () => {
             )}
 
             <div className={`relative w-full ${isTheaterMode ? 'aspect-[21/9] min-h-[480px] max-h-[84vh]' : 'aspect-video max-h-[78vh]'} bg-black rounded-2xl overflow-hidden ring-1 ring-white/15 shadow-2xl z-30 transition-all duration-300`}>
-              <iframe
-                key={`${isAnime ? animeProvider : provider}_${retryKey}_${season}_${episode}_${animeLang}`}
-                ref={playerRef}
-                src={embedUrl}
-                title={`${title} player`}
-                className="absolute inset-0 w-full h-full border-0"
-                allowFullScreen
-                allow="encrypted-media; autoplay *; fullscreen *; picture-in-picture *"
-                referrerPolicy="origin"
-                onLoad={() => {
-                  window.clearTimeout(loadingTimeout.current);
-                  setIsLoading(false);
-                  setHasTimedOut(false);
-                }}
-              />
+              {isDirectMode ? (
+                directStream?.url ? (
+                  <video
+                    key={`${directStream.url}_${retryKey}_${directStreamIndex}`}
+                    ref={directVideoRef}
+                    src={directStream.url}
+                    title={`${title} player`}
+                    className="absolute inset-0 w-full h-full bg-black"
+                    controls
+                    autoPlay
+                    playsInline
+                    onLoadedData={handleDirectLoaded}
+                    onTimeUpdate={handleDirectTimeUpdate}
+                    onEnded={handleDirectEnded}
+                    onError={() => handleDirectPlaybackFailure('error')}
+                  />
+                ) : null
+              ) : (
+                <iframe
+                  key={`${isAnime ? animeProvider : provider}_${retryKey}_${season}_${episode}_${animeLang}`}
+                  ref={playerRef}
+                  src={embedUrl}
+                  title={`${title} player`}
+                  className="absolute inset-0 w-full h-full border-0"
+                  allowFullScreen
+                  allow="encrypted-media; autoplay *; fullscreen *; picture-in-picture *"
+                  referrerPolicy="origin"
+                  onLoad={() => {
+                    window.clearTimeout(loadingTimeout.current);
+                    setIsLoading(false);
+                    setHasTimedOut(false);
+                  }}
+                />
+              )}
 
               {/* Loading Indicator Overlay */}
               {isLoading && (
@@ -1216,7 +1371,7 @@ export const VidyPlayer: React.FC = () => {
                       Connecting to {isAnime ? animeServerName : currentProviderName}...
                     </p>
                     <p className="text-xs text-white/50">
-                      {isAnime ? `Loading Episode ${episode} (${animeLang.toUpperCase()})` : 'Establishing secure media streaming handshake'}
+                      {isAnime ? `Loading Episode ${episode} (${animeLang.toUpperCase()})` : provider === 'direct' ? 'Resolving direct stream sources' : 'Establishing secure media streaming handshake'}
                     </p>
                   </div>
                   <button
@@ -1259,7 +1414,7 @@ export const VidyPlayer: React.FC = () => {
                       <RotateCw className="w-3.5 h-3.5" /> Reload
                     </button>
                     <a
-                      href={embedUrl}
+                      href={externalUrl || undefined}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 text-xs font-semibold transition-colors border border-white/10 cursor-pointer"
@@ -1519,7 +1674,7 @@ export const VidyPlayer: React.FC = () => {
               <RotateCw className="w-3.5 h-3.5" /> Reload
             </button>
             <a 
-              href={embedUrl} 
+              href={externalUrl || undefined} 
               target="_blank" 
               rel="noreferrer" 
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[rgb(var(--primary-color))] hover:brightness-110 text-white text-xs sm:text-sm font-bold transition-all shadow-md cursor-pointer"

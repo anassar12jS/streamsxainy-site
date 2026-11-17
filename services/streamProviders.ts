@@ -4,6 +4,7 @@
 // ---------------------------------------------------------------------------
 
 export const PROVIDERS = [
+  { id: 'direct', name: 'Direct Streams', speed: 'Fast ⚡', quality: 'MP4 · Addons', badge: 'No Ads' },
   { id: 'ishowstream', name: 'iShowStream', speed: 'Ultra Fast ⚡', quality: '4K · 1080p', badge: 'Fastest' },
   { id: 'vidapi', name: 'VidAPI', speed: 'Fast ⚡', quality: '1080p', badge: 'New' },
   { id: 'vidy', name: 'Vidy Prime', speed: 'Fast ⚡', quality: '1080p', badge: 'Popular' },

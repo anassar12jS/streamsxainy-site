@@ -4,7 +4,7 @@ import { getStreamProviders } from './storage';
 
 const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes in milliseconds
 
-const fetchFromProvider = async (provider: StreamProvider, type: string, id: string): Promise<StreamResponse> => {
+const fetchFromProvider = async (provider: StreamProvider, type: string, id: string, timeoutMs = 8000): Promise<StreamResponse> => {
     try {
         let cleanUrl = provider.url.trim().replace(/\/$/, '');
         // Handle if user pasted a full manifest url like .../manifest.json
@@ -14,7 +14,7 @@ const fetchFromProvider = async (provider: StreamProvider, type: string, id: str
 
         const url = `${cleanUrl}/stream/${type}/${id}.json`;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout per provider
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
         const res = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -35,7 +35,7 @@ const fetchFromProvider = async (provider: StreamProvider, type: string, id: str
     }
 };
 
-export const getStreams = async (type: MediaType, id: string): Promise<StreamResponse> => {
+export const getStreams = async (type: MediaType, id: string, options?: { timeoutMs?: number }): Promise<StreamResponse> => {
   const stremioType = type === MediaType.MOVIE ? 'movie' : 'series';
   const cacheKey = `streams_${stremioType}_${id}`;
 
@@ -60,7 +60,7 @@ export const getStreams = async (type: MediaType, id: string): Promise<StreamRes
   try {
       // Fetch from all providers in parallel
       const results = await Promise.allSettled(
-          providers.map(p => fetchFromProvider(p, stremioType, id))
+          providers.map(p => fetchFromProvider(p, stremioType, id, options?.timeoutMs))
       );
 
       // Combine all successful results
@@ -90,7 +90,7 @@ export const getStreams = async (type: MediaType, id: string): Promise<StreamRes
   }
 };
 
-export const getEpisodeStreams = async (imdbId: string, season: number, episode: number): Promise<StreamResponse> => {
+export const getEpisodeStreams = async (imdbId: string, season: number, episode: number, options?: { timeoutMs?: number }): Promise<StreamResponse> => {
   const streamId = `${imdbId}:${season}:${episode}`;
   const cacheKey = `episode_streams_${streamId}`;
 
@@ -109,7 +109,7 @@ export const getEpisodeStreams = async (imdbId: string, season: number, episode:
 
   try {
     const results = await Promise.allSettled(
-        providers.map(p => fetchFromProvider(p, 'series', streamId))
+        providers.map(p => fetchFromProvider(p, 'series', streamId, options?.timeoutMs))
     );
 
     const allStreams = results

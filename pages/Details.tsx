@@ -171,7 +171,7 @@ export const Details: React.FC = () => {
   const [showStickyHeader, setShowStickyHeader] = useState(false);
   const [overviewExpanded, setOverviewExpanded] = useState(false);
   const [streamQualityFilter, setStreamQualityFilter] = useState<'all' | '4k' | '1080p' | '720p'>('all');
-  const [selectedServer, setSelectedServer] = useState<string>('ishowstream');
+  const [selectedServer, setSelectedServer] = useState<string>('direct');
   const [showServerPicker, setShowServerPicker] = useState<boolean>(false);
   const [episodeSearchQuery, setEpisodeSearchQuery] = useState<string>('');
   const [logoLoadFailed, setLogoLoadFailed] = useState(false);
@@ -355,7 +355,7 @@ export const Details: React.FC = () => {
     const params = new URLSearchParams();
     if (effectiveAnilistId) params.set('anilistId', effectiveAnilistId.toString());
     const targetServer = serverOverride || selectedServer;
-    if (targetServer && targetServer !== 'ishowstream') {
+    if (targetServer) {
       params.set('server', targetServer);
     }
     const query = params.toString() ? `?${params.toString()}` : '';

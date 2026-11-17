@@ -220,8 +220,12 @@ export interface Stream {
   infoHash?: string;
   fileIdx?: number;
   url?: string;
+  isHls?: boolean;
   behaviorHints?: {
     bingeGroup?: string;
+    filename?: string;
+    notWebReady?: boolean;
+    videoSize?: number;
   };
 }
 
