@@ -7,6 +7,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { resolveArtistId, resolveAlbumId } from '../api/innertube';
+import { resolveSoundCloudArtistId, findSoundCloudPlaylistForTrack } from '../api/soundcloud';
 
 interface FloatingPlayerProps {
   onToggleMobileSidebar?: () => void;
@@ -139,10 +140,19 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
     window.addEventListener('pointerup', onUp);
   };
 
+  const isSoundCloud = !!currentTrack
+    && (currentTrack.source === 'soundcloud' || currentTrack.id.startsWith('sc-') || !!currentTrack.soundcloudUrl);
+
   const openArtist = async () => {
     if (!currentTrack || resolving) return;
-    if (currentTrack.soundcloudArtistId) {
-      navigate(`/music/soundcloud/artist/${currentTrack.soundcloudArtistId}`);
+    if (isSoundCloud) {
+      setResolving('artist');
+      try {
+        const artistId = await resolveSoundCloudArtistId(currentTrack);
+        if (artistId) navigate(`/music/soundcloud/artist/${artistId}`);
+      } finally {
+        setResolving(null);
+      }
       return;
     }
     setResolving('artist');
@@ -156,8 +166,21 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
 
   const openAlbum = async () => {
     if (!currentTrack || resolving) return;
-    if (currentTrack.soundcloudPlaylistId) {
-      navigate(`/music/playlist/${currentTrack.soundcloudPlaylistId}`);
+    if (isSoundCloud) {
+      const playlistId = currentTrack.soundcloudPlaylistId
+        || findSoundCloudPlaylistForTrack(currentTrack.id)?.id;
+      if (playlistId) {
+        navigate(`/music/playlist/${playlistId}`);
+        return;
+      }
+      // No source playlist — fall back to the artist page.
+      setResolving('album');
+      try {
+        const artistId = await resolveSoundCloudArtistId(currentTrack);
+        if (artistId) navigate(`/music/soundcloud/artist/${artistId}`);
+      } finally {
+        setResolving(null);
+      }
       return;
     }
     setResolving('album');

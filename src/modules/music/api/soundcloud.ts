@@ -88,13 +88,15 @@ export function getImportedSoundCloudPlaylist(id: string): Playlist | null {
   return getImportedSoundCloudPlaylists().find(p => p.id === id) || null;
 }
 
-function saveTracks(tracks: MusicTrack[]) {
-  try { localStorage.setItem(STORAGE_KEY_SC_TRACKS, JSON.stringify(tracks)); } catch {}
+function saveTracks(tracks: MusicTrack[]): boolean {
+  try { localStorage.setItem(STORAGE_KEY_SC_TRACKS, JSON.stringify(tracks)); return true; } catch { return false; }
 }
 
-function savePlaylists(playlists: Playlist[]) {
-  try { localStorage.setItem(STORAGE_KEY_SC_PLAYLISTS, JSON.stringify(playlists)); } catch {}
+function savePlaylists(playlists: Playlist[]): boolean {
+  let ok = true;
+  try { localStorage.setItem(STORAGE_KEY_SC_PLAYLISTS, JSON.stringify(playlists)); } catch { ok = false; }
   notifyLibraryUpdated();
+  return ok;
 }
 
 function mergeTracks(existing: MusicTrack[], incoming: MusicTrack[]): MusicTrack[] {
@@ -123,8 +125,10 @@ export async function importSoundCloud(urlOrId: string): Promise<{ title: string
       trackCount: tracks.length,
       tracks,
     };
-    savePlaylists([playlist, ...getImportedSoundCloudPlaylists().filter(p => p.id !== playlist.id)]);
-    saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks));
+    if (!savePlaylists([playlist, ...getImportedSoundCloudPlaylists().filter(p => p.id !== playlist.id)])
+      || !saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks))) {
+      throw new Error('Could not save to library — browser storage may be full.');
+    }
     notifyLibraryUpdated();
     return { title: playlist.title, tracks, isPlaylist: true };
   }
@@ -142,15 +146,19 @@ export async function importSoundCloud(urlOrId: string): Promise<{ title: string
       trackCount: tracks.length,
       tracks,
     };
-    savePlaylists([playlist, ...getImportedSoundCloudPlaylists().filter(p => p.id !== playlist.id)]);
-    saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks));
+    if (!savePlaylists([playlist, ...getImportedSoundCloudPlaylists().filter(p => p.id !== playlist.id)])
+      || !saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks))) {
+      throw new Error('Could not save to library — browser storage may be full.');
+    }
     notifyLibraryUpdated();
     return { title: playlist.title, tracks, isPlaylist: true };
   }
 
   const trackJson = resolved as { kind: 'track' } & ScTrackJson;
   const track = toTrack(trackJson);
-  saveTracks(mergeTracks(getImportedSoundCloudTracks(), [track]));
+  if (!saveTracks(mergeTracks(getImportedSoundCloudTracks(), [track]))) {
+    throw new Error('Could not save to library — browser storage may be full.');
+  }
   notifyLibraryUpdated();
   return { title: track.title, tracks: [track], isPlaylist: false };
 }
@@ -176,8 +184,10 @@ export function createSoundCloudPlaylist(title: string, tracks: MusicTrack[], ar
     trackCount: tracks.length,
     tracks: tracks.map(t => ({ ...t, soundcloudPlaylistId: playlistId })),
   };
-  savePlaylists([playlist, ...getImportedSoundCloudPlaylists()]);
-  saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks));
+  if (!savePlaylists([playlist, ...getImportedSoundCloudPlaylists()])
+    || !saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks))) {
+    throw new Error('Could not save playlist — browser storage may be full.');
+  }
   notifyLibraryUpdated();
   return playlist;
 }
@@ -192,9 +202,29 @@ export function addTrackToSoundCloudPlaylist(playlistId: string, track: MusicTra
     pl.trackCount = pl.tracks.length;
     pl.subtitle = `${pl.tracks.length} Songs · SoundCloud`;
   }
-  savePlaylists(playlists.map(p => p.id === playlistId ? pl : p));
-  saveTracks(mergeTracks(getImportedSoundCloudTracks(), [track]));
-  return true;
+  return savePlaylists(playlists.map(p => p.id === playlistId ? pl : p))
+    && saveTracks(mergeTracks(getImportedSoundCloudTracks(), [track]));
+}
+
+/** Resolve the numeric SoundCloud artist id for a track (artist page route param). */
+export async function resolveSoundCloudArtistId(track: MusicTrack): Promise<string | null> {
+  if (track.soundcloudArtistId) return track.soundcloudArtistId;
+  try {
+    if (track.soundcloudArtistUrl) {
+      const artist = await scApi<ScArtistJson>('artist', track.soundcloudArtistUrl);
+      return artist?.id || null;
+    }
+    if (track.soundcloudUrl) {
+      const t = await scApi<{ artistId?: string }>('resolve', track.soundcloudUrl);
+      return t?.artistId || null;
+    }
+  } catch {}
+  return null;
+}
+
+/** Find an imported SoundCloud playlist that contains this track. */
+export function findSoundCloudPlaylistForTrack(trackId: string): Playlist | null {
+  return getImportedSoundCloudPlaylists().find(p => p.tracks?.some(t => t.id === trackId)) || null;
 }
 
 // --- Playback stream resolution (cached; signed URLs expire) ---

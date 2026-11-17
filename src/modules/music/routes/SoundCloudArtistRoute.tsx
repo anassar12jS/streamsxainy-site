@@ -35,6 +35,7 @@ export const SoundCloudArtistRoute: React.FC = () => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [addedTo, setAddedTo] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async (offset = 0, append = false) => {
     if (!id) return;
@@ -67,29 +68,42 @@ export const SoundCloudArtistRoute: React.FC = () => {
 
   const handleAddTo = (playlistId: string) => {
     if (!playlistModalTrack) return;
+    setActionError(null);
     const pl = playlists.find(p => p.id === playlistId);
     if (pl && addTrackToSoundCloudPlaylist(playlistId, playlistModalTrack)) {
       setAddedTo(pl.title);
       setTimeout(() => { setPlaylistModalTrack(null); setAddedTo(null); }, 900);
+    } else {
+      setActionError('Could not add track — storage may be full.');
     }
   };
 
   const handleCreateAndAdd = () => {
     if (!playlistModalTrack) return;
+    setActionError(null);
     const name = newPlaylistName.trim() || playlistModalTrack.title || 'SoundCloud Picks';
-    const pl = createSoundCloudPlaylist(name, [playlistModalTrack], playlistModalTrack.artwork);
-    setAddedTo(pl.title);
-    setTimeout(() => { setPlaylistModalTrack(null); setAddedTo(null); }, 900);
+    try {
+      const pl = createSoundCloudPlaylist(name, [playlistModalTrack], playlistModalTrack.artwork);
+      setAddedTo(pl.title);
+      setTimeout(() => { setPlaylistModalTrack(null); setAddedTo(null); }, 900);
+    } catch (e) {
+      setActionError((e as Error).message || 'Could not create playlist.');
+    }
   };
 
   const handleImportArtist = () => {
     if (!artist) return;
-    const pl = createSoundCloudPlaylist(
-      artist.name,
-      artist.tracks,
-      artist.avatar || artist.tracks[0]?.artwork || '',
-    );
-    navigate(`/music/playlist/${pl.id}`);
+    setActionError(null);
+    try {
+      const pl = createSoundCloudPlaylist(
+        artist.name,
+        artist.tracks,
+        artist.avatar || artist.tracks[0]?.artwork || '',
+      );
+      navigate(`/music/playlist/${pl.id}`);
+    } catch (e) {
+      setActionError((e as Error).message || 'Could not import artist.');
+    }
   };
 
   const tracks = artist?.tracks || [];
@@ -163,6 +177,10 @@ export const SoundCloudArtistRoute: React.FC = () => {
               )}
             </div>
           </div>
+
+          {actionError && !playlistModalTrack && (
+            <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5">{actionError}</p>
+          )}
 
           {/* Tracks */}
           <div className="space-y-1">
@@ -239,6 +257,9 @@ export const SoundCloudArtistRoute: React.FC = () => {
                     </button>
                   ))}
                 </div>
+                {actionError && (
+                  <p className="text-xs text-red-400 mb-3">{actionError}</p>
+                )}
                 <div className="flex gap-2">
                   <input
                     type="text"

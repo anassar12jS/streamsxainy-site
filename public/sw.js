@@ -1,7 +1,7 @@
-const CACHE_NAME = 'xainy-v3';
-const STATIC_CACHE = 'xainy-static-v3';
-const API_CACHE = 'xainy-api-v3';
-const IMAGE_CACHE = 'xainy-images-v3';
+const CACHE_NAME = 'xainy-v4';
+const STATIC_CACHE = 'xainy-static-v4';
+const API_CACHE = 'xainy-api-v4';
+const IMAGE_CACHE = 'xainy-images-v4';
 
 const PRECACHE_ASSETS = [
   '/',
@@ -83,7 +83,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Same-origin Static JS/CSS Chunks: Stale-While-Revalidate
+  // 3. Same-origin API calls: never cache — responses are dynamic and a stale
+  //    cached error (e.g. a 404) would be served forever with no TTL.
+  if (url.pathname.startsWith('/api/')) return;
+
+  // 4. Same-origin Static JS/CSS Chunks: Stale-While-Revalidate
   if (url.origin === self.location.origin) {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {

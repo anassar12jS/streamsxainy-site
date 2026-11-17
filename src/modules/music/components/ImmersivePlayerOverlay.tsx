@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { fetchLyrics } from '../api/lyrics';
 import { resolveArtistId, resolveAlbumId } from '../api/innertube';
+import { resolveSoundCloudArtistId, findSoundCloudPlaylistForTrack } from '../api/soundcloud';
 import { SteeredClock } from '../player/SteeredClock';
 import { getArtworkColors, AmbientColors } from '../utils/artworkColors';
 
@@ -61,10 +62,19 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
 
   const [resolvingNav, setResolvingNav] = useState<'artist' | 'album' | null>(null);
 
+  const isSoundCloud = !!currentTrack
+    && (currentTrack.source === 'soundcloud' || currentTrack.id.startsWith('sc-') || !!currentTrack.soundcloudUrl);
+
   const openArtist = async () => {
     if (!currentTrack || resolvingNav) return;
-    if (currentTrack.soundcloudArtistId) {
-      navigate(`/music/soundcloud/artist/${currentTrack.soundcloudArtistId}`);
+    if (isSoundCloud) {
+      setResolvingNav('artist');
+      try {
+        const artistId = await resolveSoundCloudArtistId(currentTrack);
+        if (artistId) navigate(`/music/soundcloud/artist/${artistId}`);
+      } finally {
+        setResolvingNav(null);
+      }
       return;
     }
     setResolvingNav('artist');
@@ -79,8 +89,21 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
 
   const openAlbum = async () => {
     if (!currentTrack || resolvingNav) return;
-    if (currentTrack.soundcloudPlaylistId) {
-      navigate(`/music/playlist/${currentTrack.soundcloudPlaylistId}`);
+    if (isSoundCloud) {
+      const playlistId = currentTrack.soundcloudPlaylistId
+        || findSoundCloudPlaylistForTrack(currentTrack.id)?.id;
+      if (playlistId) {
+        navigate(`/music/playlist/${playlistId}`);
+        return;
+      }
+      // No source playlist — fall back to the artist page.
+      setResolvingNav('album');
+      try {
+        const artistId = await resolveSoundCloudArtistId(currentTrack);
+        if (artistId) navigate(`/music/soundcloud/artist/${artistId}`);
+      } finally {
+        setResolvingNav(null);
+      }
       return;
     }
     setResolvingNav('album');
@@ -379,6 +402,14 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
 
   const handleGoToArtist = async () => {
     setMobileMoreOpen(false);
+    if (isSoundCloud) {
+      const artistId = await resolveSoundCloudArtistId(currentTrack);
+      if (artistId) {
+        setShowLyrics(false);
+        navigate(`/music/soundcloud/artist/${artistId}`);
+      }
+      return;
+    }
     const id = await resolveArtistId(currentTrack);
     if (id) {
       setShowLyrics(false);
@@ -388,6 +419,21 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
 
   const handleGoToAlbum = async () => {
     setMobileMoreOpen(false);
+    if (isSoundCloud) {
+      const playlistId = currentTrack.soundcloudPlaylistId
+        || findSoundCloudPlaylistForTrack(currentTrack.id)?.id;
+      if (playlistId) {
+        setShowLyrics(false);
+        navigate(`/music/playlist/${playlistId}`);
+        return;
+      }
+      const artistId = await resolveSoundCloudArtistId(currentTrack);
+      if (artistId) {
+        setShowLyrics(false);
+        navigate(`/music/soundcloud/artist/${artistId}`);
+      }
+      return;
+    }
     const id = await resolveAlbumId(currentTrack);
     if (id) {
       setShowLyrics(false);

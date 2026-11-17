@@ -22,7 +22,9 @@ export const PlaylistRoute: React.FC = () => {
       return getPlaylistDetails(id);
     },
     enabled: Boolean(id),
-    staleTime: 1000 * 60 * 15,
+    // Local SoundCloud playlists live in localStorage and can be created after
+    // this route first mounts — never serve a stale 'not found' for them.
+    staleTime: id?.startsWith('sc-pl-') ? 0 : 1000 * 60 * 15,
     gcTime: 1000 * 60 * 60 * 24,
     retry: 1,
     refetchOnWindowFocus: false,
