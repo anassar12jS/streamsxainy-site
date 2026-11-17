@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Cloud, ExternalLink, ListMusic, Loader2, Play, Plus, X } from 'lucide-react';
 import { TrackRow } from '../components/TrackRow';
 import { MusicTrack, Playlist } from '../types';
@@ -23,13 +23,13 @@ interface ArtistData {
 
 export const SoundCloudArtistRoute: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const playTrack = useMusicPlayerStore(state => state.playTrack);
 
   const [artist, setArtist] = useState<ArtistData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [imported, setImported] = useState(false);
 
   const [playlistModalTrack, setPlaylistModalTrack] = useState<MusicTrack | null>(null);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -89,9 +89,7 @@ export const SoundCloudArtistRoute: React.FC = () => {
       artist.tracks,
       artist.avatar || artist.tracks[0]?.artwork || '',
     );
-    setImported(true);
-    window.setTimeout(() => setImported(false), 2500);
-    void pl;
+    navigate(`/music/playlist/${pl.id}`);
   };
 
   const tracks = artist?.tracks || [];
@@ -159,8 +157,8 @@ export const SoundCloudArtistRoute: React.FC = () => {
                   onClick={handleImportArtist}
                   className="px-5 py-2.5 rounded-full bg-[#ff5500]/15 hover:bg-[#ff5500]/25 border border-[#ff5500]/30 text-[#ff8c5a] text-xs font-semibold flex items-center gap-2 transition-all"
                 >
-                  {imported ? <ListMusic className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                  {imported ? 'Imported!' : 'Import as Playlist'}
+                  <Plus className="w-3.5 h-3.5" />
+                  Import as Playlist
                 </button>
               )}
             </div>

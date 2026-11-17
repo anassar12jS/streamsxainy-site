@@ -1,7 +1,7 @@
-const CACHE_NAME = 'xainy-v2';
-const STATIC_CACHE = 'xainy-static-v2';
-const API_CACHE = 'xainy-api-v2';
-const IMAGE_CACHE = 'xainy-images-v2';
+const CACHE_NAME = 'xainy-v3';
+const STATIC_CACHE = 'xainy-static-v3';
+const API_CACHE = 'xainy-api-v3';
+const IMAGE_CACHE = 'xainy-images-v3';
 
 const PRECACHE_ASSETS = [
   '/',

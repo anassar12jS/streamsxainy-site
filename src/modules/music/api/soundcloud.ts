@@ -110,17 +110,33 @@ export async function importSoundCloud(urlOrId: string): Promise<{ title: string
 
   const resolved = await scApi<ScPlaylistJson | ScArtistJson | ({ kind: 'track' } & ScTrackJson)>('resolve', input);
 
-  if (resolved.kind === 'playlist' || resolved.kind === 'artist') {
-    const isArtist = resolved.kind === 'artist';
-    const pl = resolved as ScPlaylistJson | ScArtistJson;
-    const album = isArtist ? (pl as ScArtistJson).name : pl.title;
-    const tracks = pl.tracks.map(t => toTrack(t, album));
+  if (resolved.kind === 'artist') {
+    const artist = resolved as ScArtistJson;
+    const tracks = artist.tracks.map(t => toTrack(t, artist.name));
     const playlist: Playlist = {
-      id: isArtist ? `sc-pl-artist-${(pl as ScArtistJson).id}` : `sc-pl-${pl.id}`,
-      title: pl.title || (pl as ScArtistJson).name,
+      id: `sc-pl-artist-${artist.id}`,
+      title: artist.name,
       subtitle: `${tracks.length} Songs · SoundCloud`,
-      curator: pl.curator || (isArtist ? 'SoundCloud Artist' : 'SoundCloud'),
-      artwork: pl.artwork || (isArtist ? (pl as ScArtistJson).avatar : '') || tracks[0]?.artwork || '',
+      curator: 'SoundCloud Artist',
+      artwork: artist.avatar || tracks[0]?.artwork || '',
+      trackCount: tracks.length,
+      tracks,
+    };
+    savePlaylists([playlist, ...getImportedSoundCloudPlaylists().filter(p => p.id !== playlist.id)]);
+    saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks));
+    notifyLibraryUpdated();
+    return { title: playlist.title, tracks, isPlaylist: true };
+  }
+
+  if (resolved.kind === 'playlist') {
+    const pl = resolved as ScPlaylistJson;
+    const tracks = pl.tracks.map(t => toTrack(t, pl.title));
+    const playlist: Playlist = {
+      id: `sc-pl-${pl.id}`,
+      title: pl.title,
+      subtitle: `${tracks.length} Songs · SoundCloud`,
+      curator: pl.curator || 'SoundCloud',
+      artwork: pl.artwork || tracks[0]?.artwork || '',
       trackCount: tracks.length,
       tracks,
     };

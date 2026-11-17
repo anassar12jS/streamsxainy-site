@@ -62,7 +62,11 @@ const API = 'https://api-v2.soundcloud.com';
 
 function artwork(url, size = 't500x500') {
   if (!url) return '';
-  return String(url).replace(/-large\.(jpg|png)/, `-${size}.$1`).replace(/-(small|t300x300)\.(jpg|png)/, `-${size}.$1`);
+  // Normalize SC image URLs: strip any size token + extension, then append a
+  // known-good sized .jpg (SC sometimes returns extension-less URLs that 404).
+  const noExt = String(url).replace(/\.(jpe?g|png|webp)$/i, '');
+  const base = noExt.replace(/-(large|small|original|badge|crop|t\d+x\d+)$/i, '');
+  return `${base}-${size}.jpg`;
 }
 
 function trackJson(t) {
