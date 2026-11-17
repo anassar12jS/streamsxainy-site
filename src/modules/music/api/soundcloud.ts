@@ -43,8 +43,11 @@ const toTrack = (t: ScTrackJson, album = 'SoundCloud'): MusicTrack => ({
   source: 'soundcloud',
 });
 
-async function scApi<T>(action: 'resolve' | 'stream', url: string): Promise<T> {
-  const res = await fetch(`/api/soundcloud?action=${action}&url=${encodeURIComponent(url)}`);
+async function scApi<T>(action: 'resolve' | 'stream', url?: string, id?: string): Promise<T> {
+  const params = new URLSearchParams({ action });
+  if (url) params.set('url', url);
+  if (id) params.set('id', id);
+  const res = await fetch(`/api/soundcloud?${params.toString()}`);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error || `SoundCloud ${action} failed (${res.status})`);
   return data as T;
@@ -125,8 +128,14 @@ export async function resolveSoundCloudStream(track: MusicTrack): Promise<{ stre
   if (cached && Date.now() - cached.at < STREAM_TTL) {
     return { streamUrl: cached.url, isHls: cached.isHls };
   }
-  if (!track.soundcloudUrl) throw new Error('Missing SoundCloud URL for this track.');
-  const data = await scApi<ScStreamJson>('stream', track.soundcloudUrl);
+  // Prefer the permalink; fall back to the numeric SC id for tracks imported
+  // before playlist hydration existed (stored as `sc-<id>` with no URL).
+  const scId = track.id.startsWith('sc-') ? track.id.slice(3) : '';
+  const data = track.soundcloudUrl
+    ? await scApi<ScStreamJson>('stream', track.soundcloudUrl)
+    : /^\d+$/.test(scId)
+      ? await scApi<ScStreamJson>('stream', undefined, scId)
+      : (() => { throw new Error('Missing SoundCloud URL for this track.'); })();
   streamCache.set(key, { url: data.streamUrl, isHls: !!data.isHls, at: Date.now() });
   return { streamUrl: data.streamUrl, isHls: !!data.isHls };
 }

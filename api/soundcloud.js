@@ -146,12 +146,27 @@ export default async function handler(req, res) {
   const q = req.query || {};
   const url = String(q.url || '').trim();
   const action = String(q.action || 'resolve');
-  if (!url) return json(res, 400, { error: 'Missing url parameter.' });
-  if (!/soundcloud\.com\//i.test(url) && !/^https?:\/\//i.test(url)) {
+  const id = String(q.id || '').trim();
+  const hasId = action === 'stream' && /^\d+$/.test(id);
+  if (!url && !hasId) return json(res, 400, { error: 'Missing url parameter.' });
+  if (url && !/soundcloud\.com\//i.test(url) && !/^https?:\/\//i.test(url)) {
     return json(res, 400, { error: 'Provide a SoundCloud track or playlist URL.' });
   }
 
   try {
+    // Stream by numeric track id — covers tracks imported before playlist
+    // hydration existed (stored as `sc-<id>` with no permalink).
+    if (hasId) {
+      const tr = await scGet(`${API}/tracks/${id}`);
+      if (!tr.ok) return json(res, tr.status === 404 ? 404 : 502, { error: `SoundCloud lookup failed (${tr.status}).` });
+      const data = await tr.json();
+      if (data.kind !== 'track') return json(res, 422, { error: 'Not a SoundCloud track.' });
+      const meta = trackJson(data);
+      const stream = await resolveTrackStream(data);
+      if (stream.error) return json(res, 422, { error: stream.error });
+      return json(res, 200, { kind: 'track', ...meta, ...stream });
+    }
+
     const r = await scGet(`${API}/resolve?url=${encodeURIComponent(url)}`);
     if (!r.ok) {
       const code = r.status === 401 ? 502 : r.status === 404 ? 404 : 502;
