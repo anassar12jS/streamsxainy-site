@@ -211,6 +211,26 @@ export default async function handler(req, res) {
 
     const r = await scGet(`${API}/resolve?url=${encodeURIComponent(url)}`);
     if (!r.ok) {
+      // Profile permalinks sometimes 404 even though the artist exists under a
+      // different slug (e.g. soundcloud.com/Sketchof -> sketchofmen). For
+      // single-segment profile URLs, fall back to a user search.
+      if (r.status === 404) {
+        try {
+          const segments = new URL(url).pathname.split('/').filter(Boolean);
+          const slug = segments.length === 1 ? segments[0] : '';
+          if (slug) {
+            const sr = await scGet(`${API}/search/users?q=${encodeURIComponent(slug)}&limit=3`);
+            if (sr.ok) {
+              const users = (await sr.json().catch(() => ({}))).collection || [];
+              const lower = slug.toLowerCase();
+              const match = users.find(u => (u.username || '').toLowerCase() === lower)
+                || users.find(u => (u.permalink || '').toLowerCase() === lower)
+                || users[0];
+              if (match?.id != null) return json(res, 200, await artistPayload(match, offset));
+            }
+          }
+        } catch {}
+      }
       const code = r.status === 401 ? 502 : r.status === 404 ? 404 : 502;
       return json(res, code, { error: `SoundCloud lookup failed (${r.status}).` });
     }

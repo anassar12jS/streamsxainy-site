@@ -16,6 +16,8 @@ export interface MusicTrack {
   /** SoundCloud artist user id / permalink — powers artist pages */
   soundcloudArtistId?: string;
   soundcloudArtistUrl?: string;
+  /** Source playlist id for SC imports — powers album/playlist navigation */
+  soundcloudPlaylistId?: string;
   year?: string;
   genre?: string;
   isExplicit?: boolean;

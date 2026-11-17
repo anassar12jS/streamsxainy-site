@@ -112,9 +112,10 @@ export async function importSoundCloud(urlOrId: string): Promise<{ title: string
 
   if (resolved.kind === 'artist') {
     const artist = resolved as ScArtistJson;
-    const tracks = artist.tracks.map(t => toTrack(t, artist.name));
+    const playlistId = `sc-pl-artist-${artist.id}`;
+    const tracks = artist.tracks.map(t => ({ ...toTrack(t, artist.name), soundcloudPlaylistId: playlistId }));
     const playlist: Playlist = {
-      id: `sc-pl-artist-${artist.id}`,
+      id: playlistId,
       title: artist.name,
       subtitle: `${tracks.length} Songs · SoundCloud`,
       curator: 'SoundCloud Artist',
@@ -130,9 +131,10 @@ export async function importSoundCloud(urlOrId: string): Promise<{ title: string
 
   if (resolved.kind === 'playlist') {
     const pl = resolved as ScPlaylistJson;
-    const tracks = pl.tracks.map(t => toTrack(t, pl.title));
+    const playlistId = `sc-pl-${pl.id}`;
+    const tracks = pl.tracks.map(t => ({ ...toTrack(t, pl.title), soundcloudPlaylistId: playlistId }));
     const playlist: Playlist = {
-      id: `sc-pl-${pl.id}`,
+      id: playlistId,
       title: pl.title,
       subtitle: `${tracks.length} Songs · SoundCloud`,
       curator: pl.curator || 'SoundCloud',
@@ -164,14 +166,15 @@ export async function getSoundCloudArtist(idOrUrl: string, offset = 0): Promise<
 
 /** Create a local SoundCloud playlist from tracks (artist imports, manual adds). */
 export function createSoundCloudPlaylist(title: string, tracks: MusicTrack[], artwork = ''): Playlist {
+  const playlistId = `sc-pl-${Date.now()}`;
   const playlist: Playlist = {
-    id: `sc-pl-${Date.now()}`,
+    id: playlistId,
     title,
     subtitle: `${tracks.length} Songs · SoundCloud`,
     curator: 'SoundCloud',
     artwork,
     trackCount: tracks.length,
-    tracks,
+    tracks: tracks.map(t => ({ ...t, soundcloudPlaylistId: playlistId })),
   };
   savePlaylists([playlist, ...getImportedSoundCloudPlaylists()]);
   saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks));
@@ -185,7 +188,7 @@ export function addTrackToSoundCloudPlaylist(playlistId: string, track: MusicTra
   const pl = playlists.find(p => p.id === playlistId);
   if (!pl) return false;
   if (!pl.tracks.some(t => t.id === track.id)) {
-    pl.tracks = [...pl.tracks, track];
+    pl.tracks = [...pl.tracks, { ...track, soundcloudPlaylistId: playlistId }];
     pl.trackCount = pl.tracks.length;
     pl.subtitle = `${pl.tracks.length} Songs · SoundCloud`;
   }

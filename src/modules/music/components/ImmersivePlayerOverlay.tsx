@@ -63,6 +63,10 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
 
   const openArtist = async () => {
     if (!currentTrack || resolvingNav) return;
+    if (currentTrack.soundcloudArtistId) {
+      navigate(`/music/soundcloud/artist/${currentTrack.soundcloudArtistId}`);
+      return;
+    }
     setResolvingNav('artist');
     try {
       const cached = currentTrack.artistId;
@@ -75,6 +79,10 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
 
   const openAlbum = async () => {
     if (!currentTrack || resolvingNav) return;
+    if (currentTrack.soundcloudPlaylistId) {
+      navigate(`/music/playlist/${currentTrack.soundcloudPlaylistId}`);
+      return;
+    }
     setResolvingNav('album');
     try {
       const cached = currentTrack.albumId;

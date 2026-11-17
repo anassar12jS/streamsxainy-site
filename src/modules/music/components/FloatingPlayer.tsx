@@ -141,6 +141,10 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
 
   const openArtist = async () => {
     if (!currentTrack || resolving) return;
+    if (currentTrack.soundcloudArtistId) {
+      navigate(`/music/soundcloud/artist/${currentTrack.soundcloudArtistId}`);
+      return;
+    }
     setResolving('artist');
     try {
       const id = await resolveArtistId(currentTrack);
@@ -152,6 +156,10 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
 
   const openAlbum = async () => {
     if (!currentTrack || resolving) return;
+    if (currentTrack.soundcloudPlaylistId) {
+      navigate(`/music/playlist/${currentTrack.soundcloudPlaylistId}`);
+      return;
+    }
     setResolving('album');
     try {
       const id = await resolveAlbumId(currentTrack);
