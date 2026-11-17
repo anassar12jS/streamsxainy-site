@@ -31,6 +31,7 @@ const NewRoute = lazy(() => import('./routes/NewRoute').then(m => ({ default: m.
 const SearchRoute = lazy(() => import('./routes/SearchRoute').then(m => ({ default: m.SearchRoute })));
 const AlbumRoute = lazy(() => import('./routes/AlbumRoute').then(m => ({ default: m.AlbumRoute })));
 const ArtistRoute = lazy(() => import('./routes/ArtistRoute').then(m => ({ default: m.ArtistRoute })));
+const SoundCloudArtistRoute = lazy(() => import('./routes/SoundCloudArtistRoute').then(m => ({ default: m.SoundCloudArtistRoute })));
 const PlaylistRoute = lazy(() => import('./routes/PlaylistRoute').then(m => ({ default: m.PlaylistRoute })));
 const RadioRoute = lazy(() => import('./routes/RadioRoute').then(m => ({ default: m.RadioRoute })));
 const LibraryRoute = lazy(() => import('./routes/LibraryRoute').then(m => ({ default: m.LibraryRoute })));
@@ -1022,6 +1023,7 @@ export const MusicModule: React.FC = () => {
             <Route path="/search" element={<SearchRoute />} />
             <Route path="/album/:id" element={<AlbumRoute />} />
             <Route path="/artist/:id" element={<ArtistRoute />} />
+            <Route path="/soundcloud/artist/:id" element={<SoundCloudArtistRoute />} />
             <Route path="/playlist/:id" element={<PlaylistRoute />} />
             <Route path="/spotify" element={<SpotifyRoute />} />
             <Route path="/spotify/:id" element={<SpotifyPlaylistRoute />} />

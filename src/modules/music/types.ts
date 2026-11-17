@@ -13,6 +13,9 @@ export interface MusicTrack {
   youtubeId?: string;
   /** SoundCloud permalink (track or set) — resolved to a stream at play time */
   soundcloudUrl?: string;
+  /** SoundCloud artist user id / permalink — powers artist pages */
+  soundcloudArtistId?: string;
+  soundcloudArtistUrl?: string;
   year?: string;
   genre?: string;
   isExplicit?: boolean;

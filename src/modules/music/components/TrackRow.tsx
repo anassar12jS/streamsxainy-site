@@ -12,6 +12,7 @@ interface TrackRowProps {
   showArtwork?: boolean;
   showAlbum?: boolean;
   playlistContext?: MusicTrack[];
+  onAddToPlaylist?: (track: MusicTrack) => void;
 }
 
 export const TrackRow: React.FC<TrackRowProps> = ({
@@ -20,6 +21,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
   showArtwork = true,
   showAlbum = true,
   playlistContext,
+  onAddToPlaylist,
 }) => {
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
@@ -148,6 +150,14 @@ export const TrackRow: React.FC<TrackRowProps> = ({
             >
               {track.artist}
             </Link>
+          ) : track.soundcloudArtistId ? (
+            <Link
+              to={`/music/soundcloud/artist/${track.soundcloudArtistId}`}
+              onClick={(e) => e.stopPropagation()}
+              className="hover:underline transition-colors"
+            >
+              {track.artist}
+            </Link>
           ) : (
             <span>{track.artist}</span>
           )}
@@ -247,6 +257,19 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                 <Disc className="w-3.5 h-3.5" />
                 <span>Add to Queue</span>
               </button>
+              {onAddToPlaylist && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onAddToPlaylist(track);
+                    setShowMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white cursor-pointer"
+                >
+                  <ListPlus className="w-3.5 h-3.5" />
+                  <span>Add to Playlist</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -274,6 +297,16 @@ export const TrackRow: React.FC<TrackRowProps> = ({
               {track.artistId && (
                 <Link
                   to={`/music/artist/${track.artistId}`}
+                  onClick={() => setShowMenu(false)}
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white cursor-pointer"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Go to Artist</span>
+                </Link>
+              )}
+              {track.soundcloudArtistId && (
+                <Link
+                  to={`/music/soundcloud/artist/${track.soundcloudArtistId}`}
                   onClick={() => setShowMenu(false)}
                   className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white cursor-pointer"
                 >

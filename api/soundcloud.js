@@ -71,6 +71,8 @@ function trackJson(t) {
     id: String(t.id),
     title: t.title || 'Untitled',
     artist: user.username || user.full_name || 'Unknown artist',
+    artistId: user.id != null ? String(user.id) : '',
+    artistUrl: user.permalink_url || '',
     artwork: artwork(t.artwork_url),
     duration: Math.round((t.duration || t.full_duration || 0) / 1000),
     url: t.permalink_url || '',
@@ -142,13 +144,41 @@ async function hydratePlaylistTracks(list) {
     .filter(t => t && t.title && t.permalink_url);
 }
 
+/** Artist payload: profile + a page of their tracks. */
+async function artistPayload(user, offset) {
+  const name = user.username || user.full_name || 'Unknown artist';
+  let tracks = [];
+  let nextOffset = null;
+  try {
+    const r = await scGet(`${API}/users/${user.id}/tracks?limit=50&offset=${offset}`);
+    if (r.ok) {
+      const data = await r.json().catch(() => ({}));
+      tracks = (data.collection || [])
+        .filter(t => t && t.kind === 'track')
+        .map(trackJson);
+      nextOffset = data.next_href ? offset + 50 : null;
+    }
+  } catch {}
+  return {
+    kind: 'artist',
+    id: String(user.id),
+    name,
+    handle: user.permalink || '',
+    avatar: artwork(user.avatar_url, 't300x300'),
+    tracks,
+    nextOffset,
+  };
+}
+
 export default async function handler(req, res) {
   const q = req.query || {};
   const url = String(q.url || '').trim();
   const action = String(q.action || 'resolve');
   const id = String(q.id || '').trim();
+  const offset = Math.max(0, parseInt(q.offset || '0', 10) || 0);
   const hasId = action === 'stream' && /^\d+$/.test(id);
-  if (!url && !hasId) return json(res, 400, { error: 'Missing url parameter.' });
+  const hasArtistId = action === 'artist' && /^\d+$/.test(id);
+  if (!url && !hasId && !hasArtistId) return json(res, 400, { error: 'Missing url parameter.' });
   if (url && !/soundcloud\.com\//i.test(url) && !/^https?:\/\//i.test(url)) {
     return json(res, 400, { error: 'Provide a SoundCloud track or playlist URL.' });
   }
@@ -165,6 +195,14 @@ export default async function handler(req, res) {
       const stream = await resolveTrackStream(data);
       if (stream.error) return json(res, 422, { error: stream.error });
       return json(res, 200, { kind: 'track', ...meta, ...stream });
+    }
+
+    // Artist by numeric user id.
+    if (hasArtistId) {
+      const ur = await scGet(`${API}/users/${id}`);
+      if (!ur.ok) return json(res, ur.status === 404 ? 404 : 502, { error: `SoundCloud lookup failed (${ur.status}).` });
+      const user = await ur.json();
+      return json(res, 200, await artistPayload(user, offset));
     }
 
     const r = await scGet(`${API}/resolve?url=${encodeURIComponent(url)}`);
@@ -188,6 +226,11 @@ export default async function handler(req, res) {
         return json(res, 200, { kind: 'track', ...meta, ...stream });
       }
       return json(res, 200, { kind: 'track', ...meta });
+    }
+
+    // Artist permalink resolves to kind 'user' — return profile + tracks.
+    if (data.kind === 'user') {
+      return json(res, 200, await artistPayload(data, offset));
     }
 
     if (data.kind === 'playlist' || data.kind === 'album') {
