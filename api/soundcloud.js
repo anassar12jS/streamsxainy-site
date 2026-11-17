@@ -115,6 +115,33 @@ async function resolveTrackStream(track) {
   return { error: 'Stream resolution failed for every available format.' };
 }
 
+/**
+ * Playlist payloads only hydrate the first few tracks — the rest come back as
+ * stubs ({id, kind} only). Bulk-fetch those by id and restore playlist order.
+ */
+async function hydratePlaylistTracks(list) {
+  const byId = new Map();
+  const stubIds = [];
+  for (const t of list) {
+    if (!t || t.kind !== 'track' || t.id == null) continue;
+    if (t.title && t.permalink_url) byId.set(String(t.id), t);
+    else stubIds.push(String(t.id));
+  }
+  for (let i = 0; i < stubIds.length; i += 50) {
+    try {
+      const r = await scGet(`${API}/tracks?ids=${stubIds.slice(i, i + 50).join(',')}`);
+      if (!r.ok) continue;
+      const arr = await r.json().catch(() => []);
+      for (const t of Array.isArray(arr) ? arr : []) {
+        if (t?.id != null) byId.set(String(t.id), t);
+      }
+    } catch {}
+  }
+  return list
+    .map(t => byId.get(String(t?.id)))
+    .filter(t => t && t.title && t.permalink_url);
+}
+
 export default async function handler(req, res) {
   const q = req.query || {};
   const url = String(q.url || '').trim();
@@ -149,9 +176,9 @@ export default async function handler(req, res) {
     }
 
     if (data.kind === 'playlist' || data.kind === 'album') {
-      const tracks = (data.tracks || [])
-        .filter(t => t && t.kind === 'track')
-        .map(trackJson);
+      const rawTracks = (data.tracks || []).filter(t => t && t.kind === 'track');
+      const hydrated = await hydratePlaylistTracks(rawTracks);
+      const tracks = hydrated.map(trackJson);
       if (!tracks.length) return json(res, 404, { error: 'This playlist has no playable tracks.' });
       return json(res, 200, {
         kind: 'playlist',
