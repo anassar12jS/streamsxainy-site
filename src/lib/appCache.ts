@@ -15,12 +15,27 @@ const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | un
 
 export const isAppCacheConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
-export const supabase: SupabaseClient | null = isAppCacheConfigured
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+const globalForSupabase = globalThis as typeof globalThis & {
+  __streamhubSupabaseClient?: SupabaseClient | null;
+};
+
+function getOrCreateSupabaseClient(): SupabaseClient | null {
+  if (!isAppCacheConfigured) return null;
+  if (!globalForSupabase.__streamhubSupabaseClient) {
+    globalForSupabase.__streamhubSupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       realtime: { params: { eventsPerSecond: 10 } },
-      auth: { persistSession: false, autoRefreshToken: false },
-    })
-  : null;
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        storageKey: 'streamhub-anon-cache',
+      },
+    });
+  }
+  return globalForSupabase.__streamhubSupabaseClient;
+}
+
+export const supabase: SupabaseClient | null = getOrCreateSupabaseClient();
 
 const client = supabase;
 

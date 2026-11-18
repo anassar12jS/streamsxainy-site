@@ -76,38 +76,6 @@
     <link rel="dns-prefetch" href="https://www.youtube.com" />
     <link rel="preconnect" href="https://graphql.anilist.co" crossorigin />
     <link rel="dns-prefetch" href="https://graphql.anilist.co" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: ['class', '[data-theme="dark"]'],
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['"Plus Jakarta Sans"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
-              mono: ['"JetBrains Mono"', 'monospace'],
-            },
-            colors: {
-              background: 'var(--bg-main)',
-              foreground: 'var(--text-main)',
-            },
-            keyframes: {
-                fadeIn: {
-                    '0%': { opacity: '0' },
-                    '100%': { opacity: '1' },
-                },
-                fadeInUp: {
-                    '0%': { opacity: '0', transform: 'translateY(10px)' },
-                    '100%': { opacity: '1', transform: 'translateY(0)' },
-                }
-            },
-            animation: {
-                'fade-in': 'fadeIn 0.5s ease-out forwards',
-                'fade-in-up': 'fadeInUp 0.7s ease-out forwards',
-            }
-          }
-        }
-      }
-    </script>
   </head>
   <body>
     <div id="root"></div>

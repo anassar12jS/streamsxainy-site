@@ -72,14 +72,37 @@ const readStoredJSON = <T>(key: string, fallback: T): T => {
 const EVICTABLE_PREFIXES = [
   'streams_',
   'episode_streams_',
-  'football_standings_',
+  'football_',
   'streamhub_sports_team_logo_',
   'ytm_',
   'xainy_stream_',
   'xainy_duration_',
+  'bitchord_shelves_',
 ];
 
-const evictDisposableCaches = (): number => {
+const SECONDARY_EVICTABLE_KEYS = [
+  'bitchord_music_session_v1',
+  'bitchord_music_recent',
+  'vidy:provider-health',
+];
+
+const compactMediaItem = (item: TMDBResult): TMDBResult => ({
+  id: item.id,
+  title: item.title,
+  name: item.name,
+  poster_path: item.poster_path,
+  backdrop_path: item.backdrop_path,
+  overview: typeof item.overview === 'string' ? item.overview.slice(0, 240) : '',
+  release_date: item.release_date,
+  first_air_date: item.first_air_date,
+  vote_average: item.vote_average,
+  media_type: item.media_type,
+  genre_ids: Array.isArray(item.genre_ids) ? item.genre_ids : undefined,
+  ...(item.anilist_id ? { anilist_id: item.anilist_id } : {}),
+  ...(item.is_dubbed !== undefined ? { is_dubbed: item.is_dubbed } : {}),
+});
+
+const evictDisposableCaches = (includeSecondary = false): number => {
   let removed = 0;
   try {
     const keysToRemove: string[] = [];
@@ -91,13 +114,23 @@ const evictDisposableCaches = (): number => {
     }
     for (const k of keysToRemove) {
       localStorage.removeItem(k);
+      parseCache.delete(k);
       removed++;
+    }
+    if (includeSecondary) {
+      for (const k of SECONDARY_EVICTABLE_KEYS) {
+        if (localStorage.getItem(k) !== null) {
+          localStorage.removeItem(k);
+          parseCache.delete(k);
+          removed++;
+        }
+      }
     }
   } catch {}
   return removed;
 };
 
-// One-time cleanup of legacy bloated addon stream caches left in localStorage
+// One-time cleanup of legacy bloated addon stream caches and oversized history/watchlist items left in localStorage
 (() => {
   if (typeof window === 'undefined') return;
   try {
@@ -109,16 +142,37 @@ const evictDisposableCaches = (): number => {
       }
     }
     for (const k of toRemove) localStorage.removeItem(k);
+
+    for (const key of [HISTORY_KEY, WATCHLIST_KEY]) {
+      const raw = localStorage.getItem(key);
+      if (raw && raw.length > 30_000) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const compactList = parsed
+            .filter((x): x is TMDBResult => Boolean(x && typeof x === 'object' && typeof x.id === 'number'))
+            .slice(0, key === HISTORY_KEY ? 20 : 100)
+            .map(compactMediaItem);
+          localStorage.setItem(key, JSON.stringify(compactList));
+        }
+      }
+    }
   } catch {}
 })();
 
 const safeSetItem = (key: string, value: string): boolean => {
+  parseCache.delete(key);
   try {
     localStorage.setItem(key, value);
     return true;
   } catch {
-    // QuotaExceededError or private browsing: evict disposable caches and retry once
-    if (evictDisposableCaches() > 0) {
+    // QuotaExceededError or private browsing: evict disposable caches and retry
+    if (evictDisposableCaches(false) > 0) {
+      try {
+        localStorage.setItem(key, value);
+        return true;
+      } catch {}
+    }
+    if (evictDisposableCaches(true) > 0) {
       try {
         localStorage.setItem(key, value);
         return true;
@@ -134,7 +188,7 @@ export const getWatchlist = (): TMDBResult[] => readStoredJSON<TMDBResult[]>(WAT
 export const addToWatchlist = (item: TMDBResult) => {
   const list = getWatchlist();
   if (!list.find(i => i.id === item.id)) {
-    const updated = [item, ...list];
+    const updated = [compactMediaItem(item), ...list];
     safeSetItem(WATCHLIST_KEY, JSON.stringify(updated));
     emitStorageChange(WATCHLIST_KEY);
   }
@@ -158,23 +212,12 @@ export const getHistory = (): TMDBResult[] => readStoredJSON<TMDBResult[]>(HISTO
 export const addToHistory = (item: TMDBResult) => {
   const list = getHistory();
   const filtered = list.filter(i => i.id !== item.id);
-  const compactItem: TMDBResult = {
-    id: item.id,
-    title: item.title,
-    name: item.name,
-    poster_path: item.poster_path,
-    backdrop_path: item.backdrop_path,
-    overview: typeof item.overview === 'string' ? item.overview.slice(0, 240) : '',
-    release_date: item.release_date,
-    first_air_date: item.first_air_date,
-    vote_average: item.vote_average,
-    media_type: item.media_type,
-    genre_ids: Array.isArray(item.genre_ids) ? item.genre_ids : undefined,
-  };
-  const updated = [compactItem, ...filtered].slice(0, 20);
+  const updated = [compactMediaItem(item), ...filtered].slice(0, 20);
   if (!safeSetItem(HISTORY_KEY, JSON.stringify(updated))) {
-    // Still keep the latest 8 items if browser storage is tight
-    safeSetItem(HISTORY_KEY, JSON.stringify(updated.slice(0, 8)));
+    // Still keep the latest 8 items (or 3) if browser storage is tight
+    if (!safeSetItem(HISTORY_KEY, JSON.stringify(updated.slice(0, 8)))) {
+      safeSetItem(HISTORY_KEY, JSON.stringify(updated.slice(0, 3)));
+    }
   }
   emitStorageChange(HISTORY_KEY);
 };
@@ -342,13 +385,18 @@ export const getStreamProviders = (): StreamProvider[] => {
 };
 
 export const saveStreamProviders = (providers: StreamProvider[]) => {
-    localStorage.setItem(PROVIDERS_KEY, JSON.stringify(providers));
-    parseCache.delete(PROVIDERS_KEY);
+    safeSetItem(PROVIDERS_KEY, JSON.stringify(providers));
 };
 
 // --- Settings & Data ---
-export const getTheme = (): string => localStorage.getItem(THEME_KEY) || 'purple';
-export const setTheme = (color: string) => localStorage.setItem(THEME_KEY, color);
+export const getTheme = (): string => {
+  try {
+    return localStorage.getItem(THEME_KEY) || 'purple';
+  } catch {
+    return 'purple';
+  }
+};
+export const setTheme = (color: string) => safeSetItem(THEME_KEY, color);
 
 /** Preset id or "#rrggbb" custom hex → "r, g, b" string for rgb(var(--primary-color)) */
 export const THEME_RGB: Record<string, string> = {
@@ -375,23 +423,37 @@ export const getMode = (): 'dark' | 'light' => {
     return 'dark';
   }
 };
-export const setMode = (mode: 'dark' | 'light') => localStorage.setItem(MODE_KEY, mode);
+export const setMode = (mode: 'dark' | 'light') => safeSetItem(MODE_KEY, mode);
 
 const DEFAULT_SERVER_KEY = 'streamhub_default_server';
 const AUTOPLAY_NEXT_KEY = 'streamhub_autoplay_next';
 
-export const getDefaultServer = (): string => localStorage.getItem(DEFAULT_SERVER_KEY) || 'ishowstream';
-export const setDefaultServer = (server: string) => localStorage.setItem(DEFAULT_SERVER_KEY, server);
+export const getDefaultServer = (): string => {
+  try {
+    return localStorage.getItem(DEFAULT_SERVER_KEY) || 'ishowstream';
+  } catch {
+    return 'ishowstream';
+  }
+};
+export const setDefaultServer = (server: string) => safeSetItem(DEFAULT_SERVER_KEY, server);
 
-export const getAutoplayNext = (): boolean => localStorage.getItem(AUTOPLAY_NEXT_KEY) !== 'false';
-export const setAutoplayNext = (val: boolean) => localStorage.setItem(AUTOPLAY_NEXT_KEY, val ? 'true' : 'false');
+export const getAutoplayNext = (): boolean => {
+  try {
+    return localStorage.getItem(AUTOPLAY_NEXT_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+};
+export const setAutoplayNext = (val: boolean) => safeSetItem(AUTOPLAY_NEXT_KEY, val ? 'true' : 'false');
 
 export const clearAllWatchData = () => {
-  localStorage.removeItem(WATCHLIST_KEY);
-  localStorage.removeItem(HISTORY_KEY);
-  localStorage.removeItem(PROGRESS_KEY);
-  localStorage.removeItem(SPORTS_FAVORITES_KEY);
-  localStorage.removeItem(SPORTS_REMINDERS_KEY);
+  try {
+    localStorage.removeItem(WATCHLIST_KEY);
+    localStorage.removeItem(HISTORY_KEY);
+    localStorage.removeItem(PROGRESS_KEY);
+    localStorage.removeItem(SPORTS_FAVORITES_KEY);
+    localStorage.removeItem(SPORTS_REMINDERS_KEY);
+  } catch {}
   parseCache.delete(WATCHLIST_KEY);
   parseCache.delete(HISTORY_KEY);
   parseCache.delete(PROGRESS_KEY);
@@ -425,36 +487,29 @@ export const importData = (jsonString: string): boolean => {
         if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
 
         if (Array.isArray(data.watchlist)) {
-            localStorage.setItem(WATCHLIST_KEY, JSON.stringify(data.watchlist));
-            parseCache.delete(WATCHLIST_KEY);
+            safeSetItem(WATCHLIST_KEY, JSON.stringify(data.watchlist.map(compactMediaItem)));
         }
         if (Array.isArray(data.history)) {
-            localStorage.setItem(HISTORY_KEY, JSON.stringify(data.history));
-            parseCache.delete(HISTORY_KEY);
+            safeSetItem(HISTORY_KEY, JSON.stringify(data.history.slice(0, 20).map(compactMediaItem)));
         }
         if (Array.isArray(data.progress)) {
-            localStorage.setItem(PROGRESS_KEY, JSON.stringify(data.progress));
-            parseCache.delete(PROGRESS_KEY);
+            safeSetItem(PROGRESS_KEY, JSON.stringify(data.progress.slice(0, 25)));
         }
         if (Array.isArray(data.tvFavorites)) {
-            localStorage.setItem(TV_FAVORITES_KEY, JSON.stringify(data.tvFavorites));
-            parseCache.delete(TV_FAVORITES_KEY);
+            safeSetItem(TV_FAVORITES_KEY, JSON.stringify(data.tvFavorites));
         }
         if (Array.isArray(data.tvRecent)) {
-            localStorage.setItem(TV_RECENT_KEY, JSON.stringify(data.tvRecent));
-            parseCache.delete(TV_RECENT_KEY);
+            safeSetItem(TV_RECENT_KEY, JSON.stringify(data.tvRecent.slice(0, 10)));
         }
         if (Array.isArray(data.providers)) {
-            localStorage.setItem(PROVIDERS_KEY, JSON.stringify(data.providers));
-            parseCache.delete(PROVIDERS_KEY);
+            safeSetItem(PROVIDERS_KEY, JSON.stringify(data.providers));
         }
         if (Array.isArray(data.sportsFavorites)) {
-            localStorage.setItem(SPORTS_FAVORITES_KEY, JSON.stringify(data.sportsFavorites));
-            parseCache.delete(SPORTS_FAVORITES_KEY);
+            safeSetItem(SPORTS_FAVORITES_KEY, JSON.stringify(data.sportsFavorites));
         }
         if (data.settings && typeof data.settings === 'object') {
-            if (typeof data.settings.theme === 'string') localStorage.setItem(THEME_KEY, data.settings.theme);
-            if (data.settings.mode === 'light' || data.settings.mode === 'dark') localStorage.setItem(MODE_KEY, data.settings.mode);
+            if (typeof data.settings.theme === 'string') safeSetItem(THEME_KEY, data.settings.theme);
+            if (data.settings.mode === 'light' || data.settings.mode === 'dark') safeSetItem(MODE_KEY, data.settings.mode);
         }
         return true;
     } catch (e) {

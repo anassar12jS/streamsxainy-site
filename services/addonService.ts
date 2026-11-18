@@ -28,6 +28,16 @@ const readStreamCache = (cacheKey: string): StreamResponse | null => {
   return null;
 };
 
+const compactStreamsForSession = (streams: StreamResponse['streams'], limit: number): StreamResponse => ({
+  streams: streams.slice(0, limit).map((s) => ({
+    ...(s.name ? { name: s.name } : {}),
+    ...(s.title ? { title: s.title.slice(0, 300) } : {}),
+    ...(s.url ? { url: s.url } : {}),
+    ...(s.infoHash ? { infoHash: s.infoHash } : {}),
+    ...(s.fileIdx !== undefined ? { fileIdx: s.fileIdx } : {}),
+  })),
+});
+
 const writeStreamCache = (cacheKey: string, data: StreamResponse) => {
   const entry = { timestamp: Date.now(), data };
   if (streamMemoryCache.size >= MAX_MEM_CACHE) {
@@ -36,9 +46,10 @@ const writeStreamCache = (cacheKey: string, data: StreamResponse) => {
   }
   streamMemoryCache.set(cacheKey, entry);
   try {
-    // Cap persisted stream entries to avoid filling sessionStorage on heavy browsing
-    const trimmed: StreamResponse = { streams: data.streams.slice(0, 60) };
-    sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: entry.timestamp, data: trimmed }));
+    const trimmed = compactStreamsForSession(data.streams, 25);
+    const payload = JSON.stringify({ timestamp: entry.timestamp, data: trimmed });
+    if (payload.length > 512_000) return;
+    sessionStorage.setItem(cacheKey, payload);
   } catch {
     // Evict older stream caches in sessionStorage and retry once cleanly
     try {
@@ -48,7 +59,7 @@ const writeStreamCache = (cacheKey: string, data: StreamResponse) => {
           sessionStorage.removeItem(k);
         }
       }
-      const trimmed: StreamResponse = { streams: data.streams.slice(0, 40) };
+      const trimmed = compactStreamsForSession(data.streams, 15);
       sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: entry.timestamp, data: trimmed }));
     } catch {}
   }

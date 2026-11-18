@@ -230,8 +230,10 @@ export const SettingsRoute: React.FC = () => {
         for (const key of MUSIC_DATA_KEYS) {
           const v = data?.[key];
           if (typeof v === 'string') {
-            localStorage.setItem(key, v);
-            restored++;
+            try {
+              localStorage.setItem(key, v);
+              restored++;
+            } catch {}
           }
         }
         if (restored === 0) {

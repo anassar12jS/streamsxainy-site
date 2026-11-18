@@ -220,8 +220,11 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                     type="url"
                     value={jioUrl}
                     onChange={(e) => {
-                      setJioUrl(e.target.value);
-                      localStorage.setItem('bitchord_jiosaavn_url', e.target.value.trim());
+                      const val = e.target.value;
+                      setJioUrl(val);
+                      try {
+                        localStorage.setItem('bitchord_jiosaavn_url', val.trim());
+                      } catch {}
                     }}
                     placeholder="e.g. http://localhost:8787 or https://your-jiosaavn.vercel.app"
                     className="w-full bg-[#1e1e22] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-white/40"

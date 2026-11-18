@@ -1877,13 +1877,19 @@ export const Sports: React.FC = () => {
 
   // Live Score Sound Alerts
   const [soundAlertsEnabled, setSoundAlertsEnabled] = useState<boolean>(() => {
-    return localStorage.getItem('streamhub_sports_sound_alerts') === 'true';
+    try {
+      return localStorage.getItem('streamhub_sports_sound_alerts') === 'true';
+    } catch {
+      return false;
+    }
   });
 
   const toggleSoundAlerts = useCallback(() => {
     setSoundAlertsEnabled(prev => {
       const next = !prev;
-      localStorage.setItem('streamhub_sports_sound_alerts', String(next));
+      try {
+        localStorage.setItem('streamhub_sports_sound_alerts', String(next));
+      } catch {}
       if (next) {
         playScoreAlertSound('preview');
       }
@@ -1930,7 +1936,11 @@ export const Sports: React.FC = () => {
 
   // Region / Timezone State
   const [selectedRegionId, setSelectedRegionId] = useState<string>(() => {
-    return localStorage.getItem('streamhub_sports_region_id') || 'morocco';
+    try {
+      return localStorage.getItem('streamhub_sports_region_id') || 'morocco';
+    } catch {
+      return 'morocco';
+    }
   });
   const [isRegionDropdownOpen, setIsRegionDropdownOpen] = useState(false);
 
@@ -1945,7 +1955,9 @@ export const Sports: React.FC = () => {
 
   const handleRegionChange = (regionId: string) => {
     setSelectedRegionId(regionId);
-    localStorage.setItem('streamhub_sports_region_id', regionId);
+    try {
+      localStorage.setItem('streamhub_sports_region_id', regionId);
+    } catch {}
     window.dispatchEvent(new CustomEvent('streamhub_region_changed', { detail: regionId }));
     setIsRegionDropdownOpen(false);
   };
