@@ -1,8 +1,171 @@
 import { MusicTrack, Playlist } from '../types';
 
-const STORAGE_KEY_SC_TRACKS = 'bitchord_sc_imported_tracks_v1';
-const STORAGE_KEY_SC_PLAYLISTS = 'bitchord_sc_imported_playlists_v1';
+// SoundCloud library data lives in IndexedDB — localStorage's ~5MB quota was
+// too small once playlists started embedding full track metadata (and every
+// setItem failure used to be swallowed silently). On first load we migrate
+// any existing localStorage keys into IDB and remove them, which also frees
+// the quota they were consuming.
+const IDB_NAME = 'xainy-music';
+const IDB_STORE = 'kv';
+const IDB_KEY_TRACKS = 'sc_tracks';
+const IDB_KEY_PLAYLISTS = 'sc_playlists';
+const LEGACY_LS_TRACKS = 'bitchord_sc_imported_tracks_v1';
+const LEGACY_LS_PLAYLISTS = 'bitchord_sc_imported_playlists_v1';
 const SC_LIBRARY_UPDATED_EVENT = 'bitchord:library-updated';
+
+let memTracks: MusicTrack[] | null = null;
+let memPlaylists: Playlist[] | null = null;
+let idbPromise: Promise<IDBDatabase | null> | null = null;
+let resolvedIdb: IDBDatabase | null | undefined;
+let storageError: string | null = null;
+
+function openIdb(): Promise<IDBDatabase | null> {
+  if (!idbPromise) {
+    idbPromise = new Promise((resolve) => {
+      try {
+        const req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = () => {
+          if (!req.result.objectStoreNames.contains(IDB_STORE)) {
+            req.result.createObjectStore(IDB_STORE);
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+        req.onblocked = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+  return idbPromise;
+}
+
+function idbGet<T>(db: IDBDatabase, key: string): Promise<T | undefined> {
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = () => resolve(req.result as T | undefined);
+      req.onerror = () => resolve(undefined);
+    } catch {
+      resolve(undefined);
+    }
+  });
+}
+
+function idbPut(db: IDBDatabase, key: string, value: unknown): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(value, key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+      tx.onabort = () => resolve(false);
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+function readLegacyLs(key: string): unknown {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function legacyTracksSync(): MusicTrack[] {
+  const v = readLegacyLs(LEGACY_LS_TRACKS);
+  return Array.isArray(v) ? (v as MusicTrack[]) : [];
+}
+
+function legacyPlaylistsSync(): Playlist[] {
+  const v = readLegacyLs(LEGACY_LS_PLAYLISTS);
+  return Array.isArray(v) ? (v as Playlist[]) : [];
+}
+
+/** Last persistence failure, if any (surfaced in UI errors). */
+export function getSoundCloudStorageError(): string | null {
+  return storageError;
+}
+
+function describeStorageError(e: unknown): string {
+  const err = e as DOMException;
+  return err?.name ? `${err.name}: ${err.message || 'write failed'}` : String(e);
+}
+
+function lsSet(key: string, value: unknown): boolean {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    storageError = null;
+    return true;
+  } catch (e) {
+    storageError = describeStorageError(e);
+    return false;
+  }
+}
+
+/** Persist current in-memory arrays — IDB when available, localStorage fallback. */
+function persist(): void {
+  void ensureSoundCloudStorageLoaded().then(() => {
+    const db = resolvedIdb;
+    if (db) {
+      void Promise.all([
+        idbPut(db, IDB_KEY_TRACKS, memTracks ?? []),
+        idbPut(db, IDB_KEY_PLAYLISTS, memPlaylists ?? []),
+      ]).then(([tOk, pOk]) => {
+        if (!tOk || !pOk) storageError = 'IndexedDB write failed.';
+      });
+      return;
+    }
+    // No IndexedDB — legacy localStorage fallback (still quota-limited).
+    if (memTracks !== null) lsSet(LEGACY_LS_TRACKS, memTracks);
+    if (memPlaylists !== null) lsSet(LEGACY_LS_PLAYLISTS, memPlaylists);
+  });
+}
+
+/** Load SC library data into memory (IDB first, localStorage migration fallback). */
+export async function ensureSoundCloudStorageLoaded(): Promise<void> {
+  if (memTracks !== null && memPlaylists !== null) return;
+  const db = await openIdb();
+  resolvedIdb = db;
+  if (db) {
+    const [t, p] = await Promise.all([
+      idbGet<MusicTrack[]>(db, IDB_KEY_TRACKS),
+      idbGet<Playlist[]>(db, IDB_KEY_PLAYLISTS),
+    ]);
+    if (t !== undefined || p !== undefined) {
+      if (memTracks === null) memTracks = Array.isArray(t) ? t : [];
+      if (memPlaylists === null) memPlaylists = Array.isArray(p) ? p : [];
+      notifyLibraryUpdated();
+      return;
+    }
+    // First run on IDB — migrate legacy localStorage keys, then free them.
+    const lt = readLegacyLs(LEGACY_LS_TRACKS);
+    const lp = readLegacyLs(LEGACY_LS_PLAYLISTS);
+    if (memTracks === null) memTracks = Array.isArray(lt) ? lt : [];
+    if (memPlaylists === null) memPlaylists = Array.isArray(lp) ? lp : [];
+    await Promise.all([
+      idbPut(db, IDB_KEY_TRACKS, memTracks),
+      idbPut(db, IDB_KEY_PLAYLISTS, memPlaylists),
+    ]);
+    try {
+      localStorage.removeItem(LEGACY_LS_TRACKS);
+      localStorage.removeItem(LEGACY_LS_PLAYLISTS);
+    } catch {}
+    notifyLibraryUpdated();
+    return;
+  }
+  // No IndexedDB — fall back to legacy localStorage keys.
+  if (memTracks === null) memTracks = legacyTracksSync();
+  if (memPlaylists === null) memPlaylists = legacyPlaylistsSync();
+  notifyLibraryUpdated();
+}
+
+// Kick off the load as soon as the module is imported so sync getters are warm.
+void ensureSoundCloudStorageLoaded();
 
 function notifyLibraryUpdated() {
   try { window.dispatchEvent(new CustomEvent(SC_LIBRARY_UPDATED_EVENT)); } catch {}
@@ -71,17 +234,11 @@ async function scApi<T>(action: 'resolve' | 'stream' | 'artist', url?: string, i
 }
 
 export function getImportedSoundCloudTracks(): MusicTrack[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_SC_TRACKS);
-    return raw ? (JSON.parse(raw) as MusicTrack[]) : [];
-  } catch { return []; }
+  return memTracks !== null ? memTracks : legacyTracksSync();
 }
 
 export function getImportedSoundCloudPlaylists(): Playlist[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_SC_PLAYLISTS);
-    return raw ? (JSON.parse(raw) as Playlist[]) : [];
-  } catch { return []; }
+  return memPlaylists !== null ? memPlaylists : legacyPlaylistsSync();
 }
 
 export function getImportedSoundCloudPlaylist(id: string): Playlist | null {
@@ -89,14 +246,17 @@ export function getImportedSoundCloudPlaylist(id: string): Playlist | null {
 }
 
 function saveTracks(tracks: MusicTrack[]): boolean {
-  try { localStorage.setItem(STORAGE_KEY_SC_TRACKS, JSON.stringify(tracks)); return true; } catch { return false; }
+  memTracks = tracks;
+  persist();
+  notifyLibraryUpdated();
+  return true;
 }
 
 function savePlaylists(playlists: Playlist[]): boolean {
-  let ok = true;
-  try { localStorage.setItem(STORAGE_KEY_SC_PLAYLISTS, JSON.stringify(playlists)); } catch { ok = false; }
+  memPlaylists = playlists;
+  persist();
   notifyLibraryUpdated();
-  return ok;
+  return true;
 }
 
 function mergeTracks(existing: MusicTrack[], incoming: MusicTrack[]): MusicTrack[] {
@@ -125,11 +285,8 @@ export async function importSoundCloud(urlOrId: string): Promise<{ title: string
       trackCount: tracks.length,
       tracks,
     };
-    if (!savePlaylists([playlist, ...getImportedSoundCloudPlaylists().filter(p => p.id !== playlist.id)])
-      || !saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks))) {
-      throw new Error('Could not save to library — browser storage may be full.');
-    }
-    notifyLibraryUpdated();
+    savePlaylists([playlist, ...getImportedSoundCloudPlaylists().filter(p => p.id !== playlist.id)]);
+    saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks));
     return { title: playlist.title, tracks, isPlaylist: true };
   }
 
@@ -146,20 +303,14 @@ export async function importSoundCloud(urlOrId: string): Promise<{ title: string
       trackCount: tracks.length,
       tracks,
     };
-    if (!savePlaylists([playlist, ...getImportedSoundCloudPlaylists().filter(p => p.id !== playlist.id)])
-      || !saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks))) {
-      throw new Error('Could not save to library — browser storage may be full.');
-    }
-    notifyLibraryUpdated();
+    savePlaylists([playlist, ...getImportedSoundCloudPlaylists().filter(p => p.id !== playlist.id)]);
+    saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks));
     return { title: playlist.title, tracks, isPlaylist: true };
   }
 
   const trackJson = resolved as { kind: 'track' } & ScTrackJson;
   const track = toTrack(trackJson);
-  if (!saveTracks(mergeTracks(getImportedSoundCloudTracks(), [track]))) {
-    throw new Error('Could not save to library — browser storage may be full.');
-  }
-  notifyLibraryUpdated();
+  saveTracks(mergeTracks(getImportedSoundCloudTracks(), [track]));
   return { title: track.title, tracks: [track], isPlaylist: false };
 }
 
@@ -184,11 +335,8 @@ export function createSoundCloudPlaylist(title: string, tracks: MusicTrack[], ar
     trackCount: tracks.length,
     tracks: tracks.map(t => ({ ...t, soundcloudPlaylistId: playlistId })),
   };
-  if (!savePlaylists([playlist, ...getImportedSoundCloudPlaylists()])
-    || !saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks))) {
-    throw new Error('Could not save playlist — browser storage may be full.');
-  }
-  notifyLibraryUpdated();
+  savePlaylists([playlist, ...getImportedSoundCloudPlaylists()]);
+  saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks));
   return playlist;
 }
 
@@ -202,8 +350,9 @@ export function addTrackToSoundCloudPlaylist(playlistId: string, track: MusicTra
     pl.trackCount = pl.tracks.length;
     pl.subtitle = `${pl.tracks.length} Songs · SoundCloud`;
   }
-  return savePlaylists(playlists.map(p => p.id === playlistId ? pl : p))
-    && saveTracks(mergeTracks(getImportedSoundCloudTracks(), [track]));
+  savePlaylists(playlists.map(p => p.id === playlistId ? pl : p));
+  saveTracks(mergeTracks(getImportedSoundCloudTracks(), [track]));
+  return true;
 }
 
 /** Resolve the numeric SoundCloud artist id for a track (artist page route param). */
