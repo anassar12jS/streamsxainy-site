@@ -74,6 +74,7 @@ export const MusicModule: React.FC = () => {
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
   const volume = useMusicPlayerStore(state => state.volume);
   const isMuted = useMusicPlayerStore(state => state.isMuted);
+  const playbackRate = useMusicPlayerStore(state => state.playbackRate);
   const trackPlayNonce = useMusicPlayerStore(state => state.trackPlayNonce);
   const showLyrics = useMusicPlayerStore(state => state.showLyrics);
   
@@ -268,9 +269,10 @@ export const MusicModule: React.FC = () => {
     });
     engineRef.current = engine;
 
-    // Apply stored volume & mute
+    // Apply stored volume, mute & playback speed
     engine.setVolume(volume);
     engine.setMuted(isMuted);
+    engine.setPlaybackRate(playbackRate);
 
     // Audio event listeners for HTML5 mode
     const audio = audioRef.current;
@@ -879,6 +881,11 @@ export const MusicModule: React.FC = () => {
       engineRef.current.setMuted(isMuted);
     }
   }, [volume, isMuted]);
+
+  // 4b. Playback speed sync
+  useEffect(() => {
+    engineRef.current?.setPlaybackRate(playbackRate);
+  }, [playbackRate]);
 
   const handleSeek = (seconds: number) => {
     if (engineRef.current) {

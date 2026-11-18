@@ -16,6 +16,7 @@ const STORAGE_MUTED = 'bitchord_music_muted';
 const STORAGE_SESSION = 'bitchord_music_session_v1';
 const STORAGE_AUTOPLAY = 'bitchord_music_autoplay_radio';
 const STORAGE_QUALITY = 'bitchord_music_quality';
+const STORAGE_RATE = 'bitchord_music_playback_rate';
 const STORAGE_DISCORD_RPC = 'xainy_music_discord_rpc';
 
 interface StoredSession { currentTrack: MusicTrack | null; queue: MusicTrack[]; queueIndex: number; }
@@ -78,6 +79,16 @@ const loadStoredRecent = (): MusicTrack[] => {
   }
 };
 
+const loadStoredRate = (): number => {
+  try {
+    const raw = localStorage.getItem(STORAGE_RATE);
+    const v = raw ? parseFloat(raw) : 1;
+    return Number.isFinite(v) && v > 0 ? Math.min(2, Math.max(0.25, v)) : 1;
+  } catch {
+    return 1;
+  }
+};
+
 const loadStoredVolume = (): number => {
   try {
     const raw = localStorage.getItem(STORAGE_VOLUME);
@@ -131,6 +142,7 @@ export interface MusicPlayerState {
   duration: number;
   volume: number;
   isMuted: boolean;
+  playbackRate: number;
   queue: MusicTrack[];
   queueIndex: number;
   shuffle: boolean;
@@ -167,6 +179,7 @@ export interface MusicPlayerState {
   seek: (seconds: number) => void;
   setVolume: (vol: number) => void;
   toggleMute: () => void;
+  setPlaybackRate: (rate: number) => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
   setShowLyrics: (show: boolean) => void;
@@ -201,6 +214,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   duration: initialSession.currentTrack?.duration || 0,
   volume: loadStoredVolume(),
   isMuted: loadStoredMuted(),
+  playbackRate: loadStoredRate(),
   queue: initialSession.queue,
   queueIndex: initialSession.queueIndex,
   shuffle: false,
@@ -365,6 +379,14 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
       saveMuted(next);
       return { isMuted: next };
     });
+  },
+
+  setPlaybackRate: (rate) => {
+    const clamped = Math.min(2, Math.max(0.25, rate));
+    try {
+      localStorage.setItem(STORAGE_RATE, String(clamped));
+    } catch {}
+    set({ playbackRate: clamped });
   },
 
   toggleShuffle: () => {

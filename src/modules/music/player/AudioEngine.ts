@@ -496,6 +496,19 @@ export class MusicAudioEngine {
     }
   }
 
+  /** Playback speed (0.25x–2x). Works for HTML5/Shaka streams and the YouTube iframe fallback. */
+  public setPlaybackRate(rate: number): void {
+    const r = Math.min(2, Math.max(0.25, rate));
+    try {
+      this.audioElement.playbackRate = r;
+    } catch {}
+    try {
+      if (this.activeMode === 'youtube' && this.ytPlayer && typeof this.ytPlayer.setPlaybackRate === 'function') {
+        this.ytPlayer.setPlaybackRate(r);
+      }
+    } catch {}
+  }
+
   public getCurrentTime(): number {
     if (this.activeMode === 'youtube' && this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function') {
       try {

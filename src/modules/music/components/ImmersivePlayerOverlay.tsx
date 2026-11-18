@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   X, Play, Pause, SkipBack, SkipForward,
-  Shuffle, Repeat, Volume1, Volume2, VolumeX, MessageSquareQuote, ListMusic,
+  Shuffle, Repeat, Volume1, Volume2, VolumeX, MessageSquareQuote, ListMusic, Gauge,
   Star, MoreHorizontal, Maximize2, Minimize2, Trash2, Disc, Moon, Check,
   ChevronDown, ChevronRight, Headphones, Plus, User, Compass, Share2
 } from 'lucide-react';
@@ -34,6 +34,8 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
   const duration = useMusicPlayerStore(state => state.duration);
   const volume = useMusicPlayerStore(state => state.volume);
   const isMuted = useMusicPlayerStore(state => state.isMuted);
+  const playbackRate = useMusicPlayerStore(state => state.playbackRate);
+  const setPlaybackRate = useMusicPlayerStore(state => state.setPlaybackRate);
   const shuffle = useMusicPlayerStore(state => state.shuffle);
   const repeatMode = useMusicPlayerStore(state => state.repeatMode);
   const queue = useMusicPlayerStore(state => state.queue);
@@ -371,6 +373,13 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     setVolume(ratio);
   };
+
+  const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
+  const cycleSpeed = () => {
+    const idx = SPEEDS.findIndex(r => Math.abs(r - playbackRate) < 0.001);
+    setPlaybackRate(SPEEDS[(idx + 1) % SPEEDS.length]);
+  };
+  const speedLabel = `${Number.isInteger(playbackRate) ? playbackRate : playbackRate.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}x`;
 
   const handleMobileVolumePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -768,6 +777,19 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                 aria-label="Max volume"
               >
                 <Volume2 className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={cycleSpeed}
+                className={`min-w-[44px] h-8 px-2 rounded-full text-[11px] font-bold font-mono flex items-center justify-center gap-1 transition-colors cursor-pointer ${
+                  playbackRate !== 1 ? 'bg-white/15 text-white' : 'bg-white/[0.06] text-white/45 hover:text-white'
+                }`}
+                aria-label="Playback speed"
+                title="Playback speed"
+              >
+                <Gauge className="w-3 h-3" />
+                {speedLabel}
               </button>
             </div>
           </div>
@@ -1252,6 +1274,17 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
                 {repeatMode === 'one' && (
                   <span className="absolute top-1 right-1 text-[9px] font-bold">1</span>
                 )}
+              </button>
+
+              <button
+                type="button"
+                onClick={cycleSpeed}
+                className={`px-1.5 py-1 rounded-md text-[11px] font-bold font-mono transition-colors cursor-pointer ${
+                  playbackRate !== 1 ? 'text-white bg-white/10' : 'text-white/40 hover:text-white'
+                }`}
+                title="Playback speed"
+              >
+                {speedLabel}
               </button>
             </div>
 
