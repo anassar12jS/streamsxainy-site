@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { RefreshCw, AlertCircle, Heart, Radio, History, ListMusic, SlidersHorizontal, Eye, EyeOff } from 'lucide-react';
+import { RefreshCw, AlertCircle, Heart, Radio, History, ListMusic, SlidersHorizontal, Eye, EyeOff, Play, Pause, Cloud, Sparkles } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { useSessionStore } from '../store/useSessionStore';
 import { getHomeShelves, resolveTrackDurations } from '../api/innertube';
@@ -10,6 +10,7 @@ import { MediaShelf, ShelfItem } from '../components/MediaShelf';
 import { TrackRow } from '../components/TrackRow';
 import { FeedSkeleton } from '../components/Skeletons';
 import { ARTWORK_PLACEHOLDER, type HomeItem, type HomeShelf } from '../api/ytmParse';
+import { getImportedSoundCloudTracks } from '../api/soundcloud';
 import type { MusicTrack } from '../types';
 
 /** Home: live YouTube Music home feed (personalised when a session is connected). */
@@ -39,6 +40,14 @@ const saveCachedShelves = (channelId: string, data: HomeShelf[]) => {
   } catch {}
 };
 
+const QUICK_TILES = [
+  { to: '/music/library/liked', label: 'Liked Songs', sub: 'Your favorites', icon: Heart, bg: 'from-rose-500/80 to-pink-700/80' },
+  { to: '/music/radio', label: 'Radio', sub: 'Live stations', icon: Radio, bg: 'from-violet-500/80 to-purple-800/80' },
+  { to: '/music/replay', label: 'Replay', sub: 'Your year in music', icon: History, bg: 'from-emerald-500/80 to-teal-800/80' },
+  { to: '/music/library/playlists', label: 'Playlists', sub: 'Your mixes', icon: ListMusic, bg: 'from-sky-500/80 to-blue-800/80' },
+  { to: '/music/new', label: 'New Releases', sub: 'Fresh drops', icon: Sparkles, bg: 'from-amber-500/80 to-orange-800/80' },
+] as const;
+
 interface BrowseRouteProps {
   onOpenAccountModal?: () => void;
 }
@@ -48,10 +57,15 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
   const playTrack = useMusicPlayerStore(state => state.playTrack);
   const recentlyPlayed = useMusicPlayerStore(state => state.recentlyPlayed);
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
+  const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
+  const currentTime = useMusicPlayerStore(state => state.currentTime);
+  const duration = useMusicPlayerStore(state => state.duration);
+  const togglePlayPause = useMusicPlayerStore(state => state.togglePlayPause);
   const activeChannelId = useSessionStore(state => state.activeChannelId);
   const activeChannel = useSessionStore(state => state.activeChannel);
   const cacheKey = activeChannelId || 'default';
   const [, setDurationTick] = React.useState(0);
+  const [libTick, bumpLibTick] = React.useReducer((x: number) => x + 1, 0);
   const [hiddenShelves, setHiddenShelves] = React.useState<Set<string>>(loadHiddenShelves);
   const [customizing, setCustomizing] = React.useState(false);
 
@@ -63,6 +77,20 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
       return next;
     });
   };
+
+  // Re-render when the local music library changes (SC imports etc.)
+  React.useEffect(() => {
+    const handler = () => bumpLibTick();
+    window.addEventListener('bitchord:library-updated', handler);
+    return () => window.removeEventListener('bitchord:library-updated', handler);
+  }, []);
+
+  // SoundCloud imports for the "Your SoundCloud" shelf
+  const scTracks = React.useMemo(
+    () => getImportedSoundCloudTracks().slice(0, 12),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [libTick],
+  );
 
   const { data: shelves, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['ytm-home', cacheKey],
@@ -149,9 +177,19 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
       const rows = tracks.slice(0, 8);
       return (
         <section key={shelf.id} className="space-y-3">
-          <h3 className="text-[20px] sm:text-2xl font-bold lg:font-black text-white tracking-tight px-0.5 lg:px-1">
-            {shelf.title}
-          </h3>
+          <div className="flex items-center justify-between px-0.5 lg:px-1">
+            <h3 className="text-[20px] sm:text-2xl font-bold lg:font-black text-white tracking-tight">
+              {shelf.title}
+            </h3>
+            <button
+              type="button"
+              onClick={() => playTrack(tracks[0], tracks)}
+              className="w-9 h-9 rounded-full bg-white/10 hover:bg-[#ff5500] text-white flex items-center justify-center transition-colors cursor-pointer"
+              title="Play all"
+            >
+              <Play className="w-4 h-4 fill-current ml-0.5" />
+            </button>
+          </div>
 
           {/* Mobile: Tall featured portrait cards matching Reference 1 */}
           <div className="lg:hidden flex gap-3.5 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory am-scrollbar">
@@ -197,7 +235,17 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
       const rows = tracks.slice(0, 8);
       return (
         <section key={shelf.id} className="space-y-3">
-          <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight px-1">{shelf.title}</h3>
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">{shelf.title}</h3>
+            <button
+              type="button"
+              onClick={() => playTrack(tracks[0], tracks)}
+              className="w-9 h-9 rounded-full bg-white/10 hover:bg-[#ff5500] text-white flex items-center justify-center transition-colors cursor-pointer"
+              title="Play all"
+            >
+              <Play className="w-4 h-4 fill-current ml-0.5" />
+            </button>
+          </div>
           <div className="lg:hidden">
             <MediaShelf
               title=""
@@ -226,6 +274,7 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
         key={shelf.id}
         title={shelf.title}
         subtitle={shelf.subtitle}
+        onPlayAll={tracks.length > 0 ? () => playTrack(tracks[0], tracks) : undefined}
         items={shelf.items.map(i => toShelfItem(i, siblings))}
       />
     );
@@ -353,14 +402,81 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
         </div>
       )}
 
-      {/* Desktop Quick access tiles */}
+      {/* Resume / Now Playing hero */}
+      {(() => {
+        const hero = currentTrack || recentlyPlayed[0];
+        if (!hero) return null;
+        const isCurrent = Boolean(currentTrack);
+        const progress = isCurrent && duration > 0 ? Math.min(1, currentTime / duration) : 0;
+        return (
+          <button
+            type="button"
+            onClick={() => {
+              if (isCurrent) togglePlayPause();
+              else playTrack(hero, recentlyPlayed.length ? recentlyPlayed : [hero]);
+            }}
+            className="relative w-full overflow-hidden rounded-2xl bg-[#141414] border border-white/10 text-left group cursor-pointer"
+          >
+            {hero.artwork && (
+              <img
+                src={hero.artwork}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 w-full h-full object-cover opacity-40 blur-2xl scale-125 pointer-events-none"
+              />
+            )}
+            <div className="relative flex items-center gap-4 p-4 sm:p-5">
+              <img
+                src={hero.artwork || ARTWORK_PLACEHOLDER}
+                alt={hero.title}
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover shadow-2xl shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#ff8c5a]">
+                  {isCurrent
+                    ? playbackStatus === 'playing' ? 'Now playing' : playbackStatus === 'loading' ? 'Loading' : 'Paused'
+                    : 'Jump back in'}
+                </p>
+                <h2 className="text-lg sm:text-xl font-bold text-white truncate mt-0.5">{hero.title}</h2>
+                <p className="text-sm text-white/60 truncate">{hero.artist}</p>
+                {isCurrent && duration > 0 && (
+                  <div className="mt-2.5 h-1 rounded-full bg-white/15 overflow-hidden">
+                    <div
+                      className="h-full bg-[#ff5500] rounded-full transition-[width] duration-300"
+                      style={{ width: `${progress * 100}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+              <span className="w-12 h-12 rounded-full bg-[#ff5500] hover:bg-[#ff6600] text-white flex items-center justify-center shrink-0 shadow-xl group-hover:scale-105 active:scale-95 transition-transform">
+                {isCurrent && playbackStatus === 'playing' ? (
+                  <Pause className="w-5 h-5 fill-current" />
+                ) : (
+                  <Play className="w-5 h-5 fill-current ml-0.5" />
+                )}
+              </span>
+            </div>
+          </button>
+        );
+      })()}
+
+      {/* Quick access tiles — horizontal scroll on mobile, grid on desktop */}
+      <div className="lg:hidden flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 am-scrollbar">
+        {QUICK_TILES.map(({ to, label, sub, icon: Icon, bg }) => (
+          <button
+            key={to}
+            type="button"
+            onClick={() => navigate(to)}
+            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${bg} w-40 shrink-0 p-4 text-left shadow-lg active:scale-[0.98] transition-transform cursor-pointer`}
+          >
+            <Icon className="w-5 h-5 text-white/90 mb-6" />
+            <p className="text-white font-bold text-sm leading-tight">{label}</p>
+            <p className="text-white/70 text-[11px] mt-0.5">{sub}</p>
+          </button>
+        ))}
+      </div>
       <div className="hidden lg:grid relative grid-cols-4 gap-4">
-        {([
-          { to: '/music/library/liked', label: 'Liked Songs', sub: 'Your favorites', icon: Heart, bg: 'from-rose-500/80 to-pink-700/80' },
-          { to: '/music/radio', label: 'Radio', sub: 'Live stations', icon: Radio, bg: 'from-violet-500/80 to-purple-800/80' },
-          { to: '/music/replay', label: 'Replay', sub: 'Your year in music', icon: History, bg: 'from-emerald-500/80 to-teal-800/80' },
-          { to: '/music/library/playlists', label: 'Playlists', sub: 'Your mixes', icon: ListMusic, bg: 'from-sky-500/80 to-blue-800/80' },
-        ] as const).map(({ to, label, sub, icon: Icon, bg }) => (
+        {QUICK_TILES.map(({ to, label, sub, icon: Icon, bg }) => (
           <button
             key={to}
             type="button"
@@ -373,6 +489,24 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
           </button>
         ))}
       </div>
+
+      {/* SoundCloud shelf — imported tracks playable right here */}
+      {scTracks.length > 0 && (
+        <MediaShelf
+          title="Your SoundCloud"
+          subtitle="Imported tracks"
+          onPlayAll={() => playTrack(scTracks[0], scTracks)}
+          items={scTracks.map(t => ({
+            id: `sc-${t.id}`,
+            title: t.title,
+            subtitle: t.artist,
+            artwork: t.artwork,
+            badge: 'SC',
+            tracks: [t],
+            onClick: () => playTrack(t, scTracks),
+          }))}
+        />
+      )}
 
       {/* Desktop Jump Back In — resume recent listens instantly */}
       {recentlyPlayed.length > 0 && (

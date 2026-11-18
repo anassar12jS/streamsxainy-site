@@ -18,6 +18,7 @@ interface MediaShelfProps {
   subtitle?: string;
   items: ShelfItem[];
   aspectRatio?: 'square' | 'video' | 'portrait';
+  onPlayAll?: () => void;
 }
 
 export const MediaShelf: React.FC<MediaShelfProps> = ({
@@ -25,6 +26,7 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
   subtitle,
   items,
   aspectRatio = 'square',
+  onPlayAll,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const setTrack = useMusicPlayerStore(state => state.setTrack);
@@ -65,8 +67,20 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
           </h3>
         </div>
 
-        {/* Scroll Arrows */}
-        <div className="flex items-center gap-1 opacity-0 group-hover/shelf:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1.5">
+          {/* Play-all */}
+          {onPlayAll && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onPlayAll(); }}
+              className="w-9 h-9 rounded-full bg-[#ff5500] hover:bg-[#ff6600] text-white flex items-center justify-center shadow-lg opacity-0 group-hover/shelf:opacity-100 translate-y-1 group-hover/shelf:translate-y-0 transition-all duration-200 cursor-pointer"
+              title="Play all"
+            >
+              <Play className="w-4 h-4 fill-current ml-0.5" />
+            </button>
+          )}
+          {/* Scroll Arrows */}
+          <div className="flex items-center gap-1 opacity-0 group-hover/shelf:opacity-100 transition-opacity">
           <button
             onClick={() => scroll('left')}
             className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
@@ -81,6 +95,7 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
           >
             <ChevronRight className="w-4 h-4" />
           </button>
+          </div>
         </div>
       </div>
 
