@@ -111,6 +111,7 @@ export const VidyPlayer: React.FC = () => {
   const [bufferedPct, setBufferedPct] = useState(0);
   const [isPip, setIsPip] = useState(false);
   const [hoverSeek, setHoverSeek] = useState<{ pct: number; time: number } | null>(null);
+  const [showSubsPanel, setShowSubsPanel] = useState(false);
   const [directControlsVisible, setDirectControlsVisible] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const isSeekingRef = useRef(false);
@@ -1764,6 +1765,99 @@ export const VidyPlayer: React.FC = () => {
 
                           <div className="flex-1" />
 
+                          {/* Subtitles: CC button + settings popover */}
+                          {!isAnimeDetected && imdbId && (
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => setShowSubsPanel(v => !v)}
+                                className={`relative p-2 rounded-lg transition-colors cursor-pointer ${
+                                  showSubsPanel || subsOn ? 'text-[rgb(var(--primary-color))] bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10'
+                                }`}
+                                aria-label="Subtitles"
+                                title="Subtitles (C)"
+                              >
+                                <Subtitles className="w-4 h-4" />
+                                {subsOn && (
+                                  <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[rgb(var(--primary-color))]" />
+                                )}
+                              </button>
+                              {showSubsPanel && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setShowSubsPanel(false)} />
+                                  <div className="absolute bottom-full right-0 mb-2 z-50 w-60 rounded-2xl bg-[#141418]/95 backdrop-blur-xl border border-white/15 shadow-2xl p-3 text-xs select-none">
+                                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
+                                      <span className="font-bold text-white flex items-center gap-1.5">
+                                        <Subtitles className="w-3.5 h-3.5" /> Subtitles
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setSubsOn(v => { safeStorageSet('vidy:subs-on', v ? '0' : '1'); return !v; })}
+                                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors cursor-pointer ${
+                                          subsOn ? 'bg-[rgb(var(--primary-color))] text-white' : 'bg-white/10 text-white/60 hover:text-white'
+                                        }`}
+                                      >
+                                        {subsOn ? 'ON' : 'OFF'}
+                                      </button>
+                                    </div>
+
+                                    {subsOn && (
+                                      <>
+                                        <div className="flex items-center justify-between py-1.5">
+                                          <span className="text-white/60">Language</span>
+                                          <select
+                                            value={subLang}
+                                            onChange={(e) => { setSubLang(e.target.value); safeStorageSet('vidy:sub-lang', e.target.value); }}
+                                            className="bg-black/50 border border-white/15 rounded-lg px-2 py-1 text-[11px] font-semibold text-white outline-none cursor-pointer"
+                                            aria-label="Subtitle language"
+                                          >
+                                            {SUBTITLE_LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+                                          </select>
+                                        </div>
+                                        <div className="flex items-center justify-between py-1.5">
+                                          <span className="text-white/60">Sync offset</span>
+                                          <div className="flex items-center gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => setSubOffset(v => { const n = Math.max(-60, Math.round((v - 0.5) * 2) / 2); safeStorageSet(subOffsetKey, String(n)); return n; })}
+                                              className="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold cursor-pointer"
+                                              title="Subtitles earlier"
+                                            >−</button>
+                                            <span className="w-12 text-center font-mono text-[11px] text-white/80 tabular-nums">
+                                              {subOffset > 0 ? `+${subOffset}` : subOffset}s
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() => setSubOffset(v => { const n = Math.min(60, Math.round((v + 0.5) * 2) / 2); safeStorageSet(subOffsetKey, String(n)); return n; })}
+                                              className="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold cursor-pointer"
+                                              title="Subtitles later"
+                                            >+</button>
+                                          </div>
+                                        </div>
+                                        {subOffset !== 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => { setSubOffset(0); safeStorageSet(subOffsetKey, '0'); }}
+                                            className="w-full mt-1 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-[10px] font-semibold transition-colors cursor-pointer"
+                                          >
+                                            Reset sync offset
+                                          </button>
+                                        )}
+                                        <p className="pt-1.5 mt-1 border-t border-white/10 text-[10px] text-white/40">
+                                          {subsQuery.isLoading
+                                            ? 'Loading subtitles…'
+                                            : subTrack
+                                              ? `${subTrack.cues?.length ?? 0} cues · ${subTrack.name || subTrack.lang || subLang}`
+                                              : 'No subtitles found for this title'}
+                                        </p>
+                                      </>
+                                    )}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => selectDirectStreamIndex(directStreamIndex + 1)}
@@ -1927,48 +2021,6 @@ export const VidyPlayer: React.FC = () => {
                 </div>
               )}
 
-              {/* Subtitle controls: CC toggle, sync offset, language */}
-              {!isAnimeDetected && imdbId && (
-                <div className="absolute top-3 left-3 z-40 flex items-center gap-1 bg-black/60 backdrop-blur-md border border-white/15 rounded-full px-1.5 py-1">
-                  <button
-                    type="button"
-                    onClick={() => { setSubsOn(v => { safeStorageSet('vidy:subs-on', v ? '0' : '1'); return !v; }); }}
-                    className={`p-1.5 rounded-full transition-colors cursor-pointer ${subsOn ? 'text-[rgb(var(--primary-color))] bg-white/10' : 'text-white/60 hover:text-white'}`}
-                    title={subsOn ? 'Subtitles on — click to hide' : 'Subtitles off — click to show'}
-                    aria-label="Toggle subtitles"
-                  >
-                    <Subtitles className="w-4 h-4" />
-                  </button>
-                  {subsOn && subTrack && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setSubOffset(v => { const n = Math.max(-60, Math.round((v - 0.5) * 2) / 2); safeStorageSet(subOffsetKey, String(n)); return n; })}
-                        className="px-1.5 py-1 rounded-full text-[10px] font-bold text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                        title="Subtitles earlier"
-                      >−</button>
-                      <span className="text-[9px] font-mono text-white/50 tabular-nums w-8 text-center" title="Subtitle sync offset">
-                        {subOffset > 0 ? `+${subOffset}` : subOffset}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setSubOffset(v => { const n = Math.min(60, Math.round((v + 0.5) * 2) / 2); safeStorageSet(subOffsetKey, String(n)); return n; })}
-                        className="px-1.5 py-1 rounded-full text-[10px] font-bold text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                        title="Subtitles later"
-                      >+</button>
-                      <select
-                        value={subLang}
-                        onChange={(e) => { setSubLang(e.target.value); safeStorageSet('vidy:sub-lang', e.target.value); }}
-                        className="bg-transparent text-[10px] font-semibold text-white/70 hover:text-white outline-none cursor-pointer pr-1"
-                        title="Subtitle language"
-                        aria-label="Subtitle language"
-                      >
-                        {SUBTITLE_LANGUAGES.map(l => <option key={l.code} value={l.code} className="bg-[#141418]">{l.label}</option>)}
-                      </select>
-                    </>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* Floating Theater Mode Controls */}
