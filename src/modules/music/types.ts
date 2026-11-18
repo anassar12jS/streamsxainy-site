@@ -61,6 +61,8 @@ export interface Playlist {
   artwork: string;
   trackCount: number;
   tracks: MusicTrack[];
+  /** Epoch ms when the playlist was added locally (SoundCloud imports) */
+  addedAt?: number;
 }
 
 export interface SyncedLyricWord {

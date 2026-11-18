@@ -1,17 +1,19 @@
 import React from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { Play, Shuffle, Heart, Music2, Share2, Sparkles, ArrowLeft, Disc, Loader2, Check } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Play, Shuffle, Heart, Music2, Share2, Sparkles, ArrowLeft, Disc, Loader2, Check, Cloud, Trash2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { TrackRow } from '../components/TrackRow';
 import { getPlaylistDetails } from '../api/innertube';
-import { getImportedSoundCloudPlaylist } from '../api/soundcloud';
+import { getImportedSoundCloudPlaylist, deleteSoundCloudPlaylist, removeTrackFromSoundCloudPlaylist } from '../api/soundcloud';
 import { MusicTrack, Playlist } from '../types';
 import { ARTWORK_PLACEHOLDER } from '../api/ytmParse';
 
 export const PlaylistRoute: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const playTrack = useMusicPlayerStore(state => state.playTrack);
+  const navigate = useNavigate();
+  const [confirmingDelete, setConfirmingDelete] = React.useState(false);
   const appendToQueue = useMusicPlayerStore(state => state.appendToQueue);
 
   const { data: playlist, isLoading, error, refetch } = useQuery<Playlist | null>({
@@ -31,6 +33,7 @@ export const PlaylistRoute: React.FC = () => {
   });
 
   const tracks: MusicTrack[] = playlist?.tracks || [];
+  const isScPlaylist = Boolean(id?.startsWith('sc-pl-'));
   const [addedFlash, setAddedFlash] = React.useState(false);
   const addedTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -47,6 +50,23 @@ export const PlaylistRoute: React.FC = () => {
     let list = [...tracks];
     if (shuffle) list.sort(() => Math.random() - 0.5);
     playTrack(list[0], list);
+  };
+
+  const handleDeletePlaylist = () => {
+    if (!id || !isScPlaylist) return;
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      window.setTimeout(() => setConfirmingDelete(false), 3000);
+      return;
+    }
+    deleteSoundCloudPlaylist(id);
+    navigate('/music/library/playlists');
+  };
+
+  const handleRemoveTrack = (track: MusicTrack) => {
+    if (!id || !isScPlaylist) return;
+    removeTrackFromSoundCloudPlaylist(id, track.id);
+    void refetch();
   };
 
   return (
@@ -102,9 +122,16 @@ export const PlaylistRoute: React.FC = () => {
 
             {/* Metadata & Actions */}
             <div className="flex flex-col items-center sm:items-start text-center sm:text-left min-w-0 space-y-2 flex-1">
-              <h1 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight">
-                {playlist.title}
-              </h1>
+              <div className="flex items-center gap-2.5 flex-wrap justify-center sm:justify-start">
+                <h1 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight">
+                  {playlist.title}
+                </h1>
+                {isScPlaylist && (
+                  <span className="px-2 py-1 rounded-full bg-[#ff5500]/15 border border-[#ff5500]/30 text-[#ff8c5a] text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                    <Cloud className="w-3 h-3" /> SoundCloud
+                  </span>
+                )}
+              </div>
 
               <p className="text-xs text-[#98989d] font-normal">
                 Playlist • {new Date().getFullYear()} • {playlist.curator || 'Curated'} • {tracks.length} tracks • {Math.round(tracks.reduce((acc, t) => acc + (t.duration || 180), 0) / 60)} minutes
@@ -146,6 +173,20 @@ export const PlaylistRoute: React.FC = () => {
                 >
                   {addedFlash ? <Check className="w-4 h-4" strokeWidth={3} /> : <span className="text-lg font-light leading-none">+</span>}
                 </button>
+
+                {/* Delete playlist (SoundCloud imports only) */}
+                {isScPlaylist && (
+                  <button
+                    type="button"
+                    onClick={handleDeletePlaylist}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-lg ${
+                      confirmingDelete ? 'bg-red-500 text-white' : 'bg-white/10 hover:bg-red-500/80 text-white/70 hover:text-white border border-white/10'
+                    }`}
+                    title={confirmingDelete ? 'Click again to delete playlist' : 'Delete playlist'}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -168,6 +209,7 @@ export const PlaylistRoute: React.FC = () => {
                   index={idx}
                   showArtwork={true}
                   playlistContext={tracks}
+                  onRemoveFromPlaylist={isScPlaylist ? handleRemoveTrack : undefined}
                 />
               ))
             ) : (

@@ -266,7 +266,7 @@ function mergeTracks(existing: MusicTrack[], incoming: MusicTrack[]): MusicTrack
 }
 
 /** Import a SoundCloud playlist, artist, or single track into local library storage. */
-export async function importSoundCloud(urlOrId: string): Promise<{ title: string; tracks: MusicTrack[]; isPlaylist: boolean }> {
+export async function importSoundCloud(urlOrId: string): Promise<{ title: string; tracks: MusicTrack[]; isPlaylist: boolean; playlistId?: string }> {
   const input = urlOrId.trim();
   if (!input) throw new Error('Paste a SoundCloud track, playlist, or artist URL.');
 
@@ -284,10 +284,11 @@ export async function importSoundCloud(urlOrId: string): Promise<{ title: string
       artwork: artist.avatar || tracks[0]?.artwork || '',
       trackCount: tracks.length,
       tracks,
+      addedAt: Date.now(),
     };
     savePlaylists([playlist, ...getImportedSoundCloudPlaylists().filter(p => p.id !== playlist.id)]);
     saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks));
-    return { title: playlist.title, tracks, isPlaylist: true };
+    return { title: playlist.title, tracks, isPlaylist: true, playlistId: playlist.id };
   }
 
   if (resolved.kind === 'playlist') {
@@ -302,10 +303,11 @@ export async function importSoundCloud(urlOrId: string): Promise<{ title: string
       artwork: pl.artwork || tracks[0]?.artwork || '',
       trackCount: tracks.length,
       tracks,
+      addedAt: Date.now(),
     };
     savePlaylists([playlist, ...getImportedSoundCloudPlaylists().filter(p => p.id !== playlist.id)]);
     saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks));
-    return { title: playlist.title, tracks, isPlaylist: true };
+    return { title: playlist.title, tracks, isPlaylist: true, playlistId: playlist.id };
   }
 
   const trackJson = resolved as { kind: 'track' } & ScTrackJson;
@@ -334,6 +336,7 @@ export function createSoundCloudPlaylist(title: string, tracks: MusicTrack[], ar
     artwork,
     trackCount: tracks.length,
     tracks: tracks.map(t => ({ ...t, soundcloudPlaylistId: playlistId })),
+    addedAt: Date.now(),
   };
   savePlaylists([playlist, ...getImportedSoundCloudPlaylists()]);
   saveTracks(mergeTracks(getImportedSoundCloudTracks(), tracks));
@@ -353,6 +356,22 @@ export function addTrackToSoundCloudPlaylist(playlistId: string, track: MusicTra
   savePlaylists(playlists.map(p => p.id === playlistId ? pl : p));
   saveTracks(mergeTracks(getImportedSoundCloudTracks(), [track]));
   return true;
+}
+
+/** Delete an imported SoundCloud playlist (tracks stay in the library). */
+export function deleteSoundCloudPlaylist(playlistId: string): void {
+  savePlaylists(getImportedSoundCloudPlaylists().filter(p => p.id !== playlistId));
+}
+
+/** Remove a track from an imported SoundCloud playlist. */
+export function removeTrackFromSoundCloudPlaylist(playlistId: string, trackId: string): void {
+  const playlists = getImportedSoundCloudPlaylists();
+  const pl = playlists.find(p => p.id === playlistId);
+  if (!pl) return;
+  pl.tracks = pl.tracks.filter(t => t.id !== trackId);
+  pl.trackCount = pl.tracks.length;
+  pl.subtitle = `${pl.tracks.length} Songs · SoundCloud`;
+  savePlaylists(playlists.map(p => p.id === playlistId ? pl : p));
 }
 
 /** Resolve the numeric SoundCloud artist id for a track (artist page route param). */

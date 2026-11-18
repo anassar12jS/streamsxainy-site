@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Pause, Heart, MoreHorizontal, Plus, Disc, Loader2, ListPlus, Moon, Link2, User, Disc3 } from 'lucide-react';
+import { Play, Pause, Heart, MoreHorizontal, Plus, Disc, Loader2, ListPlus, Moon, Link2, User, Disc3, MinusCircle } from 'lucide-react';
 import { MusicTrack } from '../types';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { prefetchStreamUrl } from '../api/innertube';
@@ -13,6 +13,7 @@ interface TrackRowProps {
   showAlbum?: boolean;
   playlistContext?: MusicTrack[];
   onAddToPlaylist?: (track: MusicTrack) => void;
+  onRemoveFromPlaylist?: (track: MusicTrack) => void;
 }
 
 export const TrackRow: React.FC<TrackRowProps> = ({
@@ -22,6 +23,7 @@ export const TrackRow: React.FC<TrackRowProps> = ({
   showAlbum = true,
   playlistContext,
   onAddToPlaylist,
+  onRemoveFromPlaylist,
 }) => {
   const currentTrack = useMusicPlayerStore(state => state.currentTrack);
   const playbackStatus = useMusicPlayerStore(state => state.playbackStatus);
@@ -268,6 +270,19 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                 >
                   <ListPlus className="w-3.5 h-3.5" />
                   <span>Add to Playlist</span>
+                </button>
+              )}
+              {onRemoveFromPlaylist && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onRemoveFromPlaylist(track);
+                    setShowMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white cursor-pointer"
+                >
+                  <MinusCircle className="w-3.5 h-3.5" />
+                  <span>Remove from Playlist</span>
                 </button>
               )}
               <button
