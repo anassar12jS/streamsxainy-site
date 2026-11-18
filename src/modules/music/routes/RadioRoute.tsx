@@ -13,9 +13,20 @@ export const RadioRoute: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('All');
   const stations = APPLE_MUSIC_BROWSE_SECTIONS.liveRadios;
 
-  const filteredStations = activeCategory === 'All' 
-    ? stations 
-    : stations.filter(s => s.genre?.toLowerCase().includes(activeCategory.toLowerCase()));
+  // Categories derived from the actual station genres — no dead pills
+  const categories = React.useMemo(() => {
+    const seen = new Set<string>();
+    const cats: string[] = [];
+    for (const st of stations) {
+      const g = (st.genre || '').trim();
+      if (g && !seen.has(g)) { seen.add(g); cats.push(g); }
+    }
+    return ['All', ...cats];
+  }, [stations]);
+
+  const filteredStations = activeCategory === 'All'
+    ? stations
+    : stations.filter(s => s.genre?.toLowerCase() === activeCategory.toLowerCase());
 
   const handleStationClick = (station: MusicTrack) => {
     if (currentTrack?.id === station.id) {
@@ -116,7 +127,7 @@ export const RadioRoute: React.FC = () => {
 
       {/* Category Pills */}
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2">
-        {['All', 'Lo-Fi', 'Synthwave', 'Anime', 'Jazz'].map(cat => (
+        {categories.map(cat => (
           <button
             key={cat}
             type="button"
@@ -138,6 +149,11 @@ export const RadioRoute: React.FC = () => {
           All Stations
         </h3>
 
+        {filteredStations.length === 0 ? (
+          <p className="text-sm text-[#b3b3b3] py-10 text-center rounded-2xl bg-[#141416] border border-white/5">
+            No stations in this category yet.
+          </p>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {filteredStations.map(station => {
             const isPlaying = currentTrack?.id === station.id && playbackStatus === 'playing';
@@ -199,6 +215,7 @@ export const RadioRoute: React.FC = () => {
             );
           })}
         </div>
+        )}
       </div>
 
     </div>

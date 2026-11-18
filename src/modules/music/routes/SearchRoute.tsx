@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { 
   Search as SearchIcon, X, Play, Mic2, Compass, 
-  ChevronRight, ArrowUpRight, Music2
+  ChevronRight, ArrowUpRight, Music2, Cloud
 } from 'lucide-react';
 import { 
   getSearchSuggestions, searchFullCatalog, 
@@ -19,6 +19,24 @@ const QUICK_TRENDING_TAGS = [
   'Amira Elfeky', 'Radiohead', 'Tyler, The Creator', 'Travis Scott'
 ];
 
+const RECENT_SEARCHES_KEY = 'xainy_recent_searches';
+const MAX_RECENT = 8;
+
+const loadRecentSearches = (): string[] => {
+  try {
+    const raw = localStorage.getItem(RECENT_SEARCHES_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter(x => typeof x === 'string').slice(0, MAX_RECENT) : [];
+  } catch { return []; }
+};
+
+const saveRecentSearch = (q: string) => {
+  try {
+    const next = [q, ...loadRecentSearches().filter(x => x.toLowerCase() !== q.toLowerCase())].slice(0, MAX_RECENT);
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
+  } catch {}
+};
+
 export const SearchRoute: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -32,6 +50,7 @@ export const SearchRoute: React.FC = () => {
 
   const [catalogResults, setCatalogResults] = useState<FullCatalogSearchResult | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>(loadRecentSearches);
 
   const playTrack = useMusicPlayerStore(state => state.playTrack);
   const searchContainerRef = useRef<HTMLDivElement | null>(null);
@@ -97,6 +116,8 @@ const searchCache = new Map<string, FullCatalogSearchResult>();
 
     setIsDropdownOpen(false);
     setSearchParams({ q });
+    saveRecentSearch(q);
+    setRecentSearches(loadRecentSearches());
 
     const cacheKey = q.toLowerCase();
     if (searchCache.has(cacheKey)) {
@@ -299,7 +320,24 @@ const searchCache = new Map<string, FullCatalogSearchResult>();
             </div>
           )}
 
-          {/* Quick Trending Tags */}
+          {/* Recent searches (when idle) + Quick Trending Tags */}
+          {!queryParam && recentSearches.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-2 no-scrollbar scroll-smooth text-xs">
+              <span className="text-[#777777] font-semibold text-[11px] shrink-0 uppercase tracking-wider">
+                Recent:
+              </span>
+              {recentSearches.map(term => (
+                <button
+                  key={term}
+                  type="button"
+                  onClick={() => { setInputValue(term); executeSearch(term); }}
+                  className="px-3 py-1 rounded-full bg-[#1a1a1a] hover:bg-[#242424] border border-white/10 text-[#d6d6d6] hover:text-white transition-colors shrink-0 cursor-pointer text-xs"
+                >
+                  {term}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-3 no-scrollbar scroll-smooth text-xs">
             <span className="text-[#777777] font-semibold text-[11px] shrink-0 uppercase tracking-wider">
               Trending:
@@ -518,6 +556,14 @@ const searchCache = new Map<string, FullCatalogSearchResult>();
           <p className="text-xs text-[#b3b3b3]">
             Type a song, artist, or album title above to discover millions of tracks.
           </p>
+          <button
+            type="button"
+            onClick={() => navigate('/music/library/songs')}
+            className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#ff5500]/10 hover:bg-[#ff5500]/20 border border-[#ff5500]/25 text-[#ff8c5a] text-xs font-semibold transition-colors cursor-pointer"
+          >
+            <Cloud className="w-3.5 h-3.5" />
+            Can't find it? Import from SoundCloud
+          </button>
         </div>
       )}
 

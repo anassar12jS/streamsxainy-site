@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Download, Sparkles, Trophy, Music, Disc, Clock, Share2, Layers } from 'lucide-react';
+import { Play, Download, Sparkles, Trophy, Music, Disc, Clock, Share2, Layers, ListMusic } from 'lucide-react';
 import { replayRecorder } from '../api/replay';
 import { ReplayStats, MusicTrack } from '../types';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
@@ -209,16 +209,27 @@ export const ReplayRoute: React.FC = () => {
         
         {/* Top Songs */}
         <div className="space-y-4">
-          <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-            <span>Your Top Songs</span>
-            <span className="text-xs font-mono text-white/40 font-normal">({stats.topTracks.length})</span>
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+              <span>Your Top Songs</span>
+              <span className="text-xs font-mono text-white/40 font-normal">({stats.topTracks.length})</span>
+            </h2>
+            {stats.topTracks.length > 0 && (
+              <button
+                type="button"
+                onClick={() => playTrack(stats.topTracks[0].track, stats.topTracks.map(i => i.track))}
+                className="px-4 py-1.5 rounded-full bg-white/10 hover:bg-[#ff5500] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" /> Play Top Songs
+              </button>
+            )}
+          </div>
 
           <div className="bg-[#141416] p-3 rounded-3xl border border-white/5 space-y-1 shadow-xl">
             {stats.topTracks.map((item, idx) => (
               <div
                 key={item.track.id}
-                onClick={() => playTrack(item.track)}
+                onClick={() => playTrack(item.track, stats.topTracks.map(i => i.track))}
                 className="group flex items-center justify-between p-2.5 rounded-2xl hover:bg-white/5 transition-all cursor-pointer"
               >
                 <div className="flex items-center gap-3.5 min-w-0">

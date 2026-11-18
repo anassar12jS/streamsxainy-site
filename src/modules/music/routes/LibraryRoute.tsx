@@ -39,6 +39,7 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
   const [scInput, setScInput] = useState('');
   const [scStatus, setScStatus] = useState<string | null>(null);
   const [isScImporting, setIsScImporting] = useState(false);
+  const [trackFilter, setTrackFilter] = useState('');
 
   const handleSyncUpdate = () => {
     setYtAccount(getLinkedYouTubeAccount());
@@ -69,11 +70,22 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
   // Re-read imported data whenever a sync / account switch / playlist import finishes
   useEffect(() => {
     window.addEventListener(YT_LIBRARY_UPDATED_EVENT, handleSyncUpdate);
-    return () => window.removeEventListener(YT_LIBRARY_UPDATED_EVENT, handleSyncUpdate);
+    window.addEventListener('bitchord:library-updated', handleSyncUpdate);
+    return () => {
+      window.removeEventListener(YT_LIBRARY_UPDATED_EVENT, handleSyncUpdate);
+      window.removeEventListener('bitchord:library-updated', handleSyncUpdate);
+    };
   }, []);
 
-  // Compile all known songs across library
-  const allKnownTracks = [...importedTracks, ...scTracks, ...recentlyPlayed];
+  // Compile all known songs across library (deduped — same track can appear in imports, SC and history)
+  const allKnownTracks = useMemo(() => {
+    const seen = new Set<string>();
+    const out: MusicTrack[] = [];
+    for (const t of [...importedTracks, ...scTracks, ...recentlyPlayed]) {
+      if (t?.id && !seen.has(t.id)) { seen.add(t.id); out.push(t); }
+    }
+    return out;
+  }, [importedTracks, scTracks, recentlyPlayed]);
 
   const activeChannelId = useSessionStore(state => state.activeChannelId);
   const path = location.pathname;
@@ -326,18 +338,34 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
       {/* Columns: Track Info (Artwork, Play Overlay, Title, E badge), Artist, Album, Duration */}
       {/* ========================================================================= */}
       {(activeTab === 'recent' || activeTab === 'songs' || activeTab === 'liked') && (() => {
-        const currentList = activeTab === 'recent' 
+        const baseList = activeTab === 'recent' 
           ? recentlyPlayed 
           : activeTab === 'liked' 
             ? likedTracks 
             : allKnownTracks;
+        const fq = trackFilter.trim().toLowerCase();
+        const currentList = fq
+          ? baseList.filter(t =>
+              t.title?.toLowerCase().includes(fq) ||
+              t.artist?.toLowerCase().includes(fq) ||
+              (t.album || '').toLowerCase().includes(fq))
+          : baseList;
 
         return (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#b3b3b3] uppercase tracking-wider">
-                {currentList.length} Tracks
-              </span>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold text-[#b3b3b3] uppercase tracking-wider">
+                  {currentList.length} Tracks
+                </span>
+                <input
+                  type="text"
+                  value={trackFilter}
+                  onChange={(e) => setTrackFilter(e.target.value)}
+                  placeholder="Filter songs…"
+                  className="bg-[#141414] border border-white/10 rounded-full px-3.5 py-1.5 text-xs text-white placeholder:text-[#6a6a6a] focus:outline-none focus:border-white/30 w-40"
+                />
+              </div>
               {currentList.length > 0 && (
                 <div className="flex items-center gap-2">
                   <button

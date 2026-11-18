@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Cloud, ExternalLink, ListMusic, Loader2, Play, Plus, X } from 'lucide-react';
+import { ArrowLeft, Cloud, ExternalLink, ListMusic, Loader2, Play, Plus, X, Shuffle } from 'lucide-react';
 import { TrackRow } from '../components/TrackRow';
 import { MusicTrack, Playlist } from '../types';
 import {
@@ -108,6 +108,16 @@ export const SoundCloudArtistRoute: React.FC = () => {
 
   const tracks = artist?.tracks || [];
 
+  const handleShuffle = () => {
+    if (tracks.length === 0) return;
+    const shuffled = [...tracks];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    playTrack(shuffled[0], shuffled);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4">
       <Link
@@ -157,13 +167,23 @@ export const SoundCloudArtistRoute: React.FC = () => {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {tracks.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => playTrack(tracks[0], tracks)}
-                  className="px-5 py-2.5 rounded-full bg-white hover:bg-white/90 text-black text-xs font-semibold flex items-center gap-2 transition-all hover:scale-105"
-                >
-                  <Play className="w-3.5 h-3.5 fill-current" /> Play
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={handleShuffle}
+                    className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-white flex items-center justify-center transition-all hover:scale-105"
+                    title="Shuffle"
+                  >
+                    <Shuffle className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => playTrack(tracks[0], tracks)}
+                    className="px-5 py-2.5 rounded-full bg-white hover:bg-white/90 text-black text-xs font-semibold flex items-center gap-2 transition-all hover:scale-105"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" /> Play
+                  </button>
+                </>
               )}
               {tracks.length > 0 && (
                 <button
