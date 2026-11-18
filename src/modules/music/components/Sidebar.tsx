@@ -156,7 +156,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { path: '/music/library/artists', label: 'Artists', icon: Mic2 },
     { path: '/music/library/albums', label: 'Albums', icon: Disc },
     { path: '/music/library/songs', label: 'Songs', icon: Music2 },
-    { path: '/music/replay', label: "Replay '25", icon: Sparkles },
+    { path: '/music/replay', label: `Replay '${String(new Date().getFullYear()).slice(-2)}`, icon: Sparkles },
     { path: '/music/library/for-you', label: 'Made for You', icon: UserCheck },
   ];
 
@@ -289,7 +289,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {authStatus === 'authenticated' && (
           <div className="space-y-1 pt-2 border-t border-white/5">
             <p className="px-3 text-[11px] font-medium text-[#777777] uppercase tracking-wider">
-              Playlists
+              YouTube Playlists
             </p>
             <div className="space-y-0.5 pt-1">
               <Link
@@ -346,7 +346,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="space-y-1 pt-2 border-t border-white/5">
             <p className="px-3 text-[11px] font-medium text-[#777777] uppercase tracking-wider flex items-center gap-1.5">
               <Music className="w-3 h-3 text-emerald-400" />
-              <span>Playlists</span>
+              <span>Imported Playlists</span>
             </p>
             <div className="flex flex-col gap-1 mt-1">
               {spotifyPlaylists.map((playlist: any) => (

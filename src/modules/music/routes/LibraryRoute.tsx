@@ -540,7 +540,7 @@ export const LibraryRoute: React.FC<LibraryRouteProps> = ({ defaultTab }) => {
               <div className="w-11 h-11 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center mb-4">
                 <Disc className="w-5 h-5" />
               </div>
-              <h3 className="text-base font-semibold text-white group-hover:underline">Replay '25</h3>
+              <h3 className="text-base font-semibold text-white group-hover:underline">Replay '{String(new Date().getFullYear()).slice(-2)}</h3>
               <p className="text-xs text-[#b3b3b3] mt-1 font-normal">Your listening milestones and top songs.</p>
             </div>
           </div>

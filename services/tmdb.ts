@@ -3,7 +3,11 @@ import { TMDBResult, TMDBDetail, TMDBVideo, MediaType, PersonDetail, Collection,
 import { rankSearchResults, getSpellCorrection, correctQueryTokens, extractYearFromQuery } from './searchUtils';
 
 const fetchTMDB = async (endpoint: string, params: Record<string, string> = {}) => {
-  const url = new URL(`${TMDB_BASE_URL}${endpoint}`);
+  const safeBase = /^https?:\/\/[^/\s]+/i.test(TMDB_BASE_URL)
+    ? TMDB_BASE_URL.replace(/\/+$/, '')
+    : 'https://api.themoviedb.org/3';
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = new URL(`${safeBase}${normalizedEndpoint}`);
   url.searchParams.append('api_key', TMDB_API_KEY);
   Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
 
@@ -14,13 +18,13 @@ const fetchTMDB = async (endpoint: string, params: Record<string, string> = {}) 
 
 export const getTrending = async (): Promise<TMDBResult[]> => {
   const data = await fetchTMDB('/trending/all/day');
-  return data.results;
+  return Array.isArray(data?.results) ? data.results : [];
 };
 
 export const getTrendingWeek = async (): Promise<TMDBResult[]> => {
   try {
     const data = await fetchTMDB('/trending/all/week');
-    return data.results;
+    return Array.isArray(data?.results) ? data.results : [];
   } catch (e) {
     return [];
   }
@@ -55,12 +59,12 @@ export const getAiringTodayTV = async (): Promise<TMDBResult[]> => {
 
 export const getPopularMovies = async (): Promise<TMDBResult[]> => {
   const data = await fetchTMDB('/movie/popular');
-  return data.results.map((m: any) => ({ ...m, media_type: MediaType.MOVIE }));
+  return (Array.isArray(data?.results) ? data.results : []).map((m: any) => ({ ...m, media_type: MediaType.MOVIE }));
 };
 
 export const getPopularTV = async (): Promise<TMDBResult[]> => {
   const data = await fetchTMDB('/tv/popular');
-  return data.results.map((t: any) => ({ ...t, media_type: MediaType.TV }));
+  return (Array.isArray(data?.results) ? data.results : []).map((t: any) => ({ ...t, media_type: MediaType.TV }));
 };
 
 export const getTopRatedMovies = async (): Promise<TMDBResult[]> => {
@@ -213,7 +217,7 @@ export const getCollection = async (id: number): Promise<Collection> => {
 export const getVideos = async (id: number, type: MediaType): Promise<TMDBVideo[]> => {
   try {
     const data = await fetchTMDB(`/${type}/${id}/videos`);
-    return data.results;
+    return Array.isArray(data?.results) ? data.results : [];
   } catch (e) {
     // Suppress warning for 404s or other failures as not all media has videos
     return [];
@@ -223,7 +227,7 @@ export const getVideos = async (id: number, type: MediaType): Promise<TMDBVideo[
 export const getRecommendations = async (id: number, type: MediaType): Promise<TMDBResult[]> => {
   try {
     const data = await fetchTMDB(`/${type}/${id}/recommendations`);
-    return data.results.map((item: any) => ({ ...item, media_type: type }));
+    return (Array.isArray(data?.results) ? data.results : []).map((item: any) => ({ ...item, media_type: type }));
   } catch (e) {
     return [];
   }
@@ -232,7 +236,7 @@ export const getRecommendations = async (id: number, type: MediaType): Promise<T
 export const getSimilarMedia = async (id: number, type: MediaType): Promise<TMDBResult[]> => {
   try {
     const data = await fetchTMDB(`/${type}/${id}/similar`);
-    return data.results.map((item: any) => ({ ...item, media_type: type }));
+    return (Array.isArray(data?.results) ? data.results : []).map((item: any) => ({ ...item, media_type: type }));
   } catch (e) {
     return [];
   }
@@ -246,15 +250,20 @@ export const getPerson = async (id: number): Promise<PersonDetail> => {
 
 export const getPersonCredits = async (id: number): Promise<TMDBResult[]> => {
   const data = await fetchTMDB(`/person/${id}/combined_credits`);
-  return data.cast
-    .filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv')
-    .sort((a: any, b: any) => b.vote_count - a.vote_count);
+  const cast = Array.isArray(data?.cast) ? data.cast : [];
+  return cast
+    .filter((item: any) => item && (item.media_type === 'movie' || item.media_type === 'tv'))
+    .sort((a: any, b: any) => (b.vote_count || 0) - (a.vote_count || 0));
 };
 
 // Discover
 export const getGenres = async (type: MediaType) => {
-  const data = await fetchTMDB(`/genre/${type}/list`);
-  return data.genres;
+  try {
+    const data = await fetchTMDB(`/genre/${type}/list`);
+    return Array.isArray(data?.genres) ? data.genres : [];
+  } catch {
+    return [];
+  }
 };
 
 export const discoverMedia = async (

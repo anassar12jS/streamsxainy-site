@@ -10,23 +10,38 @@ import { Film, Loader2 } from 'lucide-react';
 import { TMDBResult } from './types';
 import { warmIdleRoutes } from './services/routePreloader';
 
+// Retry lazy chunk loads once if a transient network/stale-chunk error occurs
+const lazyWithRetry = <T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T }>
+) =>
+  lazy(() =>
+    factory().catch(
+      () =>
+        new Promise<{ default: T }>((resolve, reject) => {
+          setTimeout(() => {
+            factory().then(resolve).catch(reject);
+          }, 250);
+        })
+    )
+  );
+
 // Performance: Code-split routes so initial bundle is ultralight
-const Details = lazy(() => import('./pages/Details').then(m => ({ default: m.Details })));
-const VidyPlayer = lazy(() => import('./pages/VidyPlayer').then(m => ({ default: m.VidyPlayer })));
-const Library = lazy(() => import('./pages/Library').then(m => ({ default: m.Library })));
-const Sports = lazy(() => import('./pages/Sports').then(m => ({ default: m.Sports })));
-const SportsPlayer = lazy(() => import('./pages/SportsPlayer').then(m => ({ default: m.SportsPlayer })));
-const Discover = lazy(() => import('./pages/Discover').then(m => ({ default: m.Discover })));
-const Person = lazy(() => import('./pages/Person').then(m => ({ default: m.Person })));
-const Anime = lazy(() => import('./pages/Anime').then(m => ({ default: m.Anime })));
-const LiveTV = lazy(() => import('./pages/LiveTV').then(m => ({ default: m.LiveTV })));
-const MusicModule = lazy(() => import('./src/modules/music/MusicModule'));
-const Search = lazy(() => import('./pages/Search').then(m => ({ default: m.Search })));
-const DMCA = lazy(() => import('./pages/Legal').then(m => ({ default: m.DMCA })));
-const Privacy = lazy(() => import('./pages/Legal').then(m => ({ default: m.Privacy })));
-const Terms = lazy(() => import('./pages/Legal').then(m => ({ default: m.Terms })));
-const NotFound = lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
-const AppHome = lazy(() => import('./pages/AppHome').then(m => ({ default: m.AppHome })));
+const Details = lazyWithRetry(() => import('./pages/Details').then(m => ({ default: m.Details })));
+const VidyPlayer = lazyWithRetry(() => import('./pages/VidyPlayer').then(m => ({ default: m.VidyPlayer })));
+const Library = lazyWithRetry(() => import('./pages/Library').then(m => ({ default: m.Library })));
+const Sports = lazyWithRetry(() => import('./pages/Sports').then(m => ({ default: m.Sports })));
+const SportsPlayer = lazyWithRetry(() => import('./pages/SportsPlayer').then(m => ({ default: m.SportsPlayer })));
+const Discover = lazyWithRetry(() => import('./pages/Discover').then(m => ({ default: m.Discover })));
+const Person = lazyWithRetry(() => import('./pages/Person').then(m => ({ default: m.Person })));
+const Anime = lazyWithRetry(() => import('./pages/Anime').then(m => ({ default: m.Anime })));
+const LiveTV = lazyWithRetry(() => import('./pages/LiveTV').then(m => ({ default: m.LiveTV })));
+const MusicModule = lazyWithRetry(() => import('./src/modules/music/MusicModule'));
+const Search = lazyWithRetry(() => import('./pages/Search').then(m => ({ default: m.Search })));
+const DMCA = lazyWithRetry(() => import('./pages/Legal').then(m => ({ default: m.DMCA })));
+const Privacy = lazyWithRetry(() => import('./pages/Legal').then(m => ({ default: m.Privacy })));
+const Terms = lazyWithRetry(() => import('./pages/Legal').then(m => ({ default: m.Terms })));
+const NotFound = lazyWithRetry(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
+const AppHome = lazyWithRetry(() => import('./pages/AppHome').then(m => ({ default: m.AppHome })));
 
 const PageLoadingFallback = () => (
   <div className="min-h-[70vh] w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 animate-fade-in">
@@ -108,6 +123,7 @@ const App: React.FC = () => {
   };
 
   const handleMediaSelect = (item: TMDBResult) => {
+    if (!item || !item.id) return;
     // Pass the item object in state for Optimistic UI
     const state = { item };
     
@@ -149,7 +165,7 @@ const App: React.FC = () => {
       )}
       
       <main className={isMusic ? "flex-1 h-full min-h-0 overflow-hidden" : "flex-grow"}>
-        <ErrorBoundary>
+        <ErrorBoundary resetKey={`${location.pathname}${location.search}`}>
           <Suspense fallback={<PageLoadingFallback />}>
             <Routes>
                 <Route path="/" element={<Home />} />

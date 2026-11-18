@@ -466,7 +466,7 @@ export const Details: React.FC = () => {
   const title = detail?.title || detail?.name || '';
   const date = detail?.release_date || detail?.first_air_date || '';
   const releaseYear = date ? date.split('-')[0] : '';
-  const rating = detail?.vote_average ? detail.vote_average.toFixed(1) : 'N/A';
+  const rating = typeof detail?.vote_average === 'number' && detail.vote_average > 0 ? detail.vote_average.toFixed(1) : 'N/A';
   const voteCount = detail?.vote_count ? new Intl.NumberFormat('en-US', { notation: 'compact' }).format(detail.vote_count) : null;
   const savedProgress = detail ? getProgressForId(detail.id) : undefined;
   const resumeSeconds = savedProgress?.currentTime || 0;
@@ -817,7 +817,7 @@ export const Details: React.FC = () => {
               sizes="100vw"
               alt={title}
               loading="eager"
-              fetchPriority="high"
+              {...({ fetchpriority: 'high' } as any)}
               className="w-full h-full object-cover object-center lg:object-top transform scale-105 filter brightness-95 contrast-105" 
             />
             {/* Vignette gradients for immaculate readability */}
@@ -1387,9 +1387,9 @@ export const Details: React.FC = () => {
                         {type === MediaType.TV ? 'Created By' : 'Directed By'}
                       </h4>
                       <div className="flex flex-wrap gap-4">
-                        {directors.map(person => (
+                        {directors.map((person, idx) => (
                           <div 
-                            key={person.id}
+                            key={`${person.id}-${idx}`}
                             onClick={() => navigate(`/person/${person.id}`)}
                             className="flex items-center gap-3 bg-[var(--bg-card)] border border-[var(--border-color)] p-2.5 pr-4 rounded-xl cursor-pointer hover:border-[rgb(var(--primary-color))] transition-colors group"
                           >
@@ -1426,10 +1426,10 @@ export const Details: React.FC = () => {
                       </div>
                       
                       <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
-                        {fetchedDetail.credits.cast.slice(0, 14).map(actor => (
+                        {fetchedDetail.credits.cast.slice(0, 14).map((actor, idx) => (
                           <button
                             type="button"
-                            key={actor.id}
+                            key={`${actor.id}-${idx}`}
                             onClick={() => navigate(`/person/${actor.id}`)}
                             className="w-28 shrink-0 text-left cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary-color))] rounded-xl"
                           >
@@ -1669,7 +1669,7 @@ export const Details: React.FC = () => {
               {/* Season Selector Bar & Search Bar */}
               <div className="flex flex-wrap items-center justify-between gap-4 bg-[var(--bg-card)] p-4 rounded-2xl border border-[var(--border-color)]">
                 <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 max-w-full">
-                  {[...Array(fetchedDetail?.number_of_seasons || 1)].map((_, idx) => {
+                  {[...Array(Math.max(1, Math.min(200, fetchedDetail?.number_of_seasons || detail?.number_of_seasons || 1)))].map((_, idx) => {
                     const seasonNumber = idx + 1;
                     const isActive = selectedSeason === seasonNumber;
                     return (
@@ -1906,7 +1906,7 @@ export const Details: React.FC = () => {
                                       </span>
                                     ) : (
                                       <>
-                                        {ep.vote_average > 0 && (
+                                        {typeof ep.vote_average === 'number' && ep.vote_average > 0 && (
                                           <span className="flex items-center gap-1 text-amber-400 font-semibold">
                                             <Star className="w-3 h-3 fill-amber-400" /> {ep.vote_average.toFixed(1)}
                                           </span>
@@ -1967,7 +1967,7 @@ export const Details: React.FC = () => {
                 return (
                   /* Fallback for when TMDB season details fail or are empty */
                   <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                    {[...Array(getEpisodeCount(selectedSeason))].map((_, i) => {
+                    {[...Array(Math.max(0, Math.min(500, getEpisodeCount(selectedSeason) || 0)))].map((_, i) => {
                       const epNum = i + 1;
                       const isCur = selectedEpisode === epNum;
                       return (

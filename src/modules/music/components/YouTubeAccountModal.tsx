@@ -41,7 +41,9 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSelecting, setIsSelecting] = useState<string | null>(null);
+  const [noExtension, setNoExtension] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'info' | 'error'; text: string } | null>(null);
+  const isMobileBrowser = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   /**
    * Reads the REAL session state from the extension (cache bypassed). Shows exactly why
@@ -49,6 +51,7 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
    */
   const fetchAccounts = async () => {
     setIsLoading(true);
+    setNoExtension(false);
     setStatusMessage(null);
     try {
       const auth = await extensionBridge.getAuthState(true);
@@ -57,7 +60,9 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
         setSelectedChannelId(auth.active.id);
         useMusicPlayerStore.getState().setActiveAccount(auth.active);
       }
-      if (auth.error) {
+      if (!auth.extensionAvailable && auth.error?.code === 'NO_EXTENSION') {
+        setNoExtension(true);
+      } else if (auth.error) {
         setStatusMessage({
           type: 'error',
           text: auth.error.code === 'forbidden'
@@ -190,6 +195,29 @@ export const YouTubeAccountModal: React.FC<YouTubeAccountModalProps> = ({
               <div className="py-12 flex flex-col items-center justify-center text-white/40 gap-2">
                 <RefreshCw className="w-5 h-5 animate-spin text-white/50" />
                 <span className="text-xs">Querying authenticated sessions from Google cookies...</span>
+              </div>
+            ) : noExtension ? (
+              <div className="py-6 text-center text-white/75 border border-white/10 bg-white/[0.03] rounded-xl p-4 space-y-2.5">
+                <AlertCircle className="w-6 h-6 mx-auto text-amber-400/90" />
+                <p className="text-xs text-white font-semibold">
+                  {isMobileBrowser ? 'Desktop Chrome Required for Account Sync' : 'Companion Extension Not Detected'}
+                </p>
+                <p className="text-[11px] text-[#b3b3b3] leading-relaxed">
+                  {isMobileBrowser
+                    ? 'YouTube Music session sync uses a Chrome desktop extension, which mobile browsers cannot install. You can still stream songs, search, listen to live radio, and import SoundCloud or Spotify playlists right here without signing in.'
+                    : 'Install and enable the Xainy Music companion extension in Chrome to connect your YouTube Music library, Liked Songs, and playlists.'}
+                </p>
+                {!isMobileBrowser && (
+                  <a
+                    href="https://github.com/anassar12jS/bitchord-extension"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white text-black text-xs font-semibold hover:bg-white/90 transition-colors"
+                  >
+                    <span>Get Extension</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
               </div>
             ) : accounts.length === 0 ? (
               <div className="py-8 text-center text-white/40 border border-white/5 rounded-xl p-4">

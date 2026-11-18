@@ -29,8 +29,10 @@ export async function getInnertubeForChannel(channelId?: string): Promise<Innert
         } catch {}
       }
 
+      const hasExtension = extensionBridge.getStatus().available;
       const client = await Innertube.create({
         retrieve_player: false,
+        generate_session_locally: !hasExtension,
         cache: new UniversalCache(false),
         fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
           const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;

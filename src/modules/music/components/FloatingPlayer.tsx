@@ -192,13 +192,13 @@ export const FloatingPlayer: React.FC<FloatingPlayerProps> = ({
     }
   };
 
+  if (!currentTrack) return null;
+
   return (
     <>
       {/* Xainy Music Apple Music Authentic Floating Player Pill */}
       <div 
-        className={`fixed bottom-[calc(4.9rem+env(safe-area-inset-bottom))] lg:bottom-5 inset-x-3 lg:inset-x-auto lg:left-1/2 lg:-translate-x-1/2 z-50 lg:max-w-[860px] lg:w-auto ${
-          !currentTrack ? 'hidden lg:block' : ''
-        }`}
+        className="fixed bottom-[calc(4.9rem+env(safe-area-inset-bottom))] lg:bottom-5 inset-x-3 lg:inset-x-auto lg:left-1/2 lg:-translate-x-1/2 z-50 lg:max-w-[860px] lg:w-auto"
         style={{ fontFamily: 'var(--bitchord-font)' }}
       >
         <div 

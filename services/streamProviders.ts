@@ -42,13 +42,24 @@ type ProviderHealthBook = Record<string, ProviderHealthEntry>;
 const HEALTH_KEY = 'vidy:provider-health';
 
 export const getHealthBook = (): ProviderHealthBook => {
-  try { return JSON.parse(localStorage.getItem(HEALTH_KEY) || '{}'); } catch { return {}; }
+  try {
+    const raw = localStorage.getItem(HEALTH_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
 };
 
 export const bumpProviderHealth = (key: string, field: 'ok' | 'fail') => {
   try {
     const book = getHealthBook();
-    const entry = book[key] || { ok: 0, fail: 0 };
+    const rawEntry = book[key];
+    const entry: ProviderHealthEntry = {
+      ok: Number(rawEntry?.ok) || 0,
+      fail: Number(rawEntry?.fail) || 0,
+    };
     entry[field] = Math.min(entry[field] + 1, 999);
     book[key] = entry;
     localStorage.setItem(HEALTH_KEY, JSON.stringify(book));
@@ -56,8 +67,8 @@ export const bumpProviderHealth = (key: string, field: 'ok' | 'fail') => {
 };
 
 export const providerHealthScore = (key: string): number => {
-  const e = getHealthBook()[key];
-  return e ? e.ok - e.fail : 0;
+  const e = getHealthBook()?.[key];
+  return e ? (Number(e.ok) || 0) - (Number(e.fail) || 0) : 0;
 };
 
 /** Providers sorted by observed health (stable — ties keep declared order). */
@@ -65,8 +76,8 @@ export const providersByHealth = <T extends { id: string }>(list: readonly T[], 
   [...list].sort((a, b) => providerHealthScore(`${prefix}:${b.id}`) - providerHealthScore(`${prefix}:${a.id}`));
 
 export const healthDotClass = (book: ProviderHealthBook, key: string): string => {
-  const e = book[key];
-  const score = e ? e.ok - e.fail : 0;
+  const e = book && typeof book === 'object' ? book[key] : undefined;
+  const score = e ? (Number(e.ok) || 0) - (Number(e.fail) || 0) : 0;
   if (score > 0) return 'bg-emerald-400';
   if (score < 0) return 'bg-rose-400';
   return 'bg-zinc-500';

@@ -545,11 +545,17 @@ export class XainyMusicBridge {
     return this.getAuthState(false);
   }
 
+  private localProxyUnavailable = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.endsWith('.run.app')
+  );
+
   /**
    * Routes a YouTube InnerTube API call through the site's own Vercel function
    * (/api/youtubei). Server-side fetch bypasses CORS, so the public catalog
-   * works without the extension. Returns null when the proxy is unavailable
-   * (e.g. local vite dev) so callers can fall through to direct fetch.
+   * works without the extension. Remembers when /api/youtubei isn't hosted
+   * locally so subsequent requests don't spam 404s.
    */
   private async fetchViaServerlessProxy(
     url: string,
@@ -566,9 +572,9 @@ export class XainyMusicBridge {
     }
 
     const payload = JSON.stringify({ url, method, headers, body: serializedBody });
-    // Same-origin first (Vercel), then the production deployment as fallback
-    // so local vite dev (which has no serverless functions) still works.
-    const bases = ['/api/youtubei', 'https://streamsxainy-site.vercel.app/api/youtubei'];
+    const bases = this.localProxyUnavailable
+      ? ['https://streamsxainy-site.vercel.app/api/youtubei']
+      : ['/api/youtubei', 'https://streamsxainy-site.vercel.app/api/youtubei'];
     let data: any = null;
     for (const base of bases) {
       try {
@@ -577,7 +583,12 @@ export class XainyMusicBridge {
           headers: { 'Content-Type': 'application/json' },
           body: payload,
         });
-        if (!res.ok) continue;
+        if (!res.ok) {
+          if (base === '/api/youtubei' && (res.status === 404 || res.status === 405)) {
+            this.localProxyUnavailable = true;
+          }
+          continue;
+        }
         data = await res.json();
         if (data && typeof data.status === 'number') break;
         data = null;

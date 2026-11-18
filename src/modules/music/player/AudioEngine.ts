@@ -272,12 +272,10 @@ export class MusicAudioEngine {
 
   private ensureNextShaka(): Promise<any> {
     if (this.nextShaka) return Promise.resolve(this.nextShaka);
-    return import('shaka-player/dist/shaka-player.compiled').then((shaka: any) => {
-      const player = new shaka.Player();
-      player.configure({ streaming: { bufferingGoal: 30 } });
-      this.nextShaka = player;
-      return player;
-    });
+    const player = new shaka.Player();
+    player.configure({ streaming: { bufferingGoal: 30 } });
+    this.nextShaka = player;
+    return Promise.resolve(player);
   }
 
   public hasPendingNext(): boolean {

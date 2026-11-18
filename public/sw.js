@@ -1,7 +1,7 @@
-const CACHE_NAME = 'xainy-v4';
-const STATIC_CACHE = 'xainy-static-v4';
-const API_CACHE = 'xainy-api-v4';
-const IMAGE_CACHE = 'xainy-images-v4';
+const CACHE_NAME = 'xainy-v5';
+const STATIC_CACHE = 'xainy-static-v5';
+const API_CACHE = 'xainy-api-v5';
+const IMAGE_CACHE = 'xainy-images-v5';
 
 const PRECACHE_ASSETS = [
   '/',
@@ -87,20 +87,18 @@ self.addEventListener('fetch', (event) => {
   //    cached error (e.g. a 404) would be served forever with no TTL.
   if (url.pathname.startsWith('/api/')) return;
 
-  // 4. Same-origin Static JS/CSS Chunks: Stale-While-Revalidate
+  // 4. Same-origin Static JS/CSS Chunks: Network-First so builds never serve stale mismatched chunks
   if (url.origin === self.location.origin) {
     event.respondWith(
-      caches.match(request).then((cachedResponse) => {
-        const fetchPromise = fetch(request).then((networkResponse) => {
+      fetch(request)
+        .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const clone = networkResponse.clone();
             caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone));
           }
           return networkResponse;
-        }).catch(() => cachedResponse);
-
-        return cachedResponse || fetchPromise;
-      })
+        })
+        .catch(() => caches.match(request))
     );
   }
 });

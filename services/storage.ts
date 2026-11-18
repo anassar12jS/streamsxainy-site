@@ -32,9 +32,37 @@ const readStoredJSON = <T>(key: string, fallback: T): T => {
     const raw = localStorage.getItem(key);
     const hit = parseCache.get(key);
     if (hit && hit.raw === raw) return hit.value as T;
-    const value = (raw ? JSON.parse(raw) : fallback) as T;
-    parseCache.set(key, { raw, value });
-    return value;
+
+    if (!raw) {
+      parseCache.set(key, { raw, value: fallback });
+      return fallback;
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (Array.isArray(fallback)) {
+      if (!Array.isArray(parsed)) {
+        return fallback;
+      }
+      const sanitized = parsed.filter((item) => item !== null && item !== undefined) as unknown as T;
+      parseCache.set(key, { raw, value: sanitized });
+      return sanitized;
+    }
+
+    if (typeof fallback === 'object' && fallback !== null) {
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return fallback;
+      }
+      parseCache.set(key, { raw, value: parsed as T });
+      return parsed as T;
+    }
+
+    if (parsed === null || parsed === undefined) {
+      return fallback;
+    }
+
+    parseCache.set(key, { raw, value: parsed as T });
+    return parsed as T;
   } catch (e) {
     return fallback;
   }
@@ -212,14 +240,26 @@ export const isMatchReminder = (id: string): boolean => {
 
 // --- Stream Providers ---
 export const getStreamProviders = (): StreamProvider[] => {
-    const stored = localStorage.getItem(PROVIDERS_KEY);
-    // Fallback for legacy single URL storage
-    const legacyUrl = localStorage.getItem('torrentio_url');
+    try {
+        const stored = localStorage.getItem(PROVIDERS_KEY);
+        // Fallback for legacy single URL storage
+        const legacyUrl = localStorage.getItem('torrentio_url');
 
-    if (stored) return readStoredJSON<StreamProvider[]>(PROVIDERS_KEY, []);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+                return parsed.filter(
+                    (p): p is StreamProvider =>
+                        Boolean(p && typeof p === 'object' && typeof p.url === 'string' && p.url.trim().length > 0)
+                );
+            }
+        }
 
-    if (legacyUrl) {
-        return [{ name: 'Torrentio (Legacy)', url: legacyUrl }];
+        if (legacyUrl) {
+            return [{ name: 'Torrentio (Legacy)', url: legacyUrl }];
+        }
+    } catch {
+        // Fall through to default provider
     }
 
     return [{ name: 'Torrentio', url: TORRENTIO_BASE_URL }];
@@ -227,6 +267,7 @@ export const getStreamProviders = (): StreamProvider[] => {
 
 export const saveStreamProviders = (providers: StreamProvider[]) => {
     localStorage.setItem(PROVIDERS_KEY, JSON.stringify(providers));
+    parseCache.delete(PROVIDERS_KEY);
 };
 
 // --- Settings & Data ---
@@ -251,7 +292,13 @@ export const themeToRgb = (theme: string): string => {
   }
   return THEME_RGB['purple'];
 };
-export const getMode = (): 'dark' | 'light' => (localStorage.getItem(MODE_KEY) as 'dark' | 'light') || 'dark';
+export const getMode = (): 'dark' | 'light' => {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
+};
 export const setMode = (mode: 'dark' | 'light') => localStorage.setItem(MODE_KEY, mode);
 
 const DEFAULT_SERVER_KEY = 'streamhub_default_server';
@@ -269,6 +316,11 @@ export const clearAllWatchData = () => {
   localStorage.removeItem(PROGRESS_KEY);
   localStorage.removeItem(SPORTS_FAVORITES_KEY);
   localStorage.removeItem(SPORTS_REMINDERS_KEY);
+  parseCache.delete(WATCHLIST_KEY);
+  parseCache.delete(HISTORY_KEY);
+  parseCache.delete(PROGRESS_KEY);
+  parseCache.delete(SPORTS_FAVORITES_KEY);
+  parseCache.delete(SPORTS_REMINDERS_KEY);
   emitStorageChange(PROGRESS_KEY);
   emitStorageChange(WATCHLIST_KEY);
 };
@@ -294,16 +346,39 @@ export const exportData = (): string => {
 export const importData = (jsonString: string): boolean => {
     try {
         const data = JSON.parse(jsonString);
-        if (data.watchlist) localStorage.setItem(WATCHLIST_KEY, JSON.stringify(data.watchlist));
-        if (data.history) localStorage.setItem(HISTORY_KEY, JSON.stringify(data.history));
-        if (data.progress) localStorage.setItem(PROGRESS_KEY, JSON.stringify(data.progress));
-        if (data.tvFavorites) localStorage.setItem(TV_FAVORITES_KEY, JSON.stringify(data.tvFavorites));
-        if (data.tvRecent) localStorage.setItem(TV_RECENT_KEY, JSON.stringify(data.tvRecent));
-        if (data.providers) localStorage.setItem(PROVIDERS_KEY, JSON.stringify(data.providers));
-        if (data.sportsFavorites) localStorage.setItem(SPORTS_FAVORITES_KEY, JSON.stringify(data.sportsFavorites));
-        if (data.settings) {
-            if (data.settings.theme) localStorage.setItem(THEME_KEY, data.settings.theme);
-            if (data.settings.mode) localStorage.setItem(MODE_KEY, data.settings.mode);
+        if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+
+        if (Array.isArray(data.watchlist)) {
+            localStorage.setItem(WATCHLIST_KEY, JSON.stringify(data.watchlist));
+            parseCache.delete(WATCHLIST_KEY);
+        }
+        if (Array.isArray(data.history)) {
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(data.history));
+            parseCache.delete(HISTORY_KEY);
+        }
+        if (Array.isArray(data.progress)) {
+            localStorage.setItem(PROGRESS_KEY, JSON.stringify(data.progress));
+            parseCache.delete(PROGRESS_KEY);
+        }
+        if (Array.isArray(data.tvFavorites)) {
+            localStorage.setItem(TV_FAVORITES_KEY, JSON.stringify(data.tvFavorites));
+            parseCache.delete(TV_FAVORITES_KEY);
+        }
+        if (Array.isArray(data.tvRecent)) {
+            localStorage.setItem(TV_RECENT_KEY, JSON.stringify(data.tvRecent));
+            parseCache.delete(TV_RECENT_KEY);
+        }
+        if (Array.isArray(data.providers)) {
+            localStorage.setItem(PROVIDERS_KEY, JSON.stringify(data.providers));
+            parseCache.delete(PROVIDERS_KEY);
+        }
+        if (Array.isArray(data.sportsFavorites)) {
+            localStorage.setItem(SPORTS_FAVORITES_KEY, JSON.stringify(data.sportsFavorites));
+            parseCache.delete(SPORTS_FAVORITES_KEY);
+        }
+        if (data.settings && typeof data.settings === 'object') {
+            if (typeof data.settings.theme === 'string') localStorage.setItem(THEME_KEY, data.settings.theme);
+            if (data.settings.mode === 'light' || data.settings.mode === 'dark') localStorage.setItem(MODE_KEY, data.settings.mode);
         }
         return true;
     } catch (e) {

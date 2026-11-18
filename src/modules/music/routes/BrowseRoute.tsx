@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { RefreshCw, AlertCircle, Heart, Radio, History, ListMusic, SlidersHorizontal, Eye, EyeOff, Play, Pause, Cloud, Sparkles } from 'lucide-react';
+import { RefreshCw, AlertCircle, Heart, Radio, History, ListMusic, SlidersHorizontal, Eye, EyeOff, Play, Pause, Sparkles, Search } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { useSessionStore } from '../store/useSessionStore';
 import { getHomeShelves, resolveTrackDurations, getRadioTracks, resolveArtistId, resolveAlbumId } from '../api/innertube';
@@ -289,8 +289,8 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
       const rows = tracks.slice(0, 8);
       return (
         <section key={shelf.id} className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">{shelf.title}</h3>
+          <div className="flex items-center justify-between px-0.5 lg:px-1">
+            <h3 className="text-[20px] sm:text-2xl font-bold lg:font-black text-white tracking-tight">{shelf.title}</h3>
             <button
               type="button"
               onClick={() => playTrack(tracks[0], tracks)}
@@ -336,7 +336,7 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
 
   return (
     <div
-      className="relative space-y-6 lg:space-y-10 animate-fade-in pb-32 max-w-7xl mx-auto px-0.5 sm:px-4 overflow-x-hidden"
+      className="relative space-y-6 lg:space-y-10 animate-fade-in pb-4 max-w-7xl mx-auto px-0.5 sm:px-4"
       style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       {/* Ambient tint: crisp black on mobile (< lg), gentle artwork glow on desktop */}
@@ -362,30 +362,29 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
       )}
 
       <div className="relative">
-        {/* Desktop Search Bar & Greeting Header */}
+        {/* Desktop Search Bar */}
         <div className="hidden lg:block">
           <GlobalSearchBar />
         </div>
 
-        {/* Mobile "Listen Now" Hero Heading */}
-        <h1 className="lg:hidden text-[32px] font-extrabold text-white tracking-tight leading-none px-0.5">
-          Listen Now
-        </h1>
-
-        <div className="hidden lg:flex items-end justify-between gap-4 relative mt-1">
+        {/* Unified responsive H1 + desktop date subtitle & actions */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3 lg:gap-4 relative mt-1">
           <div className="relative">
-            <h1 className="text-4xl font-extrabold text-white tracking-tight">
-              {(() => {
-                const h = new Date().getHours();
-                return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-              })()}
+            <h1 className="text-[32px] lg:text-4xl font-extrabold text-white tracking-tight leading-none lg:leading-tight px-0.5 lg:px-0">
+              <span className="lg:hidden">Listen Now</span>
+              <span className="hidden lg:inline">
+                {(() => {
+                  const h = new Date().getHours();
+                  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+                })()}
+              </span>
             </h1>
-            <p className="text-xs text-[#b3b3b3] mt-1">
+            <p className="hidden lg:block text-xs text-[#b3b3b3] mt-1">
               {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-              {activeChannel ? ` • Picks for ${activeChannel.name}` : ' • YouTube Music home'}
+              {activeChannel ? ` • Picks for ${activeChannel.name}` : ' • Xainy Music'}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden lg:flex items-center gap-2 shrink-0">
             {shelves && shelves.length > 1 && (
               <button
                 type="button"
@@ -408,6 +407,16 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
               Refresh
             </button>
           </div>
+
+          {/* Mobile quick search entry bar */}
+          <button
+            type="button"
+            onClick={() => navigate('/music/search')}
+            className="lg:hidden w-full min-h-[44px] px-3.5 py-2.5 rounded-2xl bg-[#161618] border border-white/[0.08] flex items-center gap-2.5 text-left text-[13.5px] text-[#98989d] hover:text-white active:scale-[0.99] transition-all cursor-pointer"
+          >
+            <Search className="w-4 h-4 text-[#8e8e93] shrink-0" />
+            <span className="truncate">Artists, Songs, Lyrics, and More</span>
+          </button>
         </div>
 
         {/* Shelf customization — show/hide home shelves */}
@@ -529,17 +538,17 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
           </button>
         ))}
       </div>
-      <div className="hidden lg:grid relative grid-cols-4 gap-4">
+      <div className="hidden lg:grid relative grid-cols-5 gap-3.5">
         {QUICK_TILES.map(({ to, label, sub, icon: Icon, bg }) => (
           <button
             key={to}
             type="button"
             onClick={() => navigate(to)}
-            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${bg} p-5 text-left shadow-lg hover:scale-[1.02] active:scale-[0.99] transition-transform cursor-pointer group`}
+            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${bg} p-4 xl:p-5 text-left shadow-lg hover:scale-[1.02] active:scale-[0.99] transition-transform cursor-pointer group`}
           >
-            <Icon className="w-6 h-6 text-white/90 mb-8 group-hover:scale-110 transition-transform" />
-            <p className="text-white font-bold text-base leading-tight">{label}</p>
-            <p className="text-white/70 text-xs mt-0.5">{sub}</p>
+            <Icon className="w-6 h-6 text-white/90 mb-7 group-hover:scale-110 transition-transform" />
+            <p className="text-white font-bold text-sm xl:text-base leading-tight">{label}</p>
+            <p className="text-white/70 text-xs mt-0.5 truncate">{sub}</p>
           </button>
         ))}
       </div>

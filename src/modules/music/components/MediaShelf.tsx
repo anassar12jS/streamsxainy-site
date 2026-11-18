@@ -50,11 +50,14 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
     }
   };
 
+  const hasHeader = Boolean(title || subtitle || onPlayAll);
+
   return (
     <div 
-      className="space-y-3.5 group/shelf"
+      className={`${hasHeader ? 'space-y-3.5' : ''} group/shelf`}
     >
       {/* Shelf Header */}
+      {hasHeader && (
       <div className="flex items-end justify-between px-1">
         <div>
           {subtitle && (
@@ -98,6 +101,7 @@ export const MediaShelf: React.FC<MediaShelfProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* Scroller Container */}
       <div 

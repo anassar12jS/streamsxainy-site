@@ -114,8 +114,8 @@ export const Person: React.FC<PersonProps> = ({ onSelect }) => {
 
       <h2 className="text-2xl font-bold text-[var(--text-main)] mb-6 border-b border-[var(--border-color)] pb-2">Known For</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-         {credits.map(item => (
-             <MediaCard key={item.id} item={item} onClick={onSelect} />
+         {credits.map((item, idx) => (
+             <MediaCard key={`${item.media_type || 'media'}-${item.id}-${idx}`} item={item} onClick={onSelect} />
          ))}
       </div>
     </div>

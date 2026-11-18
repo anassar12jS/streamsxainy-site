@@ -201,8 +201,17 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
   // Effective playback time
   const effectiveTime = steeredTime > 0 ? steeredTime : currentTime;
 
-  // Auto-scroll active lyric into center smoothly without jitter (desktop & mobile)
+  // Active line calculation
+  const activeLineIdx = activeLyrics?.synced && activeLyrics.synced.length > 0
+    ? activeLyrics.synced.findIndex((line, i) => {
+        const nextTime = activeLyrics.synced![i + 1]?.time ?? Infinity;
+        return effectiveTime >= line.time && effectiveTime < nextTime;
+      })
+    : -1;
+
+  // Auto-scroll active lyric into center only when the active line actually changes
   useEffect(() => {
+    if (activeLineIdx < 0) return;
     if (immersiveTab === 'lyrics' && activeLineRef.current && lyricsContainerRef.current) {
       activeLineRef.current.scrollIntoView({
         behavior: 'smooth',
@@ -215,7 +224,7 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
         block: 'center',
       });
     }
-  }, [Math.floor(effectiveTime), immersiveTab, mobileView]);
+  }, [activeLineIdx, immersiveTab, mobileView]);
 
   const handleClose = () => {
     setShowLyrics(false);
@@ -311,14 +320,6 @@ export const ImmersivePlayerOverlay: React.FC<ImmersivePlayerOverlayProps> = ({
   const effectiveDuration = duration > 0 ? duration : (currentTrack.duration || 0);
   const remainingTime = Math.max(0, effectiveDuration - currentTime);
   const progressPercent = effectiveDuration > 0 ? Math.min(100, Math.max(0, (currentTime / effectiveDuration) * 100)) : 0;
-
-  // Active line calculation
-  const activeLineIdx = activeLyrics?.synced && activeLyrics.synced.length > 0
-    ? activeLyrics.synced.findIndex((line, i) => {
-        const nextTime = activeLyrics.synced![i + 1]?.time ?? Infinity;
-        return effectiveTime >= line.time && effectiveTime < nextTime;
-      })
-    : -1;
 
   const currentLyricPreview = (() => {
     if (activeLineIdx >= 0 && activeLyrics?.synced?.[activeLineIdx]?.text) {

@@ -185,7 +185,7 @@ export const VidyPlayer: React.FC = () => {
   const isAnimeDetected = useMemo(() => {
     if (anilistIdParam || aniListConverted) return true;
     if (!details) return false;
-    const isAnimation = details.genres?.some(g => g.id === 16 || g.name?.toLowerCase() === 'animation');
+    const isAnimation = Array.isArray(details.genres) && details.genres.some(g => g.id === 16 || g.name?.toLowerCase() === 'animation');
     const isJapanese = details.original_language === 'ja' || (details as any).origin_country?.includes('JP');
     return Boolean(isAnimation && isJapanese);
   }, [anilistIdParam, aniListConverted, details]);

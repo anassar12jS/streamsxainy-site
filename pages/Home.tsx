@@ -739,7 +739,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                   alt={item.title || item.name} 
                   loading={idx === 0 ? 'eager' : 'lazy'}
                   decoding="async"
-                  {...(idx === 0 ? ({ fetchPriority: 'high' } as any) : {})}
+                  {...(idx === 0 ? ({ fetchpriority: 'high' } as any) : {})}
                   className="w-full h-full object-cover object-center transform scale-100 group-hover/hero:scale-105 transition-transform duration-[12s] ease-out"
                 />
               </div>
