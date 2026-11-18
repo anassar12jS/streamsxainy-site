@@ -68,7 +68,7 @@ export const ArtistRoute: React.FC = () => {
 
   return (
     <div 
-      className="space-y-10 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4"
+      className="space-y-10 animate-fade-in pb-4 max-w-7xl mx-auto px-1 sm:px-4"
       style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       
@@ -240,8 +240,8 @@ export const ArtistRoute: React.FC = () => {
                           e.stopPropagation();
                           toggleLike(track.id);
                         }}
-                        className={`p-1 transition-colors ${
-                          isLiked ? 'text-amber-400' : 'text-white/30 hover:text-white opacity-0 group-hover:opacity-100'
+                        className={`p-1.5 transition-colors cursor-pointer ${
+                          isLiked ? 'text-amber-400' : 'text-white/40 lg:text-white/30 hover:text-white opacity-70 lg:opacity-0 lg:group-hover:opacity-100'
                         }`}
                         title={isLiked ? 'Liked' : 'Like'}
                       >

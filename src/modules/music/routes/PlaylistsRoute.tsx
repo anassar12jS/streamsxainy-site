@@ -252,7 +252,7 @@ export const PlaylistsRoute: React.FC = () => {
   );
 
   return (
-    <div className="space-y-8 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4" style={{ fontFamily: 'var(--bitchord-font)' }}>
+    <div className="space-y-8 animate-fade-in pb-4 max-w-7xl mx-auto px-1 sm:px-4" style={{ fontFamily: 'var(--bitchord-font)' }}>
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">All Playlists</h1>

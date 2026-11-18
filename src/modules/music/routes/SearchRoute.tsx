@@ -21,6 +21,7 @@ const QUICK_TRENDING_TAGS = [
 
 const RECENT_SEARCHES_KEY = 'xainy_recent_searches';
 const MAX_RECENT = 8;
+const searchCache = new Map<string, FullCatalogSearchResult>();
 
 const loadRecentSearches = (): string[] => {
   try {
@@ -107,8 +108,6 @@ export const SearchRoute: React.FC = () => {
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
-
-const searchCache = new Map<string, FullCatalogSearchResult>();
 
   const executeSearch = async (queryText: string) => {
     const q = queryText.trim();
@@ -215,7 +214,7 @@ const searchCache = new Map<string, FullCatalogSearchResult>();
 
   return (
     <div 
-      className="space-y-10 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4"
+      className="space-y-10 animate-fade-in pb-4 max-w-7xl mx-auto px-1 sm:px-4"
       style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       
@@ -250,8 +249,9 @@ const searchCache = new Map<string, FullCatalogSearchResult>();
               <button
                 type="button"
                 onClick={handleClear}
-                className="p-1 rounded-full text-[#b3b3b3] hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0 ml-2"
+                className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-full text-[#b3b3b3] hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0 ml-1"
                 title="Clear"
+                aria-label="Clear search"
               >
                 <X className="w-4 h-4" />
               </button>

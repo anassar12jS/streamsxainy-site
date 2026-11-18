@@ -47,7 +47,7 @@ export const NewRoute: React.FC = () => {
   // No invented "featured" release: show loading / the real error / an honest empty state.
   if (!featured) {
     return (
-      <div className="space-y-6 pb-32 pt-2 px-1 sm:px-4 max-w-7xl mx-auto text-white" style={{ fontFamily: 'var(--bitchord-font)' }}>
+      <div className="space-y-6 pb-4 pt-2 px-1 sm:px-4 max-w-7xl mx-auto text-white" style={{ fontFamily: 'var(--bitchord-font)' }}>
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">New</h1>
         {isLoading ? (
           <div className="space-y-8">
@@ -58,9 +58,9 @@ export const NewRoute: React.FC = () => {
           <div className="rounded-2xl bg-[#141414] border border-white/10 p-6 space-y-2">
             <p className="text-sm font-semibold">Couldn't load new releases</p>
             <p className="text-xs text-[#b3b3b3]">
-              {error ? (error as Error).message : 'YouTube Music returned no new releases.'}
+              {error ? (error as Error).message : 'No new releases returned right now.'}
             </p>
-            <button type="button" onClick={() => refetch()} disabled={isFetching} className="text-xs font-semibold underline underline-offset-4 cursor-pointer">
+            <button type="button" onClick={() => refetch()} disabled={isFetching} className="inline-flex items-center min-h-[44px] lg:min-h-0 text-xs font-semibold underline underline-offset-4 cursor-pointer">
               Try again
             </button>
           </div>
@@ -71,7 +71,7 @@ export const NewRoute: React.FC = () => {
 
   return (
     <div 
-      className="space-y-10 animate-fade-in pb-32 pt-2 px-1 sm:px-4 max-w-7xl mx-auto text-white"
+      className="space-y-10 animate-fade-in pb-4 pt-2 px-1 sm:px-4 max-w-7xl mx-auto text-white"
       style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       {/* 1. Header */}
@@ -81,7 +81,7 @@ export const NewRoute: React.FC = () => {
             New
           </h1>
           <p className="text-sm text-[#b3b3b3] mt-1 font-normal">
-            Latest releases, trending singles, and music videos directly from YouTube Music.
+            Latest releases, trending singles, and music videos.
           </p>
         </div>
       </div>
@@ -117,7 +117,7 @@ export const NewRoute: React.FC = () => {
               {featured.artist} • {featured.genre || 'New Release'} {featured.year ? ` (${featured.year})` : ''}
             </p>
             <p className="text-xs text-[#a3a3a3] leading-relaxed pt-1">
-              Fresh from YouTube Music's new releases.
+              Featured from this week's new releases.
             </p>
 
             <div className="pt-2">
@@ -143,7 +143,7 @@ export const NewRoute: React.FC = () => {
               <span>New Releases & Albums</span>
             </h3>
             <p className="text-xs text-[#a3a3a3] mt-0.5">
-              Fresh albums and EPs on YouTube Music
+              Fresh albums and EPs
             </p>
           </div>
 

@@ -15,12 +15,14 @@ const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | un
 
 export const isAppCacheConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
-let client: SupabaseClient | null = null;
-if (isAppCacheConfigured) {
-  client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
+export const supabase: SupabaseClient | null = isAppCacheConfigured
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      realtime: { params: { eventsPerSecond: 10 } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
+  : null;
+
+const client = supabase;
 
 /** Read a cached JSON value. Returns null on miss, expiry, or any error. */
 export async function cacheGet<T = unknown>(key: string): Promise<T | null> {

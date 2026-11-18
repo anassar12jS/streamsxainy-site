@@ -68,6 +68,66 @@ const readStoredJSON = <T>(key: string, fallback: T): T => {
   }
 };
 
+// Evict disposable cache entries if localStorage hits browser quota (~5MB)
+const EVICTABLE_PREFIXES = [
+  'streams_',
+  'episode_streams_',
+  'football_standings_',
+  'streamhub_sports_team_logo_',
+  'ytm_',
+  'xainy_stream_',
+  'xainy_duration_',
+];
+
+const evictDisposableCaches = (): number => {
+  let removed = 0;
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && EVICTABLE_PREFIXES.some((p) => k.startsWith(p))) {
+        keysToRemove.push(k);
+      }
+    }
+    for (const k of keysToRemove) {
+      localStorage.removeItem(k);
+      removed++;
+    }
+  } catch {}
+  return removed;
+};
+
+// One-time cleanup of legacy bloated addon stream caches left in localStorage
+(() => {
+  if (typeof window === 'undefined') return;
+  try {
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('streams_') || k.startsWith('episode_streams_'))) {
+        toRemove.push(k);
+      }
+    }
+    for (const k of toRemove) localStorage.removeItem(k);
+  } catch {}
+})();
+
+const safeSetItem = (key: string, value: string): boolean => {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch {
+    // QuotaExceededError or private browsing: evict disposable caches and retry once
+    if (evictDisposableCaches() > 0) {
+      try {
+        localStorage.setItem(key, value);
+        return true;
+      } catch {}
+    }
+    return false;
+  }
+};
+
 // --- Watchlist ---
 export const getWatchlist = (): TMDBResult[] => readStoredJSON<TMDBResult[]>(WATCHLIST_KEY, []);
 
@@ -75,7 +135,7 @@ export const addToWatchlist = (item: TMDBResult) => {
   const list = getWatchlist();
   if (!list.find(i => i.id === item.id)) {
     const updated = [item, ...list];
-    localStorage.setItem(WATCHLIST_KEY, JSON.stringify(updated));
+    safeSetItem(WATCHLIST_KEY, JSON.stringify(updated));
     emitStorageChange(WATCHLIST_KEY);
   }
 };
@@ -83,7 +143,7 @@ export const addToWatchlist = (item: TMDBResult) => {
 export const removeFromWatchlist = (id: number) => {
   const list = getWatchlist();
   const updated = list.filter(i => i.id !== id);
-  localStorage.setItem(WATCHLIST_KEY, JSON.stringify(updated));
+  safeSetItem(WATCHLIST_KEY, JSON.stringify(updated));
   emitStorageChange(WATCHLIST_KEY);
 };
 
@@ -98,8 +158,24 @@ export const getHistory = (): TMDBResult[] => readStoredJSON<TMDBResult[]>(HISTO
 export const addToHistory = (item: TMDBResult) => {
   const list = getHistory();
   const filtered = list.filter(i => i.id !== item.id);
-  const updated = [item, ...filtered].slice(0, 20);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+  const compactItem: TMDBResult = {
+    id: item.id,
+    title: item.title,
+    name: item.name,
+    poster_path: item.poster_path,
+    backdrop_path: item.backdrop_path,
+    overview: typeof item.overview === 'string' ? item.overview.slice(0, 240) : '',
+    release_date: item.release_date,
+    first_air_date: item.first_air_date,
+    vote_average: item.vote_average,
+    media_type: item.media_type,
+    genre_ids: Array.isArray(item.genre_ids) ? item.genre_ids : undefined,
+  };
+  const updated = [compactItem, ...filtered].slice(0, 20);
+  if (!safeSetItem(HISTORY_KEY, JSON.stringify(updated))) {
+    // Still keep the latest 8 items if browser storage is tight
+    safeSetItem(HISTORY_KEY, JSON.stringify(updated.slice(0, 8)));
+  }
   emitStorageChange(HISTORY_KEY);
 };
 
@@ -144,14 +220,14 @@ export const saveProgress = (item: {
   };
   const filtered = list.filter(i => i.id !== item.id);
   const updated = [newItem, ...filtered].slice(0, 25);
-  localStorage.setItem(PROGRESS_KEY, JSON.stringify(updated));
+  safeSetItem(PROGRESS_KEY, JSON.stringify(updated));
   emitStorageChange(PROGRESS_KEY);
 };
 
 export const removeFromProgress = (id: number) => {
   const list = getProgress();
   const updated = list.filter(i => i.id !== id);
-  localStorage.setItem(PROGRESS_KEY, JSON.stringify(updated));
+  safeSetItem(PROGRESS_KEY, JSON.stringify(updated));
   emitStorageChange(PROGRESS_KEY);
 };
 
@@ -172,7 +248,7 @@ export const toggleFavoriteChannel = (channel: IPTVChannel) => {
     } else {
         updated = [channel, ...list];
     }
-    localStorage.setItem(TV_FAVORITES_KEY, JSON.stringify(updated));
+    safeSetItem(TV_FAVORITES_KEY, JSON.stringify(updated));
     return !exists; // Returns true if added, false if removed
 };
 
@@ -188,7 +264,7 @@ export const addRecentChannel = (channel: IPTVChannel) => {
     const list = getRecentChannels();
     const filtered = list.filter(c => c.url !== channel.url);
     const updated = [channel, ...filtered].slice(0, 10);
-    localStorage.setItem(TV_RECENT_KEY, JSON.stringify(updated));
+    safeSetItem(TV_RECENT_KEY, JSON.stringify(updated));
 };
 
 // --- Sports Favorites ---
@@ -198,14 +274,14 @@ export const addFavoriteSportsMatch = (id: string) => {
     const list = getFavoriteSportsMatches();
     if (!list.includes(id)) {
         const updated = [id, ...list];
-        localStorage.setItem(SPORTS_FAVORITES_KEY, JSON.stringify(updated));
+        safeSetItem(SPORTS_FAVORITES_KEY, JSON.stringify(updated));
     }
 };
 
 export const removeFavoriteSportsMatch = (id: string) => {
     const list = getFavoriteSportsMatches();
     const updated = list.filter(i => i !== id);
-    localStorage.setItem(SPORTS_FAVORITES_KEY, JSON.stringify(updated));
+    safeSetItem(SPORTS_FAVORITES_KEY, JSON.stringify(updated));
 };
 
 export const isFavoriteSportsMatch = (id: string): boolean => {
@@ -222,14 +298,14 @@ export const addMatchReminder = (id: string) => {
     const list = getMatchReminders();
     if (!list.includes(id)) {
         const updated = [id, ...list];
-        localStorage.setItem(SPORTS_REMINDERS_KEY, JSON.stringify(updated));
+        safeSetItem(SPORTS_REMINDERS_KEY, JSON.stringify(updated));
     }
 };
 
 export const removeMatchReminder = (id: string) => {
     const list = getMatchReminders();
     const updated = list.filter(i => i !== id);
-    localStorage.setItem(SPORTS_REMINDERS_KEY, JSON.stringify(updated));
+    safeSetItem(SPORTS_REMINDERS_KEY, JSON.stringify(updated));
 };
 
 export const isMatchReminder = (id: string): boolean => {

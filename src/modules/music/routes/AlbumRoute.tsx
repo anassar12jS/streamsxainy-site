@@ -65,7 +65,7 @@ export const AlbumRoute: React.FC = () => {
 
   return (
     <div 
-      className="space-y-8 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4"
+      className="space-y-8 animate-fade-in pb-4 max-w-7xl mx-auto px-1 sm:px-4"
       style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       
@@ -116,7 +116,7 @@ export const AlbumRoute: React.FC = () => {
                 speed={0.15}
                 className="opacity-25 blur-3xl"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0f0f0f] via-[#0f0f0f]/70 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black lg:from-[#0f0f0f] via-black/70 lg:via-[#0f0f0f]/70 to-transparent" />
             </div>
 
             {/* Aspect Square, Rounded 8px Album Cover */}
@@ -194,11 +194,13 @@ export const AlbumRoute: React.FC = () => {
           {/* 2. TRACKLIST TABLE                                                        */}
           {/* ========================================================================= */}
           <div className="space-y-0.5">
-            <div className="grid grid-cols-12 px-3 sm:px-4 py-2 text-[12px] font-semibold text-[#98989d] border-b border-white/[0.08] mb-1 select-none">
-              <div className="col-span-12 sm:col-span-6 md:col-span-5 text-left">Song</div>
-              <div className="hidden sm:block sm:col-span-3 md:col-span-3 text-left">Artist</div>
-              <div className="hidden md:block md:col-span-3 text-left">Album</div>
-              <div className="hidden sm:block sm:col-span-3 md:col-span-1 text-right">Time</div>
+            <div className="flex items-center justify-between px-3 py-2 text-[12px] font-semibold text-[#98989d] border-b border-white/[0.08] mb-1 select-none">
+              <span># Song</span>
+              <div className="flex items-center gap-6 shrink-0">
+                <span className="hidden md:inline min-w-[120px] text-right">Artist</span>
+                <span className="w-6" aria-hidden="true" />
+                <span className="w-10 text-right">Time</span>
+              </div>
             </div>
 
             {album.tracks.map((track, idx) => {
@@ -271,8 +273,8 @@ export const AlbumRoute: React.FC = () => {
                         e.stopPropagation();
                         toggleLike(track.id);
                       }}
-                      className={`p-1 transition-colors ${
-                        isLiked ? 'text-amber-400' : 'text-white/30 hover:text-white opacity-0 group-hover:opacity-100'
+                      className={`p-1.5 transition-colors cursor-pointer ${
+                        isLiked ? 'text-amber-400' : 'text-white/40 lg:text-white/30 hover:text-white opacity-70 lg:opacity-0 lg:group-hover:opacity-100'
                       }`}
                       title={isLiked ? 'Liked' : 'Like'}
                     >

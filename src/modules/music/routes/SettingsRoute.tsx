@@ -249,7 +249,7 @@ export const SettingsRoute: React.FC = () => {
 
   return (
     <div
-      className="max-w-3xl mx-auto py-8 px-4 space-y-8 animate-fade-in pb-32"
+      className="max-w-3xl mx-auto py-8 px-4 space-y-8 animate-fade-in pb-4"
       style={{ fontFamily: 'var(--bitchord-font)' }}
     >
 
@@ -337,10 +337,14 @@ export const SettingsRoute: React.FC = () => {
         {/* YouTube Music */}
         <Row
           right={
-            <>
-              <span className="text-xs text-[#a3a3a3] hidden sm:inline">Engine Ready</span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            </>
+            activeAccount ? (
+              <>
+                <span className="text-xs text-emerald-400 hidden sm:inline">Synced</span>
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              </>
+            ) : (
+              <span className="text-xs text-[#a3a3a3] hidden sm:inline">Public Catalog</span>
+            )
           }
         >
           <div className="flex items-center gap-4 min-w-0">
@@ -350,12 +354,18 @@ export const SettingsRoute: React.FC = () => {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-sm text-white">YouTube Music</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Active
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                  activeAccount
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                    : 'bg-white/10 text-[#b3b3b3] border-white/10'
+                }`}>
+                  {activeAccount ? 'Signed In' : 'Guest Mode'}
                 </span>
               </div>
               <p className="text-xs text-[#a3a3a3] truncate mt-0.5">
-                Connected as: <span className="text-white font-medium">{activeAccount?.name || 'not signed in'}</span>
+                {activeAccount
+                  ? <>Connected as: <span className="text-white font-medium">{activeAccount.name}</span></>
+                  : 'Public catalog & playback active — desktop extension enables account sync'}
               </p>
             </div>
           </div>

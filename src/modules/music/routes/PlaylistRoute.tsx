@@ -196,7 +196,7 @@ export const PlaylistRoute: React.FC = () => {
 
   return (
     <div 
-      className="space-y-8 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4"
+      className="space-y-8 animate-fade-in pb-4 max-w-7xl mx-auto px-1 sm:px-4"
       style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       {/* Back button */}

@@ -1,5 +1,6 @@
-import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { PartyMember, PartyState, MusicTrack } from '../types';
+import { supabase, isAppCacheConfigured } from '../../../lib/appCache';
 
 /**
  * Listen Together — real-time synced listening over Supabase Realtime.
@@ -15,18 +16,7 @@ import { PartyMember, PartyState, MusicTrack } from '../types';
  * safe to ship — Realtime channels here are not backed by RLS tables).
  */
 
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || '';
-const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || '';
-
-export const isPartyBackendConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
-
-let supabase: SupabaseClient | null = null;
-if (isPartyBackendConfigured) {
-  supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    realtime: { params: { eventsPerSecond: 10 } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
+export const isPartyBackendConfigured = isAppCacheConfigured;
 
 export type PartyEventType =
   | 'welcome'

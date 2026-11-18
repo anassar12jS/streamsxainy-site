@@ -3,6 +3,56 @@ import { MediaType, StreamResponse, StreamProvider } from '../types';
 import { getStreamProviders } from './storage';
 
 const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes in milliseconds
+const MAX_MEM_CACHE = 40;
+const streamMemoryCache = new Map<string, { timestamp: number; data: StreamResponse }>();
+
+const readStreamCache = (cacheKey: string): StreamResponse | null => {
+  const mem = streamMemoryCache.get(cacheKey);
+  if (mem) {
+    if (Date.now() - mem.timestamp < CACHE_DURATION) return mem.data;
+    streamMemoryCache.delete(cacheKey);
+  }
+  try {
+    localStorage.removeItem(cacheKey); // clean up legacy bloated entries
+  } catch {}
+  try {
+    const raw = sessionStorage.getItem(cacheKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.timestamp === 'number' && Date.now() - parsed.timestamp < CACHE_DURATION && parsed.data) {
+      streamMemoryCache.set(cacheKey, parsed);
+      return parsed.data as StreamResponse;
+    }
+    sessionStorage.removeItem(cacheKey);
+  } catch {}
+  return null;
+};
+
+const writeStreamCache = (cacheKey: string, data: StreamResponse) => {
+  const entry = { timestamp: Date.now(), data };
+  if (streamMemoryCache.size >= MAX_MEM_CACHE) {
+    const oldestKey = streamMemoryCache.keys().next().value;
+    if (oldestKey) streamMemoryCache.delete(oldestKey);
+  }
+  streamMemoryCache.set(cacheKey, entry);
+  try {
+    // Cap persisted stream entries to avoid filling sessionStorage on heavy browsing
+    const trimmed: StreamResponse = { streams: data.streams.slice(0, 60) };
+    sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: entry.timestamp, data: trimmed }));
+  } catch {
+    // Evict older stream caches in sessionStorage and retry once cleanly
+    try {
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const k = sessionStorage.key(i);
+        if (k && (k.startsWith('streams_') || k.startsWith('episode_streams_'))) {
+          sessionStorage.removeItem(k);
+        }
+      }
+      const trimmed: StreamResponse = { streams: data.streams.slice(0, 40) };
+      sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: entry.timestamp, data: trimmed }));
+    } catch {}
+  }
+};
 
 const fetchFromProvider = async (provider: StreamProvider, type: string, id: string, timeoutMs = 8000): Promise<StreamResponse> => {
     try {
@@ -30,7 +80,6 @@ const fetchFromProvider = async (provider: StreamProvider, type: string, id: str
         
         return { streams };
     } catch (e) {
-        // console.error(`Failed to fetch from ${provider.name}`, e);
         return { streams: [] };
     }
 };
@@ -44,42 +93,32 @@ export const getStreams = async (type: MediaType, id: string, options?: { timeou
     return { streams: [] };
   }
 
-  // Check cache first
-  const cachedData = localStorage.getItem(cacheKey);
-  if (cachedData) {
-    const { timestamp, data } = JSON.parse(cachedData);
-    if (Date.now() - timestamp < CACHE_DURATION) {
-      console.log("Returning cached streams for", id);
-      return data;
-    }
-  }
+  const cached = readStreamCache(cacheKey);
+  if (cached) return cached;
 
   const providers = getStreamProviders();
   if (providers.length === 0) return { streams: [] };
 
   try {
-      // Fetch from all providers in parallel
       const results = await Promise.allSettled(
           providers.map(p => fetchFromProvider(p, stremioType, id, options?.timeoutMs))
       );
 
-      // Combine all successful results
       const allStreams = results
           .filter(r => r.status === 'fulfilled')
           .flatMap(r => (r as PromiseFulfilledResult<StreamResponse>).value.streams);
 
-      // Simple deduplication based on infoHash if available, otherwise keep all
       const uniqueStreams = allStreams.filter((stream, index, self) =>
           index === self.findIndex((s) => (
               s.infoHash && stream.infoHash ? s.infoHash === stream.infoHash : 
-              s.url && stream.url ? s.url === stream.url : false // Fallback to URL check
-          )) || (!stream.infoHash && !stream.url) // Keep if no identifiers (rare)
+              s.url && stream.url ? s.url === stream.url : false
+          )) || (!stream.infoHash && !stream.url)
       );
 
       const response = { streams: uniqueStreams };
       
       if (uniqueStreams.length > 0) {
-          localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data: response }));
+          writeStreamCache(cacheKey, response);
       }
       
       return response;
@@ -94,15 +133,8 @@ export const getEpisodeStreams = async (imdbId: string, season: number, episode:
   const streamId = `${imdbId}:${season}:${episode}`;
   const cacheKey = `episode_streams_${streamId}`;
 
-  // Check cache first
-  const cachedData = localStorage.getItem(cacheKey);
-  if (cachedData) {
-    const { timestamp, data } = JSON.parse(cachedData);
-    if (Date.now() - timestamp < CACHE_DURATION) {
-      console.log("Returning cached episode streams for", streamId);
-      return data;
-    }
-  }
+  const cached = readStreamCache(cacheKey);
+  if (cached) return cached;
   
   const providers = getStreamProviders();
   if (providers.length === 0) return { streams: [] };
@@ -126,7 +158,7 @@ export const getEpisodeStreams = async (imdbId: string, season: number, episode:
     const response = { streams: uniqueStreams };
     
     if (uniqueStreams.length > 0) {
-        localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data: response }));
+        writeStreamCache(cacheKey, response);
     }
     
     return response;

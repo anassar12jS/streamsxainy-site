@@ -37,7 +37,7 @@ export const SpotifyRoute: React.FC = () => {
   const playlists: any[] = playlistsQuery.data || [];
 
   return (
-    <div className="space-y-8 animate-fade-in pb-32 max-w-7xl mx-auto px-1 sm:px-4">
+    <div className="space-y-8 animate-fade-in pb-4 max-w-7xl mx-auto px-1 sm:px-4">
       <Link
         to="/music"
         className="inline-flex items-center gap-1.5 text-xs text-[#b3b3b3] hover:text-white transition-colors pt-1 cursor-pointer"
