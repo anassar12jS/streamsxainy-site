@@ -63,6 +63,8 @@ export interface Playlist {
   tracks: MusicTrack[];
   /** Epoch ms when the playlist was added locally (SoundCloud imports) */
   addedAt?: number;
+  /** Optional user-edited description shown on the playlist page */
+  description?: string;
 }
 
 export interface SyncedLyricWord {

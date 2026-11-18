@@ -46,6 +46,62 @@ const ListenTogetherModal = lazy(() => import('./components/ListenTogetherModal'
 
 const YouTubeAccountModal = lazy(() => import('./components/YouTubeAccountModal').then(m => ({ default: m.YouTubeAccountModal })));
 
+// --- Crossfade / gapless helpers -------------------------------------------
+
+interface QuickStream { url: string; isDash: boolean }
+const quickStreamCache = new Map<string, { p: Promise<QuickStream | null>; at: number }>();
+const QUICK_STREAM_TTL = 10 * 60 * 1000;
+
+/**
+ * Fast stream resolution for the crossfade channel — mirrors the main
+ * loadAndPlay chain (SoundCloud -> InnerTube -> Audius -> audioUrl) but skips
+ * slow paths (hi-res lookup, YouTube iframe, resilient fallback).
+ */
+function resolveQuickStream(track: MusicTrack): Promise<QuickStream | null> {
+  const hit = quickStreamCache.get(track.id);
+  if (hit && Date.now() - hit.at < QUICK_STREAM_TTL) return hit.p;
+  const p = (async (): Promise<QuickStream | null> => {
+    try {
+      if (track.source === 'soundcloud' || track.soundcloudUrl) {
+        const sc = await resolveSoundCloudStream(track);
+        return { url: sc.streamUrl, isDash: sc.isHls };
+      }
+      const r = await resolveStreamUrl(track);
+      if (r?.url && (r.url.startsWith('http') || r.url.startsWith('blob:'))) {
+        return { url: r.url, isDash: !!r.isDash };
+      }
+    } catch {}
+    try {
+      const u = await getAudiusAudioStream(track.title, track.artist);
+      if (u) return { url: u, isDash: false };
+    } catch {}
+    if (track.audioUrl && (track.audioUrl.startsWith('http') || track.audioUrl.startsWith('blob:'))) {
+      return { url: track.audioUrl, isDash: false };
+    }
+    return null;
+  })();
+  quickStreamCache.set(track.id, { p, at: Date.now() });
+  if (quickStreamCache.size > 200) {
+    quickStreamCache.delete(quickStreamCache.keys().next().value!);
+  }
+  return p;
+}
+
+/** Prefetches stream URLs for the next two queued tracks (existing behavior). */
+function prefetchUpcomingStreams() {
+  const st = useMusicPlayerStore.getState();
+  for (let i = 1; i <= 2; i++) {
+    const upcoming = st.queue[st.queueIndex + i];
+    if (!upcoming) continue;
+    if (upcoming.source === 'soundcloud' || upcoming.soundcloudUrl) {
+      prefetchSoundCloudStream(upcoming);
+    } else {
+      prefetchStreamUrl(upcoming);
+      if (st.audioQuality === 'lossless' && !upcoming.isLive) prefetchHiresStream(upcoming);
+    }
+  }
+}
+
 const RouteLoadingSkeleton = () => (
   <div className="space-y-6 animate-pulse max-w-7xl mx-auto py-4">
     <div className="h-8 w-44 bg-white/10 rounded-lg" />
@@ -76,6 +132,8 @@ export const MusicModule: React.FC = () => {
   const isMuted = useMusicPlayerStore(state => state.isMuted);
   const playbackRate = useMusicPlayerStore(state => state.playbackRate);
   const trackPlayNonce = useMusicPlayerStore(state => state.trackPlayNonce);
+  const currentTime = useMusicPlayerStore(state => state.currentTime);
+  const duration = useMusicPlayerStore(state => state.duration);
   const showLyrics = useMusicPlayerStore(state => state.showLyrics);
   
   const setTime = useMusicPlayerStore(state => state.setTime);
@@ -250,7 +308,8 @@ export const MusicModule: React.FC = () => {
         // Crossfade: ease into silence over the last ~1.4s so the transition isn't a hard cut
         if (duration && duration > 0) {
           const remaining = duration - currentTime;
-          if (remaining > 0 && remaining <= 1.4) {
+          const xfActive = engine.hasPendingNext() || engine.isCrossfadeLive();
+          if (!xfActive && remaining > 0 && remaining <= 1.4) {
             engine.startFadeOut(Math.min(1400, remaining * 1000));
           } else if (remaining > 1.4 && engine.isFaded()) {
             // Seeked back out of the fade zone (or repeat-one restarted) — restore gain
@@ -278,39 +337,39 @@ export const MusicModule: React.FC = () => {
     const audio = audioRef.current;
 
     const handleTimeUpdate = () => {
-      if (engine.activeMode === 'html5') {
+      if (engine.activeMode === 'html5' && engine.isActiveElement(audio)) {
         setTime(audio.currentTime, !isNaN(audio.duration) ? audio.duration : undefined);
       }
     };
 
     const handleLoadedMetadata = () => {
-      if (engine.activeMode === 'html5' && !isNaN(audio.duration) && audio.duration > 0) {
+      if (engine.activeMode === 'html5' && engine.isActiveElement(audio) && !isNaN(audio.duration) && audio.duration > 0) {
         setTime(audio.currentTime, audio.duration);
       }
     };
 
     const handlePlaying = () => {
-      if (engine.activeMode === 'html5') {
+      if (engine.activeMode === 'html5' && engine.isActiveElement(audio)) {
         setPlaybackStatus('playing');
         engine.startFadeIn(900);
       }
     };
 
     const handlePause = () => {
-      if (engine.activeMode === 'html5') {
+      if (engine.activeMode === 'html5' && engine.isActiveElement(audio)) {
         setPlaybackStatus('paused');
       }
     };
 
     const handleEnded = () => {
-      if (engine.activeMode === 'html5') {
+      if (engine.activeMode === 'html5' && engine.isActiveElement(audio)) {
         replayRecorder.onTrackEnd(true);
         handleTrackEnded();
       }
     };
 
     const handleError = () => {
-      if (engine.activeMode === 'html5') {
+      if (engine.activeMode === 'html5' && engine.isActiveElement(audio)) {
         console.warn('Audio playback error on HTML5 element');
         setPlaybackStatus('error');
       }
@@ -342,6 +401,36 @@ export const MusicModule: React.FC = () => {
     };
   }, []);
 
+  /**
+   * Resolves the next queue track's stream and primes the engine's secondary
+   * channel so the crossfade can start with ~0ms gap. Only runs when shuffle
+   * is off (shuffle picks randomly at advance time) and the queue actually
+   * continues — repeat-one, track-end sleep timer, live tracks and queue-end
+   * radio extension are all excluded.
+   */
+  const armCrossfadeChannel = () => {
+    const engine = engineRef.current;
+    const st = useMusicPlayerStore.getState();
+    if (!engine || !st.crossfade || st.shuffle) return;
+    if (engine.activeMode !== 'html5' || engine.isCrossfadeLive() || engine.hasPendingNext()) return;
+    const cur = st.currentTrack;
+    if (!cur || cur.isLive) return;
+    if (st.repeatMode === 'one' || st.sleepTimerMode === 'trackEnd') return;
+    // Queue ending -> advance() extends with radio picks we can't predict
+    if (st.queueIndex >= st.queue.length - 1 && st.repeatMode !== 'all') return;
+    let idx = st.queueIndex + 1;
+    if (idx >= st.queue.length) idx = 0; // repeat-all wrap
+    const nxt = st.queue[idx];
+    if (!nxt || nxt.id === cur.id || nxt.isLive) return;
+    void resolveQuickStream(nxt).then(res => {
+      const e = engineRef.current;
+      const now = useMusicPlayerStore.getState();
+      if (!res || !e || e.isCrossfadeLive() || e.hasPendingNext()) return;
+      if (now.currentTrack?.id !== cur.id || now.playbackStatus === 'paused') return;
+      e.armNextTrack(nxt.id, res.url, res.isDash);
+    }).catch(() => {});
+  };
+
   // 2. Respond to track changes & stream resolution
   useEffect(() => {
     if (!currentTrack || !engineRef.current) return;
@@ -351,6 +440,26 @@ export const MusicModule: React.FC = () => {
 
     const loadAndPlay = async () => {
       try {
+        // If the crossfade channel already promoted this track, playback is
+        // running — skip the whole resolve/load cycle and just do bookkeeping.
+        const promotedId = engineRef.current?.consumePromotedTrackId();
+        const wasPromoted = !!promotedId && promotedId === currentTrack.id;
+        if (wasPromoted) {
+          replayRecorder.onTrackStart(currentTrack);
+          useMusicPlayerStore.getState().setPlaybackStatus('playing');
+          engineRef.current?.syncMediaSession(currentTrack, togglePlayPause, togglePlayPause, nextTrack, prevTrack);
+          extensionBridge.updateDiscordRpc({
+            title: currentTrack.title,
+            artist: currentTrack.artist,
+            duration: currentTrack.duration,
+            artwork: currentTrack.artwork,
+            album: currentTrack.album || undefined,
+            source: useMusicPlayerStore.getState().activeStreamInfo?.label,
+          });
+          prefetchUpcomingStreams();
+          return;
+        }
+
         setPlaybackStatus('loading');
         useMusicPlayerStore.getState().setActiveStreamInfo(null);
         replayRecorder.onTrackStart(currentTrack);
@@ -373,27 +482,19 @@ export const MusicModule: React.FC = () => {
             artist: currentTrack.artist,
             duration: currentTrack.duration,
             artwork: currentTrack.artwork,
+            album: currentTrack.album || undefined,
+            source: useMusicPlayerStore.getState().activeStreamInfo?.label,
           });
 
           // Proactively prefetch next two tracks for 0ms transitions
-          const st = useMusicPlayerStore.getState();
-          for (let i = 1; i <= 2; i++) {
-            const upcoming = st.queue[st.queueIndex + i];
-            if (upcoming) {
-              if (upcoming.source === 'soundcloud' || upcoming.soundcloudUrl) {
-                prefetchSoundCloudStream(upcoming);
-              } else {
-                prefetchStreamUrl(upcoming);
-                if (st.audioQuality === 'lossless' && !upcoming.isLive) prefetchHiresStream(upcoming);
-              }
-            }
-          }
+          prefetchUpcomingStreams();
+          armCrossfadeChannel();
         };
 
         // 1. Live radio station with direct stream URL
         if (currentTrack.isLive && currentTrack.audioUrl) {
           if (engineRef.current) {
-            await engineRef.current.loadStream(currentTrack.audioUrl);
+            await engineRef.current.loadStream(currentTrack.audioUrl, false, currentTrack.id);
             if (!isCancelled) {
               useMusicPlayerStore.getState().setActiveStreamInfo({ label: 'Live stream', isLossless: false });
               setPlaybackStatus('playing');
@@ -409,7 +510,7 @@ export const MusicModule: React.FC = () => {
           try {
             const sc = await resolveSoundCloudStream(currentTrack);
             if (engineRef.current) {
-              await engineRef.current.loadStream(sc.streamUrl, sc.isHls);
+              await engineRef.current.loadStream(sc.streamUrl, sc.isHls, currentTrack.id);
               if (!isCancelled) {
                 useMusicPlayerStore.getState().setActiveStreamInfo({
                   label: `SoundCloud${sc.isHls ? ' · HLS' : ''}`,
@@ -434,7 +535,7 @@ export const MusicModule: React.FC = () => {
           try {
             const hires = await tryHiresStream(currentTrack.title, currentTrack.artist, currentTrack.duration);
             if (hires?.url && engineRef.current && !isCancelled) {
-              await engineRef.current.loadStream(hires.url, false);
+              await engineRef.current.loadStream(hires.url, false, currentTrack.id);
               if (!isCancelled) {
                 const m = hires.meta;
                 const isFlac = m.codec === 'flac' || m.container === 'flac';
@@ -468,7 +569,7 @@ export const MusicModule: React.FC = () => {
         } catch {}
 
         if (streamUrl && engineRef.current) {
-          await engineRef.current.loadStream(streamUrl, isDash);
+          await engineRef.current.loadStream(streamUrl, isDash, currentTrack.id);
           if (!isCancelled) {
             useMusicPlayerStore.getState().setActiveStreamInfo({ label: 'YouTube', isLossless: false });
             setPlaybackStatus('playing');
@@ -523,7 +624,7 @@ export const MusicModule: React.FC = () => {
           try {
             const audiusStream = await getAudiusAudioStream(currentTrack.title, currentTrack.artist);
             if (audiusStream && engineRef.current) {
-              await engineRef.current.loadStream(audiusStream);
+              await engineRef.current.loadStream(audiusStream, false, currentTrack.id);
               if (!isCancelled) {
                 useMusicPlayerStore.getState().setActiveStreamInfo({ label: 'Audius', isLossless: false });
                 setPlaybackStatus('playing');
@@ -546,7 +647,7 @@ export const MusicModule: React.FC = () => {
         }
 
         if (fallbackStream && engineRef.current) {
-          await engineRef.current.loadStream(fallbackStream);
+          await engineRef.current.loadStream(fallbackStream, false, currentTrack.id);
           if (!isCancelled) {
             useMusicPlayerStore.getState().setActiveStreamInfo({ label: 'Fallback stream', isLossless: false });
             setPlaybackStatus('playing');
@@ -576,6 +677,20 @@ export const MusicModule: React.FC = () => {
       isCancelled = true;
     };
   }, [currentTrack?.id, trackPlayNonce]);
+
+  // 2b. Crossfade trigger — start the overlap ~2.8s before the track ends
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || playbackStatus !== 'playing') return;
+    if (!useMusicPlayerStore.getState().crossfade) return;
+    if (engine.activeMode !== 'html5') return;
+    if (!engine.hasPendingNext() || engine.isCrossfadeLive()) return;
+    if (!duration || !isFinite(duration) || duration <= 0) return;
+    const remaining = duration - currentTime;
+    if (remaining <= 2.8 && remaining > 0.2) {
+      engine.startCrossfade(2400);
+    }
+  }, [currentTime, duration, playbackStatus]);
 
   // 3. Play / Pause state sync
   useEffect(() => {

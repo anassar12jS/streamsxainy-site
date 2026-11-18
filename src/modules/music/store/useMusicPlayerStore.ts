@@ -17,6 +17,7 @@ const STORAGE_SESSION = 'bitchord_music_session_v1';
 const STORAGE_AUTOPLAY = 'bitchord_music_autoplay_radio';
 const STORAGE_QUALITY = 'bitchord_music_quality';
 const STORAGE_RATE = 'bitchord_music_playback_rate';
+const STORAGE_CROSSFADE = 'bitchord_music_crossfade';
 const STORAGE_DISCORD_RPC = 'xainy_music_discord_rpc';
 
 interface StoredSession { currentTrack: MusicTrack | null; queue: MusicTrack[]; queueIndex: number; }
@@ -86,6 +87,14 @@ const loadStoredRate = (): number => {
     return Number.isFinite(v) && v > 0 ? Math.min(2, Math.max(0.25, v)) : 1;
   } catch {
     return 1;
+  }
+};
+
+const loadStoredCrossfade = (): boolean => {
+  try {
+    return localStorage.getItem(STORAGE_CROSSFADE) !== '0';
+  } catch {
+    return true;
   }
 };
 
@@ -166,6 +175,8 @@ export interface MusicPlayerState {
   sleepTimerMode: 'off' | 'time' | 'trackEnd';
   sleepTimerEndsAt: number | null;
   sleepTimerMinutes: number | null;
+  /** Crossfade between queued tracks (~2.4s overlap) */
+  crossfade: boolean;
 
   // Actions
   setActiveAccount: (account: any) => void;
@@ -194,6 +205,7 @@ export interface MusicPlayerState {
   appendToQueue: (tracks: MusicTrack[]) => number;
   setAutoplayRadio: (on: boolean) => void;
   setSleepTimer: (mode: 'off' | 'time' | 'trackEnd', minutes?: number) => void;
+  setCrossfade: (on: boolean) => void;
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
   setPlaybackStatus: (status: PlaybackStatus) => void;
@@ -235,6 +247,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   sleepTimerMode: 'off',
   sleepTimerEndsAt: null,
   sleepTimerMinutes: null,
+  crossfade: loadStoredCrossfade(),
 
   setActiveAccount: (account: any) => {
     try {
@@ -471,6 +484,11 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   setAutoplayRadio: (on) => {
     try { localStorage.setItem(STORAGE_AUTOPLAY, on ? '1' : '0'); } catch {}
     set({ autoplayRadio: on });
+  },
+
+  setCrossfade: (on) => {
+    try { localStorage.setItem(STORAGE_CROSSFADE, on ? '1' : '0'); } catch {}
+    set({ crossfade: on });
   },
 
   setSleepTimer: (mode, minutes) => {

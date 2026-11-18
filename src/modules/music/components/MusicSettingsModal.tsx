@@ -30,6 +30,8 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
   const [jioUrl, setJioUrl] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('bitchord_jiosaavn_url') || '' : ''));
 
   const extensionConnected = useMusicPlayerStore(state => state.extensionConnected);
+  const crossfade = useMusicPlayerStore(state => state.crossfade);
+  const setCrossfade = useMusicPlayerStore(state => state.setCrossfade);
 
   if (!isOpen) return null;
 
@@ -143,6 +145,27 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                       type="checkbox" 
                       checked={lossless} 
                       onChange={e => setLossless(e.target.checked)}
+                      className="accent-white w-4 h-4 cursor-pointer"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Crossfade */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                  Playback
+                </label>
+                <div className="p-4 rounded-2xl bg-[#141416] border border-white/10">
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <div>
+                      <p className="text-xs font-bold text-white">Crossfade between songs</p>
+                      <p className="text-[11px] text-white/50">Smooth ~2.4s overlap into the next track (off while shuffling)</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={crossfade}
+                      onChange={e => setCrossfade(e.target.checked)}
                       className="accent-white w-4 h-4 cursor-pointer"
                     />
                   </label>

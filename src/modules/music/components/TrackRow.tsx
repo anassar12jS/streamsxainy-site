@@ -299,15 +299,24 @@ export const TrackRow: React.FC<TrackRowProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  const url = `${window.location.origin}/music/search?q=${encodeURIComponent(`${track.artist} ${track.title}`)}`;
-                  navigator.clipboard?.writeText(url).catch(() => {});
+                onClick={async () => {
                   setShowMenu(false);
+                  // Prefer the canonical source URL so recipients land on the real track
+                  const url = track.soundcloudUrl
+                    || (track.youtubeId ? `https://music.youtube.com/watch?v=${track.youtubeId}` : null)
+                    || `${window.location.origin}/music/search?q=${encodeURIComponent(`${track.artist} ${track.title}`)}`;
+                  const payload = { title: `${track.artist} - ${track.title}`, text: `Listen to ${track.title} by ${track.artist}`, url };
+                  try {
+                    if (navigator.share) { await navigator.share(payload); return; }
+                  } catch (err: any) {
+                    if (err?.name === 'AbortError') return;
+                  }
+                  try { await navigator.clipboard.writeText(url); } catch {}
                 }}
                 className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/10 flex items-center gap-2 text-white/80 hover:text-white cursor-pointer"
               >
                 <Link2 className="w-3.5 h-3.5" />
-                <span>Copy Link</span>
+                <span>Share</span>
               </button>
               {track.artistId && (
                 <Link

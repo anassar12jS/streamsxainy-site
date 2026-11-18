@@ -363,6 +363,28 @@ export function deleteSoundCloudPlaylist(playlistId: string): void {
   savePlaylists(getImportedSoundCloudPlaylists().filter(p => p.id !== playlistId));
 }
 
+/** Update fields on an imported SoundCloud playlist (rename, description, artwork, track order). */
+export function updateSoundCloudPlaylist(
+  playlistId: string,
+  patch: Partial<Pick<Playlist, 'title' | 'description' | 'artwork' | 'tracks'>>
+): boolean {
+  const playlists = getImportedSoundCloudPlaylists();
+  const pl = playlists.find(p => p.id === playlistId);
+  if (!pl) return false;
+  if (patch.title !== undefined) pl.title = patch.title;
+  if (patch.description !== undefined) pl.description = patch.description;
+  if (patch.artwork !== undefined) pl.artwork = patch.artwork;
+  if (patch.tracks !== undefined) {
+    pl.tracks = patch.tracks.map(t => ({ ...t, soundcloudPlaylistId: playlistId }));
+    pl.trackCount = pl.tracks.length;
+  }
+  if (patch.title !== undefined || patch.tracks !== undefined) {
+    pl.subtitle = `${pl.trackCount} Songs · SoundCloud`;
+  }
+  savePlaylists(playlists.map(p => p.id === playlistId ? pl : p));
+  return true;
+}
+
 /** Remove a track from an imported SoundCloud playlist. */
 export function removeTrackFromSoundCloudPlaylist(playlistId: string, trackId: string): void {
   const playlists = getImportedSoundCloudPlaylists();

@@ -63,11 +63,16 @@ export class MusicAudioEngine {
   public audioContext: AudioContext | null = null;
   private sourceNode: MediaElementAudioSourceNode | null = null;
   private isShakaSupported: boolean = false;
-  public steeredClock: SteeredClock;
 
   // Dual-mode: HTML5 progressive/DASH or YouTube Full-Song Audio Player
   public activeMode: 'html5' | 'youtube' = 'html5';
   private ytPlayer: any = null;
+
+  /** Clock of whichever channel is currently driving playback */
+  public get steeredClock(): SteeredClock {
+    if (this.activeSlot === 'b' && this.nextClock) return this.nextClock;
+    return this._steeredClockA;
+  }
   private isYtReady: boolean = false;
   /** Resolves true once the hidden YouTube player is ready (false if it never became ready) */
   private ytReadyPromise: Promise<boolean>;
@@ -84,14 +89,31 @@ export class MusicAudioEngine {
   private fadeRaf: number | null = null;
   private fadingDirection: 'in' | 'out' | null = null;
 
+  // --- Crossfade / gapless second channel ---
+  // Slot 'a' is the original audioElement; slot 'b' is a lazily-created second
+  // element used to pre-roll the next track. Exactly one slot is 'active' (the
+  // one the store considers current); the other may hold a primed next track.
+  private _steeredClockA!: SteeredClock;
+  private activeSlot: 'a' | 'b' = 'a';
+  private nextAudio: HTMLAudioElement | null = null;
+  private nextShaka: any = null;
+  private nextClock: SteeredClock | null = null;
+  private slotMix: Record<'a' | 'b', number> = { a: 1, b: 1 };
+  private slotTrackId: Record<'a' | 'b', string | null> = { a: null, b: null };
+  private pendingNext: { trackId: string; url: string; isDash: boolean } | null = null;
+  private crossfadeLive = false;
+  private promotedTrackId: string | null = null;
+  private mixRaf: number | null = null;
+
   constructor(audioElement: HTMLAudioElement, callbacks?: AudioEngineCallbacks) {
     this.audioElement = audioElement;
     this.audioElement.crossOrigin = 'anonymous';
     this.callbacks = callbacks || null;
-    this.steeredClock = new SteeredClock(this.audioElement);
+    this._steeredClockA = new SteeredClock(this.audioElement);
     this.ytReadyPromise = new Promise<boolean>(resolve => { this.resolveYtReady = resolve; });
 
     this.initAudioContext();
+    this.attachPrimaryEndedListener();
     this.initShaka();
     this.setupMediaSessionHandlers();
     this.initYouTubePlayer();
@@ -117,6 +139,191 @@ export class MusicAudioEngine {
       console.warn('Web Audio Context initialization deferred or already attached:', err);
     }
   }
+
+
+  // ---------- Crossfade / gapless second channel ----------
+
+  private slotEl(slot: 'a' | 'b'): HTMLAudioElement {
+    return slot === 'a' ? this.audioElement : (this.nextAudio as HTMLAudioElement);
+  }
+
+  private get activeEl(): HTMLAudioElement {
+    return this.activeSlot === 'b' && this.nextAudio ? this.nextAudio : this.audioElement;
+  }
+
+  private otherSlot(slot: 'a' | 'b'): 'a' | 'b' {
+    return slot === 'a' ? 'b' : 'a';
+  }
+
+  /** True when the given element is the channel currently driving playback */
+  public isActiveElement(el: HTMLAudioElement | null): boolean {
+    if (!el) return false;
+    return el === this.activeEl;
+  }
+
+  private ensureNextChannel(): HTMLAudioElement {
+    if (this.nextAudio) return this.nextAudio;
+    const el = document.createElement('audio');
+    el.crossOrigin = 'anonymous';
+    el.preload = 'auto';
+    // Events on the secondary channel only surface while it is ACTIVE —
+    // the primary element's events are handled by the host component.
+    const onTime = () => {
+      if (this.activeSlot === 'b') {
+        this.callbacks?.onTimeUpdate?.(el.currentTime, el.duration || 0);
+      }
+    };
+    el.addEventListener('timeupdate', onTime);
+    el.addEventListener('loadedmetadata', onTime);
+    el.addEventListener('playing', () => {
+      if (this.activeSlot === 'b') this.callbacks?.onStatusChange?.('playing');
+    });
+    el.addEventListener('pause', () => {
+      if (this.activeSlot === 'b' && !el.ended) this.callbacks?.onStatusChange?.('paused');
+    });
+    el.addEventListener('ended', () => this.handleSlotEnded('b'));
+    el.addEventListener('error', () => {
+      if (this.activeSlot === 'b') this.callbacks?.onStatusChange?.('error');
+    });
+    this.nextAudio = el;
+    this.nextClock = new SteeredClock(el);
+    return el;
+  }
+
+  // 'ended' on the PRIMARY element — attached here so crossfade promotion runs
+  // before the host component's own 'ended' listener advances the queue.
+  private attachPrimaryEndedListener() {
+    this.audioElement.addEventListener('ended', () => this.handleSlotEnded('a'));
+  }
+
+  private handleSlotEnded(slot: 'a' | 'b') {
+    if (slot !== this.activeSlot) return; // next-channel end is not a track boundary
+    if (this.crossfadeLive) {
+      this.promoteNextSlot();
+      // Primary-element ends are advanced by the host listener; the secondary
+      // channel must emit the ended callback itself.
+      if (slot === 'b') this.callbacks?.onEnded?.();
+    } else if (slot === 'b') {
+      this.callbacks?.onEnded?.();
+    }
+    // slot 'a' without crossfade: the host listener performs the advance.
+  }
+
+  /** Swaps channel roles after the outgoing track ends mid-crossfade. */
+  private promoteNextSlot() {
+    const incoming = this.otherSlot(this.activeSlot);
+    const incomingEl = this.slotEl(incoming);
+    // If the primed track already finished (very short jingle), don't promote —
+    // let the normal load path handle it instead.
+    if (incomingEl && incomingEl.ended) {
+      this.crossfadeLive = false;
+      this.pendingNext = null;
+      this.promotedTrackId = null;
+      this.slotMix = { a: 1, b: 1 };
+      this.applyVolume();
+      return;
+    }
+    this.activeSlot = incoming;
+    this.promotedTrackId = this.slotTrackId[incoming];
+    this.crossfadeLive = false;
+    this.pendingNext = null;
+    this.slotMix = { a: 1, b: 1 };
+    this.fadeGain = 1;
+    this.fadingDirection = null;
+    if (this.mixRaf !== null) { cancelAnimationFrame(this.mixRaf); this.mixRaf = null; }
+    const outgoing = this.otherSlot(this.activeSlot);
+    const outgoingEl = this.slotEl(outgoing);
+    if (outgoingEl && outgoingEl !== incomingEl) {
+      try { outgoingEl.pause(); } catch {}
+    }
+    this.slotTrackId[outgoing] = null;
+    this.applyVolume();
+  }
+
+  /** Returns the track id that crossfade-promoted playback just started, once. */
+  public consumePromotedTrackId(): string | null {
+    const id = this.promotedTrackId;
+    this.promotedTrackId = null;
+    return id;
+  }
+
+  /** Pre-loads the next track on the idle channel so it can crossfade in. */
+  public armNextTrack(trackId: string, url: string, isDash: boolean) {
+    if (this.activeMode !== 'html5' || this.crossfadeLive || this.pendingNext) return;
+    const slot = this.otherSlot(this.activeSlot);
+    const el = this.ensureNextChannel();
+    try { el.pause(); } catch {}
+    this.pendingNext = { trackId, url, isDash };
+    this.slotTrackId[slot] = trackId;
+    this.slotMix[slot] = 0;
+    this.applyVolume();
+    try {
+      if (isDash && this.isShakaSupported) {
+        this.ensureNextShaka().then((player: any) => {
+          if (this.pendingNext?.url !== url) return;
+          player.attach(el).then(() => player.load(url)).catch(() => {});
+        }).catch(() => {});
+      } else {
+        el.src = url;
+        el.load();
+      }
+    } catch {}
+  }
+
+  private ensureNextShaka(): Promise<any> {
+    if (this.nextShaka) return Promise.resolve(this.nextShaka);
+    return import('shaka-player/dist/shaka-player.compiled').then((shaka: any) => {
+      const player = new shaka.Player();
+      player.configure({ streaming: { bufferingGoal: 30 } });
+      this.nextShaka = player;
+      return player;
+    });
+  }
+
+  public hasPendingNext(): boolean {
+    return this.pendingNext !== null && this.nextAudio !== null;
+  }
+
+  public isCrossfadeLive(): boolean {
+    return this.crossfadeLive;
+  }
+
+  /** Begins the overlap: next channel fades in while the active one fades out. */
+  public startCrossfade(durationMs = 2400): boolean {
+    if (this.activeMode !== 'html5' || !this.pendingNext || !this.nextAudio || this.crossfadeLive) {
+      return false;
+    }
+    const nextEl = this.nextAudio;
+    const nextSlot = this.otherSlot(this.activeSlot);
+    this.crossfadeLive = true;
+    this.slotMix[nextSlot] = 0;
+    this.applyVolume();
+    nextEl.play().catch(() => {
+      // Autoplay blocked or load failure — abandon the crossfade cleanly.
+      this.crossfadeLive = false;
+      this.pendingNext = null;
+      this.slotTrackId[nextSlot] = null;
+      this.slotMix = { a: 1, b: 1 };
+      try { nextEl.pause(); } catch {}
+      this.applyVolume();
+    });
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - t0) / durationMs);
+      const eased = t * t * (3 - 2 * t); // smoothstep
+      this.slotMix[this.activeSlot] = 1 - eased;
+      this.slotMix[nextSlot] = eased;
+      this.applyVolume();
+      if (t < 1 && this.crossfadeLive) {
+        this.mixRaf = requestAnimationFrame(tick);
+      } else {
+        this.mixRaf = null;
+      }
+    };
+    this.mixRaf = requestAnimationFrame(tick);
+    return true;
+  }
+
 
   private initShaka() {
     try {
@@ -255,9 +462,17 @@ export class MusicAudioEngine {
     const token = ++this.loadToken;
     this.settleStart('superseded'); // release a previous waiter
 
-    // Stop the HTML5 element
+    // Stop the HTML5 elements
+    this.pendingNext = null;
+    this.crossfadeLive = false;
+    this.promotedTrackId = null;
+    this.slotMix = { a: 1, b: 1 };
+    this.slotTrackId = { a: null, b: null };
     this.audioElement.pause();
     this.audioElement.removeAttribute('src');
+    if (this.nextAudio) {
+      try { this.nextAudio.pause(); this.nextAudio.removeAttribute('src'); this.nextAudio.load(); } catch {}
+    }
 
     this.callbacks?.onStatusChange?.('loading');
     const ready = await this.ytReadyPromise;
@@ -327,25 +542,45 @@ export class MusicAudioEngine {
   /**
    * Loads direct HTTP / DASH audio stream (e.g. for live radio stations).
    */
-  public async loadStream(streamUrl: string, isDash: boolean = false): Promise<void> {
+  public async loadStream(streamUrl: string, isDash: boolean = false, trackId?: string): Promise<void> {
     if (!streamUrl || typeof streamUrl !== 'string' || (!streamUrl.startsWith('http') && !streamUrl.startsWith('blob:'))) {
       throw new Error(`Invalid audio stream source: ${String(streamUrl)}`);
     }
 
     this.activeMode = 'html5';
     this.stopYouTubeTimer();
+    // A fresh load replaces whatever was queued for crossfade.
+    this.pendingNext = null;
+    this.crossfadeLive = false;
+    this.promotedTrackId = null;
+    this.slotMix = { a: 1, b: 1 };
+    const idle = this.otherSlot(this.activeSlot);
+    const idleEl = this.slotEl(idle);
+    if (idleEl && idleEl !== this.activeEl) {
+      try { idleEl.pause(); idleEl.removeAttribute('src'); idleEl.load(); } catch {}
+      const idlePlayer = idle === 'b' ? this.nextShaka : this.player;
+      if (idlePlayer) { try { idlePlayer.detach().catch(() => {}); } catch {} }
+    }
+    this.slotTrackId[idle] = null;
+    this.slotTrackId[this.activeSlot] = trackId ?? null;
     if (this.ytPlayer && typeof this.ytPlayer.pauseVideo === 'function') {
       try { this.ytPlayer.pauseVideo(); } catch {}
     }
 
     await this.resumeAudioContext();
 
-    if (isDash && this.isShakaSupported && this.player) {
+    const el = this.activeEl;
+    const isSlotB = this.activeSlot === 'b';
+
+    if (isDash) {
       try {
-        await this.player.attach(this.audioElement);
-        await this.player.load(streamUrl);
-        await this.audioElement.play();
-        return;
+        const player = isSlotB ? await this.ensureNextShaka() : this.player;
+        if (player) {
+          await player.attach(el);
+          await player.load(streamUrl);
+          await el.play();
+          return;
+        }
       } catch (err) {
         console.warn('Shaka DASH load failed, trying standard audio fallback:', err);
       }
@@ -353,13 +588,14 @@ export class MusicAudioEngine {
 
     // Standard progressive HTTP streaming fallback
     try {
-      if (this.player) {
+      const player = isSlotB ? this.nextShaka : this.player;
+      if (player) {
         try {
-          await this.player.detach();
+          await player.detach();
         } catch {}
       }
-      this.audioElement.src = streamUrl;
-      const playPromise = this.audioElement.play();
+      el.src = streamUrl;
+      const playPromise = el.play();
       if (playPromise !== undefined) {
         await playPromise;
       }
@@ -372,6 +608,7 @@ export class MusicAudioEngine {
       console.error('Audio play error:', err);
       throw err;
     }
+    this.applyVolume();
   }
 
   public play(): Promise<void> {
@@ -382,7 +619,10 @@ export class MusicAudioEngine {
       } catch {}
     }
     void this.resumeAudioContext();
-    return this.audioElement.play();
+    if (this.crossfadeLive && this.nextAudio && this.nextAudio.paused) {
+      this.nextAudio.play().catch(() => {});
+    }
+    return this.activeEl.play();
   }
 
   public setMediaSessionState(state: 'playing' | 'paused' | 'none') {
@@ -399,6 +639,9 @@ export class MusicAudioEngine {
       } catch {}
     }
     this.audioElement.pause();
+    if (this.nextAudio) {
+      try { this.nextAudio.pause(); } catch {}
+    }
   }
 
   public seek(seconds: number): void {
@@ -414,13 +657,17 @@ export class MusicAudioEngine {
         return;
       } catch {}
     }
-    this.audioElement.currentTime = target;
+    this.activeEl.currentTime = target;
   }
 
-  /** Pushes user volume * fadeGain to whichever backend is active */
+  /** Pushes user volume * fadeGain * crossfade mix to each channel */
   private applyVolume() {
+    const clamp = (n: number) => Math.max(0, Math.min(1, n));
+    this.audioElement.volume = clamp(this.currentVolume * (this.activeSlot === 'a' ? this.fadeGain : 1) * this.slotMix.a);
+    if (this.nextAudio) {
+      this.nextAudio.volume = clamp(this.currentVolume * (this.activeSlot === 'b' ? this.fadeGain : 1) * this.slotMix.b);
+    }
     const v = Math.max(0, Math.min(1, this.currentVolume * this.fadeGain));
-    this.audioElement.volume = v;
     if (this.ytPlayer && typeof this.ytPlayer.setVolume === 'function') {
       try {
         this.ytPlayer.setVolume(Math.round(v * 100));
@@ -485,6 +732,7 @@ export class MusicAudioEngine {
   public setMuted(muted: boolean): void {
     this.currentMuted = muted;
     this.audioElement.muted = muted;
+    if (this.nextAudio) this.nextAudio.muted = muted;
     if (this.ytPlayer) {
       try {
         if (muted && typeof this.ytPlayer.mute === 'function') {
@@ -501,6 +749,7 @@ export class MusicAudioEngine {
     const r = Math.min(2, Math.max(0.25, rate));
     try {
       this.audioElement.playbackRate = r;
+      if (this.nextAudio) this.nextAudio.playbackRate = r;
     } catch {}
     try {
       if (this.activeMode === 'youtube' && this.ytPlayer && typeof this.ytPlayer.setPlaybackRate === 'function') {
@@ -515,7 +764,7 @@ export class MusicAudioEngine {
         return this.ytPlayer.getCurrentTime() || 0;
       } catch {}
     }
-    return this.audioElement.currentTime;
+    return this.activeEl.currentTime;
   }
 
   public getDuration(): number {
@@ -524,7 +773,7 @@ export class MusicAudioEngine {
         return this.ytPlayer.getDuration() || 0;
       } catch {}
     }
-    return this.audioElement.duration || 0;
+    return this.activeEl.duration || 0;
   }
 
   public syncMediaSession(track: MusicTrack, onPlay?: () => void, onPause?: () => void, onNext?: () => void, onPrev?: () => void) {
@@ -574,10 +823,21 @@ export class MusicAudioEngine {
   public destroy() {
     this.stopYouTubeTimer();
     if (this.fadeRaf !== null) cancelAnimationFrame(this.fadeRaf);
+    if (this.mixRaf !== null) cancelAnimationFrame(this.mixRaf);
+    this.pendingNext = null;
+    this.crossfadeLive = false;
     this.audioElement.pause();
     this.audioElement.removeAttribute('src');
     this.audioElement.load();
-    this.steeredClock.destroy();
+    if (this.nextAudio) {
+      try { this.nextAudio.pause(); this.nextAudio.removeAttribute('src'); this.nextAudio.load(); } catch {}
+    }
+    if (this.nextShaka) {
+      try { this.nextShaka.destroy(); } catch {}
+      this.nextShaka = null;
+    }
+    this._steeredClockA.destroy();
+    if (this.nextClock) { try { this.nextClock.destroy(); } catch {} this.nextClock = null; }
 
     if (this.ytPlayer) {
       try {

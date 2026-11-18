@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { RefreshCw, AlertCircle, Heart, Radio, History, ListMusic, SlidersHorizontal, Eye, EyeOff, Play, Pause, Cloud, Sparkles } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { useSessionStore } from '../store/useSessionStore';
-import { getHomeShelves, resolveTrackDurations } from '../api/innertube';
+import { getHomeShelves, resolveTrackDurations, getRadioTracks, resolveArtistId, resolveAlbumId } from '../api/innertube';
 import { GlobalSearchBar } from '../components/GlobalSearchBar';
 import { MediaShelf, ShelfItem } from '../components/MediaShelf';
 import { TrackRow } from '../components/TrackRow';
@@ -91,6 +91,60 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [libTick],
   );
+
+  // --- History-derived shelves: top artists, albums, "because you played" ---
+  const topArtists = React.useMemo(() => {
+    const map = new Map<string, { name: string; plays: number; artwork: string; track: MusicTrack }>();
+    recentlyPlayed.forEach(t => {
+      const key = `${t.artist}|${t.source === 'soundcloud' ? 'sc' : 'yt'}`;
+      const cur = map.get(key);
+      if (cur) { cur.plays++; if (!cur.artwork && t.artwork) cur.artwork = t.artwork; }
+      else map.set(key, { name: t.artist, plays: 1, artwork: t.artwork, track: t });
+    });
+    return [...map.values()].sort((a, b) => b.plays - a.plays).slice(0, 12);
+  }, [recentlyPlayed]);
+
+  const topAlbums = React.useMemo(() => {
+    const map = new Map<string, { title: string; artist: string; artwork: string; plays: number; track: MusicTrack }>();
+    recentlyPlayed.forEach(t => {
+      if (!t.album) return;
+      const key = `${t.album}|${t.artist}`;
+      const cur = map.get(key);
+      if (cur) { cur.plays++; if (!cur.artwork && t.artwork) cur.artwork = t.artwork; }
+      else map.set(key, { title: t.album, artist: t.artist, artwork: t.artwork, plays: 1, track: t });
+    });
+    return [...map.values()].sort((a, b) => b.plays - a.plays).slice(0, 12);
+  }, [recentlyPlayed]);
+
+  const openArtistFromHistory = (t: MusicTrack) => {
+    if (t.soundcloudArtistId) { navigate(`/music/soundcloud/artist/${t.soundcloudArtistId}`); return; }
+    if (t.artistId) { navigate(`/music/artist/${t.artistId}`); return; }
+    void resolveArtistId(t).then(id => {
+      if (id) navigate(`/music/artist/${id}`);
+      else playTrack(t, recentlyPlayed);
+    }).catch(() => playTrack(t, recentlyPlayed));
+  };
+
+  const openAlbumFromHistory = (t: MusicTrack) => {
+    if (t.albumId) { navigate(`/music/album/${t.albumId}`); return; }
+    void resolveAlbumId(t).then(id => {
+      if (id) navigate(`/music/album/${id}`);
+      else playTrack(t, recentlyPlayed);
+    }).catch(() => playTrack(t, recentlyPlayed));
+  };
+
+  // "Because you played X" — radio seed from the most recent playable track
+  const radioSeed = React.useMemo(
+    () => recentlyPlayed.find(t => t.youtubeId && !t.isLive && !t.soundcloudUrl),
+    [recentlyPlayed],
+  );
+  const { data: becauseYouPlayed } = useQuery({
+    queryKey: ['music-because-you-played', radioSeed?.youtubeId],
+    queryFn: () => getRadioTracks(radioSeed!.youtubeId!, 20),
+    enabled: Boolean(radioSeed?.youtubeId),
+    staleTime: 1000 * 60 * 30,
+    retry: 1,
+  });
 
   const { data: shelves, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['ytm-home', cacheKey],
@@ -504,6 +558,54 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
             badge: 'SC',
             tracks: [t],
             onClick: () => playTrack(t, scTracks),
+          }))}
+        />
+      )}
+
+      {/* Because you played X — radio seed from your most recent track */}
+      {radioSeed && becauseYouPlayed && becauseYouPlayed.length > 0 && (
+        <MediaShelf
+          title={`Because you played ${radioSeed.title}`}
+          subtitle={radioSeed.artist}
+          items={becauseYouPlayed.slice(0, 12).map(t => ({
+            id: `byp-${t.id}`,
+            title: t.title,
+            subtitle: t.artist,
+            artwork: t.artwork,
+            badge: 'RADIO',
+            tracks: [t],
+            onClick: () => playTrack(t, becauseYouPlayed),
+          }))}
+        />
+      )}
+
+      {/* Recently played artists */}
+      {topArtists.length > 0 && (
+        <MediaShelf
+          title="Your Artists"
+          subtitle="From your listening history"
+          items={topArtists.map(a => ({
+            id: `artist-${a.name}`,
+            title: a.name,
+            subtitle: `${a.plays} play${a.plays === 1 ? '' : 's'}`,
+            artwork: a.artwork || ARTWORK_PLACEHOLDER,
+            aspectRatio: 'portrait' as const,
+            onClick: () => openArtistFromHistory(a.track),
+          }))}
+        />
+      )}
+
+      {/* Recently played albums */}
+      {topAlbums.length > 0 && (
+        <MediaShelf
+          title="Your Albums"
+          subtitle="From your listening history"
+          items={topAlbums.map(al => ({
+            id: `album-${al.title}-${al.artist}`,
+            title: al.title,
+            subtitle: al.artist,
+            artwork: al.artwork || ARTWORK_PLACEHOLDER,
+            onClick: () => openAlbumFromHistory(al.track),
           }))}
         />
       )}

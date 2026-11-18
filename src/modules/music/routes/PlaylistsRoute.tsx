@@ -10,7 +10,9 @@ import { getLibraryPlaylists } from '../api/innertube';
 import { getImportedYouTubePlaylists } from '../api/youtubeAuth';
 import {
   getImportedSoundCloudPlaylists, importSoundCloud, deleteSoundCloudPlaylist,
+  createSoundCloudPlaylist,
 } from '../api/soundcloud';
+import type { MusicTrack } from '../types';
 import { useSessionStore } from '../store/useSessionStore';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import type { Playlist } from '../types';
@@ -133,6 +135,9 @@ export const PlaylistsRoute: React.FC = () => {
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
 
+  const recentlyPlayed = useMusicPlayerStore(state => state.recentlyPlayed);
+  const [mixFlash, setMixFlash] = useState(false);
+
   // SoundCloud quick-import
   const [scInput, setScInput] = useState('');
   const [scStatus, setScStatus] = useState<string | null>(null);
@@ -172,6 +177,28 @@ export const PlaylistsRoute: React.FC = () => {
     }
     deleteSoundCloudPlaylist(pl.id);
     setConfirmingDelete(null);
+  };
+
+  /** Smart Mix: frequency-weighted top tracks from listening history. */
+  const handleSmartMix = () => {
+    const freq = new Map<string, { t: MusicTrack; n: number }>();
+    recentlyPlayed.forEach(t => {
+      const c = freq.get(t.id);
+      if (c) c.n++; else freq.set(t.id, { t, n: 1 });
+    });
+    const tracks = [...freq.values()].sort((a, b) => b.n - a.n).slice(0, 40).map(x => x.t);
+    if (!tracks.length) {
+      setScStatus('Play some songs first — Smart Mix is built from your listening history.');
+      return;
+    }
+    const pl = createSoundCloudPlaylist(
+      `Smart Mix · ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`,
+      tracks,
+      tracks[0]?.artwork || '',
+    );
+    setMixFlash(true);
+    window.setTimeout(() => setMixFlash(false), 1600);
+    navigate(`/music/playlist/${pl.id}`);
   };
 
   const handleScImport = async () => {
@@ -231,15 +258,28 @@ export const PlaylistsRoute: React.FC = () => {
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">All Playlists</h1>
           <p className="text-xs text-[#98989d] mt-1.5">{totalCount} playlist{totalCount === 1 ? '' : 's'}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => refetch()}
-          disabled={isFetching || authStatus !== 'authenticated'}
-          className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-50 cursor-pointer self-start sm:self-auto"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={handleSmartMix}
+            className={`px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+              mixFlash ? 'bg-emerald-400 text-black' : 'bg-gradient-to-r from-[#ff5500]/30 to-[#ff8c5a]/20 hover:from-[#ff5500]/40 text-white border border-[#ff5500]/30'
+            }`}
+            title="Generate a playlist from your most-played songs"
+          >
+            {mixFlash ? <Check className="w-3.5 h-3.5" strokeWidth={3} /> : <Sparkles className="w-3.5 h-3.5" />}
+            {mixFlash ? 'Created!' : 'Smart Mix'}
+          </button>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            disabled={isFetching || authStatus !== 'authenticated'}
+            className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Search + sort + SoundCloud quick import */}

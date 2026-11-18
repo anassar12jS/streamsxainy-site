@@ -602,7 +602,17 @@ export class XainyMusicBridge {
     return new Response(responseBody, { status: data.status || 200, headers: resHeaders });
   }
 
-  public updateDiscordRpc(track: { title: string; artist: string; duration: number; artwork?: string }) {
+  public updateDiscordRpc(track: {
+    title: string;
+    artist: string;
+    duration: number;
+    artwork?: string;
+    album?: string;
+    /** e.g. 'SoundCloud', 'FLAC · Monochrome' — shown as the activity details line */
+    source?: string;
+    /** Playlist/queue context label, e.g. 'Smart Mix' or a playlist title */
+    playlist?: string;
+  }) {
     if (!this.status.available) return;
     try {
       if (localStorage.getItem('xainy_music_discord_rpc') === '0') return;
