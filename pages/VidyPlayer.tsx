@@ -7,7 +7,7 @@ import {
   Ghost, Sparkles, Volume2, VolumeX, Subtitles, Check, Clock,
   Maximize2, Minimize2, Keyboard, Sun, Moon, ListVideo, Zap, X,
   Star, Share2, Plus, Bookmark, Users, ChevronDown, Play, Pause, RotateCcw,
-  SlidersHorizontal
+  SlidersHorizontal, Rewind, FastForward, PictureInPicture2, Gauge
 } from 'lucide-react';
 import { getDetails, getSeasonDetails, getRecommendations } from '../services/tmdb';
 import { searchAnimeByTitle, getAnimeById, mapAniListToTMDBDetail } from '../services/anilist';
@@ -99,8 +99,18 @@ export const VidyPlayer: React.FC = () => {
   const [directStreamIndex, setDirectStreamIndex] = useState(0);
   const [directPlaying, setDirectPlaying] = useState(false);
   const [directDuration, setDirectDuration] = useState(0);
-  const [directVolume, setDirectVolume] = useState(1);
+  const [directVolume, setDirectVolume] = useState(() => {
+    const v = parseFloat(safeStorageGet('vidy:volume') || '1');
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+  });
   const [directMuted, setDirectMuted] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(() => {
+    const v = parseFloat(safeStorageGet('vidy:rate') || '1');
+    return Number.isFinite(v) ? Math.min(2, Math.max(0.25, v)) : 1;
+  });
+  const [bufferedPct, setBufferedPct] = useState(0);
+  const [isPip, setIsPip] = useState(false);
+  const [hoverSeek, setHoverSeek] = useState<{ pct: number; time: number } | null>(null);
   const [directControlsVisible, setDirectControlsVisible] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const isSeekingRef = useRef(false);
@@ -778,6 +788,9 @@ export const VidyPlayer: React.FC = () => {
 
   const handleDirectLoaded = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
+    video.volume = directVolume;
+    video.muted = directMuted;
+    video.playbackRate = playbackRate;
     markDirectPlaybackOk();
     window.clearTimeout(loadingTimeout.current);
     setIsLoading(false);
@@ -792,6 +805,31 @@ export const VidyPlayer: React.FC = () => {
     if (resumeTime && resumeTime > 0) {
       try { video.currentTime = resumeTime; } catch { /* some streams report duration late */ }
     }
+  };
+
+  const handleDirectProgress = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const v = e.currentTarget;
+    try {
+      if (v.buffered.length > 0 && v.duration > 0) {
+        setBufferedPct(Math.min(100, (v.buffered.end(v.buffered.length - 1) / v.duration) * 100));
+      }
+    } catch {}
+  };
+
+  const handleDirectDoubleClick = (e: React.MouseEvent<HTMLVideoElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const rel = (e.clientX - rect.left) / rect.width;
+    seekDirectBy(rel < 0.5 ? -10 : 10);
+  };
+
+  const handleSeekHover = (e: React.MouseEvent<HTMLDivElement>) => {
+    const duration = Number.isFinite(directDuration) && directDuration > 0 ? directDuration : 0;
+    const video = directVideoRef.current;
+    const dur = duration || (video && Number.isFinite(video.duration) ? video.duration : 0);
+    if (dur <= 0) { setHoverSeek(null); return; }
+    const pct = seekFractionFromClientX(e.clientX);
+    setHoverSeek({ pct: pct * 100, time: pct * dur });
   };
 
   const handleDirectTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -834,6 +872,10 @@ export const VidyPlayer: React.FC = () => {
     seekBy: (delta: number) => void;
     volumeBy: (delta: number) => void;
     toggleMute: () => void;
+    rateBy: (dir: number) => void;
+    togglePip: () => void;
+    seekFraction: (frac: number) => void;
+    toggleSubs: () => void;
   } | null>(null);
 
   const pokeDirectControls = useCallback(() => {
@@ -901,8 +943,47 @@ export const VidyPlayer: React.FC = () => {
     video.muted = muted || volume === 0;
     setDirectVolume(volume);
     setDirectMuted(video.muted);
+    safeStorageSet('vidy:volume', String(volume));
     pokeDirectControls();
   };
+
+  const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+
+  const cyclePlaybackRate = (dir = 1) => {
+    setPlaybackRate(prev => {
+      const idx = PLAYBACK_RATES.findIndex(r => Math.abs(r - prev) < 0.01);
+      const base = idx < 0 ? PLAYBACK_RATES.indexOf(1) : idx;
+      const next = PLAYBACK_RATES[(base + dir + PLAYBACK_RATES.length) % PLAYBACK_RATES.length];
+      safeStorageSet('vidy:rate', String(next));
+      const v = directVideoRef.current;
+      if (v) v.playbackRate = next;
+      return next;
+    });
+    pokeDirectControls();
+  };
+
+  const toggleDirectPip = async () => {
+    const video = directVideoRef.current;
+    if (!video) return;
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else {
+        await video.requestPictureInPicture();
+      }
+    } catch {}
+    pokeDirectControls();
+  };
+
+  useEffect(() => {
+    const onPip = () => setIsPip(Boolean(document.pictureInPictureElement));
+    document.addEventListener('enterpictureinpicture', onPip);
+    document.addEventListener('leavepictureinpicture', onPip);
+    return () => {
+      document.removeEventListener('enterpictureinpicture', onPip);
+      document.removeEventListener('leavepictureinpicture', onPip);
+    };
+  }, []);
 
   const adjustDirectVolume = (delta: number) => {
     const video = directVideoRef.current;
@@ -955,6 +1036,16 @@ export const VidyPlayer: React.FC = () => {
     seekBy: seekDirectBy,
     volumeBy: adjustDirectVolume,
     toggleMute: toggleDirectMute,
+    rateBy: cyclePlaybackRate,
+    togglePip: () => { void toggleDirectPip(); },
+    seekFraction: (frac: number) => {
+      const video = directVideoRef.current;
+      const dur = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : directDuration;
+      if (dur > 0) seekDirectTo(Math.min(1, Math.max(0, frac)) * dur);
+    },
+    toggleSubs: () => {
+      setSubsOn(v => { safeStorageSet('vidy:subs-on', v ? '0' : '1'); return !v; });
+    },
   };
 
   // Keyboard Shortcuts: F (fullscreen), T (theater), L (lights), N (next), P (prev), R (reload)
@@ -992,6 +1083,31 @@ export const VidyPlayer: React.FC = () => {
         if (e.key.toLowerCase() === 'm') {
           e.preventDefault();
           directActionsRef.current?.toggleMute();
+          return;
+        }
+        if (e.key === ',' || e.key === '<') {
+          e.preventDefault();
+          directActionsRef.current?.rateBy(-1);
+          return;
+        }
+        if (e.key === '.' || e.key === '>') {
+          e.preventDefault();
+          directActionsRef.current?.rateBy(1);
+          return;
+        }
+        if (e.key.toLowerCase() === 'i') {
+          e.preventDefault();
+          directActionsRef.current?.togglePip();
+          return;
+        }
+        if (e.key.toLowerCase() === 'c') {
+          e.preventDefault();
+          directActionsRef.current?.toggleSubs();
+          return;
+        }
+        if (/^[0-9]$/.test(e.key)) {
+          e.preventDefault();
+          directActionsRef.current?.seekFraction(parseInt(e.key, 10) / 10);
           return;
         }
       }
@@ -1510,7 +1626,7 @@ export const VidyPlayer: React.FC = () => {
               </div>
             )}
 
-            <div className={`relative w-full ${isTheaterMode ? 'aspect-[21/9] min-h-[480px] max-h-[84vh]' : 'aspect-video max-h-[78vh]'} bg-black rounded-2xl overflow-hidden ring-1 ring-white/15 shadow-2xl z-30 transition-all duration-300`}>
+            <div className={`relative w-full ${isTheaterMode ? 'aspect-[21/9] min-h-[480px] max-h-[84vh]' : 'aspect-video max-h-[78vh]'} bg-black rounded-2xl overflow-hidden ring-1 ring-white/15 shadow-2xl z-30 transition-all duration-300 ${isDirectPlayback && directPlaying && !directControlsVisible ? 'cursor-none' : ''}`}>
               {isDirectMode ? (
                 directStream?.url ? (
                   <>
@@ -1528,6 +1644,8 @@ export const VidyPlayer: React.FC = () => {
                         if (Number.isFinite(v.duration) && v.duration > 0) setDirectDuration(v.duration);
                       }}
                       onTimeUpdate={handleDirectTimeUpdate}
+                      onProgress={handleDirectProgress}
+                      onDoubleClick={handleDirectDoubleClick}
                       onPlay={() => { directPlayingRef.current = true; setDirectPlaying(true); pokeDirectControls(); }}
                       onPause={() => { directPlayingRef.current = false; setDirectPlaying(false); setDirectControlsVisible(true); window.clearTimeout(directControlsTimer.current); }}
                       onVolumeChange={(e) => { const v = e.currentTarget; setDirectVolume(v.volume); setDirectMuted(v.muted); }}
@@ -1561,17 +1679,28 @@ export const VidyPlayer: React.FC = () => {
                           ref={seekBarRef}
                           className="group/seek relative h-1.5 sm:h-2 w-full cursor-pointer touch-none"
                           onPointerDown={handleSeekPointerDown}
-                          onPointerMove={handleSeekPointerMove}
+                          onPointerMove={(e) => { handleSeekPointerMove(e); handleSeekHover(e); }}
                           onPointerUp={handleSeekPointerEnd}
                           onPointerCancel={handleSeekPointerEnd}
+                          onMouseMove={handleSeekHover}
+                          onMouseLeave={() => setHoverSeek(null)}
                           role="slider"
                           aria-label="Seek"
                           aria-valuemin={0}
                           aria-valuemax={Math.floor(directDuration || 0)}
                           aria-valuenow={Math.floor(videoTime)}
                         >
+                          {hoverSeek && (
+                            <div
+                              className="absolute -top-7 z-50 -translate-x-1/2 px-2 py-0.5 rounded-md bg-black/90 border border-white/20 text-[10px] font-mono text-white tabular-nums pointer-events-none shadow-lg"
+                              style={{ left: `${Math.min(96, Math.max(4, hoverSeek.pct))}%` }}
+                            >
+                              {formatResumeTime(hoverSeek.time)}
+                            </div>
+                          )}
                           <div className="absolute inset-0 rounded-full bg-white/20 overflow-hidden">
-                            <div className="h-full bg-[rgb(var(--primary-color))]" style={{ width: `${directProgressPct}%` }} />
+                            <div className="h-full bg-white/30" style={{ width: `${Math.min(100, bufferedPct)}%` }} />
+                            <div className="absolute inset-y-0 left-0 h-full bg-[rgb(var(--primary-color))]" style={{ width: `${directProgressPct}%` }} />
                           </div>
                           <div
                             className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow opacity-0 group-hover/seek:opacity-100 transition-opacity pointer-events-none"
@@ -1588,6 +1717,25 @@ export const VidyPlayer: React.FC = () => {
                             title={directPlaying ? 'Pause (Space)' : 'Play (Space)'}
                           >
                             {directPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current" />}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => seekDirectBy(-10)}
+                            className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                            aria-label="Back 10 seconds"
+                            title="Back 10s (, . for speed)"
+                          >
+                            <Rewind className="w-5 h-5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => seekDirectBy(10)}
+                            className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                            aria-label="Forward 10 seconds"
+                            title="Forward 10s"
+                          >
+                            <FastForward className="w-5 h-5" />
                           </button>
 
                           <button
@@ -1638,6 +1786,31 @@ export const VidyPlayer: React.FC = () => {
                               <ChevronRight className="w-5 h-5" />
                             </button>
                           )}
+
+                          <button
+                            type="button"
+                            onClick={() => cyclePlaybackRate(1)}
+                            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                              playbackRate !== 1 ? 'text-[rgb(var(--primary-color))] bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10'
+                            }`}
+                            aria-label="Playback speed"
+                            title={`Playback speed ${playbackRate}x (, / . to adjust)`}
+                          >
+                            <Gauge className="w-4 h-4" />
+                            <span className="tabular-nums">{playbackRate % 1 === 0 ? playbackRate : playbackRate.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}x</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void toggleDirectPip()}
+                            className={`p-2 rounded-lg transition-colors cursor-pointer ${
+                              isPip ? 'text-[rgb(var(--primary-color))] bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10'
+                            }`}
+                            aria-label="Picture in picture"
+                            title="Picture-in-Picture (I)"
+                          >
+                            <PictureInPicture2 className="w-5 h-5" />
+                          </button>
 
                           <button
                             type="button"
@@ -2235,6 +2408,26 @@ export const VidyPlayer: React.FC = () => {
               <div className="flex items-center justify-between py-1.5 border-b border-white/5">
                 <span className="text-white/70">Switch to Next Server</span>
                 <kbd className="px-2 py-1 rounded bg-black/60 border border-white/20 font-mono text-xs text-white">S</kbd>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-white/5">
+                <span className="text-white/70">Seek ±10s (double-click sides)</span>
+                <kbd className="px-2 py-1 rounded bg-black/60 border border-white/20 font-mono text-xs text-white">Double-click</kbd>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-white/5">
+                <span className="text-white/70">Playback Speed</span>
+                <kbd className="px-2 py-1 rounded bg-black/60 border border-white/20 font-mono text-xs text-white">, / .</kbd>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-white/5">
+                <span className="text-white/70">Picture-in-Picture</span>
+                <kbd className="px-2 py-1 rounded bg-black/60 border border-white/20 font-mono text-xs text-white">I</kbd>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-white/5">
+                <span className="text-white/70">Toggle Subtitles</span>
+                <kbd className="px-2 py-1 rounded bg-black/60 border border-white/20 font-mono text-xs text-white">C</kbd>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-white/5">
+                <span className="text-white/70">Seek to %</span>
+                <kbd className="px-2 py-1 rounded bg-black/60 border border-white/20 font-mono text-xs text-white">0 – 9</kbd>
               </div>
               <div className="flex items-center justify-between py-1.5 border-b border-white/5">
                 <span className="text-white/70">Show Keyboard Shortcuts</span>
