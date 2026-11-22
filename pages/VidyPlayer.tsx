@@ -208,7 +208,8 @@ export const VidyPlayer: React.FC = () => {
   const isAnime = Boolean(anilistIdParam || isAnimeDetected || aniListConverted);
 
   const isEgyDeadMode = provider === 'egydead' && !isAnime;
-  const isDirectMode = (provider === 'direct' || provider === 'egydead') && !isAnime;
+  const is5tvMode = provider === '5tv' && !isAnime;
+  const isDirectMode = (provider === 'direct' || provider === 'egydead' || provider === '5tv') && !isAnime;
   const directStreamsQuery = useQuery({
     queryKey: ['direct-streams', imdbId, isEpisode ? `${season}x${episode}` : 'movie'],
     queryFn: () => isEpisode
@@ -247,7 +248,28 @@ export const VidyPlayer: React.FC = () => {
     () => ((egydeadQuery.data?.streams || []) as Stream[]).filter(isDirectPlayableStream),
     [egydeadQuery.data]
   );
-  const playableDirectStreams = isEgyDeadMode ? egyDirectStreams : addonDirectStreams;
+
+  // 5TV scraper provider: resolves direct MP4 streams via /api/5tv
+  const fiveTvQuery = useQuery<{ streams?: Stream[] }>({
+    queryKey: ['5tv-streams', id, mediaType, isEpisode ? `${season}x${episode}` : 'movie'],
+    queryFn: async () => {
+      const params = new URLSearchParams({ action: 'streams', tmdb: String(id), type: mediaType, title: egyTitle });
+      if (egyYear) params.set('year', String(egyYear));
+      if (isEpisode) { params.set('season', String(season)); params.set('episode', String(episode)); }
+      const r = await fetch(`/api/5tv?${params.toString()}`);
+      if (!r.ok) return { streams: [] };
+      return r.json();
+    },
+    enabled: is5tvMode && !!egyTitle,
+    staleTime: 1000 * 60 * 10,
+    retry: 0,
+  });
+  const fiveTvDirectStreams = useMemo(
+    () => ((fiveTvQuery.data?.streams || []) as Stream[]).filter(isDirectPlayableStream),
+    [fiveTvQuery.data]
+  );
+
+  const playableDirectStreams = isEgyDeadMode ? egyDirectStreams : is5tvMode ? fiveTvDirectStreams : addonDirectStreams;
   const directStream = playableDirectStreams[directStreamIndex];
   const isDirectPlayback = isDirectMode && Boolean(directStream?.url);
 
@@ -527,6 +549,7 @@ export const VidyPlayer: React.FC = () => {
       }
       case 'direct':
       case 'egydead':
+      case '5tv':
         return '';
       default: {
         const ishowParams = new URLSearchParams({
@@ -722,8 +745,9 @@ export const VidyPlayer: React.FC = () => {
   // embed mirror instead of sitting on a black screen.
   useEffect(() => {
     if (!isDirectMode || !detailsQuery.isFetched) return;
-    if (isEgyDeadMode) {
-      if (egydeadQuery.isFetched && playableDirectStreams.length === 0) {
+    const scraperQuery = isEgyDeadMode ? egydeadQuery : is5tvMode ? fiveTvQuery : null;
+    if (scraperQuery) {
+      if (scraperQuery.isFetched && playableDirectStreams.length === 0) {
         handleDirectPlaybackFailureRef.current('empty');
       }
       return;
@@ -731,7 +755,7 @@ export const VidyPlayer: React.FC = () => {
     if (!imdbId || (directStreamsQuery.isFetched && playableDirectStreams.length === 0)) {
       handleDirectPlaybackFailureRef.current('empty');
     }
-  }, [isDirectMode, isEgyDeadMode, detailsQuery.isFetched, imdbId, directStreamsQuery.isFetched, egydeadQuery.isFetched, playableDirectStreams.length]);
+  }, [isDirectMode, isEgyDeadMode, is5tvMode, detailsQuery.isFetched, imdbId, directStreamsQuery.isFetched, egydeadQuery.isFetched, fiveTvQuery.isFetched, playableDirectStreams.length]);
 
   // Ensure item is tracked in Continue Watching upon starting playback
   useEffect(() => {
