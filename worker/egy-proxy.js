@@ -327,7 +327,9 @@ const decodeEntities = s => String(s || '')
 
 async function ftvSearchLinks(q) {
   return ftvCached(`ftv:search:${q}`, ftvTTL.search, async () => {
-    const xml = await ftvFetchText(`${SITE}/search/${encodeURIComponent(q).replace(/%20/g, '+')}/feed/rss2/`, { timeoutMs: 12000 });
+    // WordPress search feed — /search/<q>/feed/rss2/ returns nothing on 5tv;
+    // the real endpoint is /?s=<q>&feed=rss2
+    const xml = await ftvFetchText(`${SITE}/?s=${encodeURIComponent(q).replace(/%20/g, '+')}&feed=rss2`, { timeoutMs: 12000 });
     if (!xml) return [];
     const links = [];
     const re = /<link>(https:\/\/5tv\.rest\/[^<]+)<\/link>/g;
@@ -371,25 +373,87 @@ async function ftvFindMovieUrl(title, year) {
   return best;
 }
 
+// 5TV episode slugs end in either "-<s>x<e>" (multi-season) or "-<e>"
+// (single-season), often prefixed with an Arabic title slug.
+// e.g. "…-breaking-bad-5x2" or "%d9%81…-vincenzo-20"
+function parseFtveEpisode(slug) {
+  let m = slug.match(/^(.*)-(\d+)x(\d+)$/);
+  if (m) return { show: m[1], season: +m[2], episode: +m[3] };
+  m = slug.match(/^(.*)-(\d+)$/);
+  if (m) return { show: m[1], season: 1, episode: +m[2] };
+  return null;
+}
+
+async function ftvSeriesEpisodeUrl(seriesSlug, season, episode) {
+  const page = await ftvCached(`ftv:series:${seriesSlug}`, ftvTTL.page, async () => {
+    const html = await ftvFetchText(`${SITE}/series/${seriesSlug}/`, { timeoutMs: 12000 });
+    if (!html) return null;
+    const links = [];
+    const re = /href="(https:\/\/5tv\.rest\/episode\/[^"]+\/)"/g;
+    let m;
+    while ((m = re.exec(html))) {
+      const u = decodeEntities(m[1]);
+      if (!links.includes(u)) links.push(u);
+    }
+    return links.length ? links : null;
+  });
+  if (!page) return null;
+  for (const u of page) {
+    const slug = u.match(/\/episode\/([^/]+)\/?$/)?.[1];
+    if (!slug) continue;
+    const ep = parseFtveEpisode(slug);
+    if (ep && ep.season === season && ep.episode === episode) return u;
+  }
+  return null;
+}
+
 async function ftvFindEpisodeUrl(title, season, episode) {
   const titleSlug = slugify(title);
-  const epRe = /\/(\d+)x(\d+)\/?$/;
   const links = await ftvSearchLinks(norm(title));
+
+  // Pass 1: exact episode match straight from search results.
   let best = null, bestScore = -1;
   for (const u of links) {
     const m = u.match(/\/episode\/([^/]+?)\/?$/);
     if (!m) continue;
-    const em = m[1].match(epRe);
-    if (!em) continue;
-    if (+em[1] !== season || +em[2] !== episode) continue;
-    const showSlug = m[1].replace(epRe, '');
-    const sc = slugScore(showSlug, titleSlug);
-    if (sc > bestScore) { bestScore = sc; best = u; }
+    const ep = parseFtveEpisode(m[1]);
+    if (!ep) continue;
+    const sc = slugScore(ep.show, titleSlug);
+    if (ep.season === season && ep.episode === episode && sc > bestScore) {
+      bestScore = sc; best = u;
+    }
   }
-  if (bestScore >= 30) return best;
-  const cand = `${SITE}/episode/${titleSlug}-${season}x${episode}/`;
-  const html = await ftvFetchText(cand, { timeoutMs: 10000 });
-  if (html && html.includes('ftv-watch')) return cand;
+  if (best && bestScore >= 30) return best;
+
+  // Pass 2: derive the /series/<slug>/ page from any episode of the same
+  // show in the results, then pick the requested episode from its listing.
+  // This is the reliable path — canonical slugs carry Arabic prefixes that
+  // can't be guessed.
+  const showCandidates = [];
+  for (const u of links) {
+    const m = u.match(/\/episode\/([^/]+?)\/?$/);
+    if (!m) continue;
+    const ep = parseFtveEpisode(m[1]);
+    if (!ep) continue;
+    const sc = slugScore(ep.show, titleSlug);
+    if (sc >= 30 && !showCandidates.some(c => c.slug === ep.show)) {
+      showCandidates.push({ slug: ep.show, score: sc });
+    }
+  }
+  showCandidates.sort((a, b) => b.score - a.score);
+  for (const c of showCandidates.slice(0, 3)) {
+    const url = await ftvSeriesEpisodeUrl(c.slug, season, episode);
+    if (url) return url;
+  }
+
+  // Pass 3: guess canonical episode URLs (WP 301s resolve most of these).
+  for (const cand of [
+    `${SITE}/episode/${titleSlug}-${season}x${episode}/`,
+    ...(season === 1 ? [`${SITE}/episode/${titleSlug}-${episode}/`] : []),
+  ]) {
+    const html = await ftvFetchText(cand, { timeoutMs: 10000 });
+    if (html && html.includes('ftv-watch')) return cand;
+  }
   return null;
 }
 
