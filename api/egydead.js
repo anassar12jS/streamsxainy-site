@@ -4,14 +4,29 @@
 // GET /api/egydead?action=streams&type=tv&title=Breaking%20Bad&year=2008&season=1&episode=1
 
 const EGY = 'https://egydead.ca';
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
-const JSON_HEADERS = {
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+const BROWSER_HEADERS = {
   'User-Agent': UA,
-  'Accept': 'application/json',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'sec-ch-ua': '"Chromium";v="126", "Google Chrome";v="126", "Not-A.Brand";v="99"',
+  'sec-ch-ua-mobile': '?0',
+  'sec-ch-ua-platform': '"Windows"',
+  'Sec-Fetch-Site': 'same-origin',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Dest': 'empty',
+  'Upgrade-Insecure-Requests': '1',
+};
+const JSON_HEADERS = {
+  ...BROWSER_HEADERS,
   'X-Requested-With': 'XMLHttpRequest',
   'Referer': `${EGY}/`,
 };
-const PAGE_HEADERS = { 'User-Agent': UA, 'Accept': 'text/html', 'Referer': `${EGY}/` };
+const PAGE_HEADERS = {
+  ...BROWSER_HEADERS,
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Referer': `${EGY}/`,
+};
 
 const cache = new Map(); // key -> { at, data }
 const TTL = {
