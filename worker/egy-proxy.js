@@ -64,7 +64,9 @@ const proxiedMediaUrl = (u, origin) => {
 
 const EGY = 'https://egydead.ca';
 const egyCache = new Map();
-const egyTTL = { search: 30 * 60e3, title: 30 * 60e3, episode: 30 * 60e3, watch: 30 * 60e3, embed: 20 * 60e3 };
+// embed TTL is intentionally tiny: the signed m3u8 inside is bound to the
+// worker egress IP that fetched the embed page, so stale entries 403.
+const egyTTL = { search: 30 * 60e3, title: 30 * 60e3, episode: 30 * 60e3, watch: 30 * 60e3, embed: 60e3 };
 
 function egyCached(key, ttl, fn) {
   const hit = egyCache.get(key);
