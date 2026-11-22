@@ -4,6 +4,20 @@
 // GET /api/egydead?action=streams&type=tv&title=Breaking%20Bad&year=2008&season=1&episode=1
 
 const EGY = 'https://egydead.ca';
+// Cloudflare Worker proxy (worker/egy-proxy.js) — egydead.ca's CF challenge
+// blocks datacenter IPs, so server-side fetches go through the worker when set.
+const EGY_PROXY = process.env.EGY_PROXY_URL || '';
+const egyUrl = (path) => (EGY_PROXY ? `${EGY_PROXY}/egydead.ca${path}` : `${EGY}${path}`);
+const proxiedMediaUrl = (u) => {
+  if (!EGY_PROXY) return u;
+  try {
+    const p = new URL(u);
+    if (['egybestvid.com', 's1.egybestvid.com', 'egydead.ca'].includes(p.hostname)) {
+      return `${EGY_PROXY}/${p.hostname}${p.pathname}${p.search}`;
+    }
+  } catch {}
+  return u;
+};
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 const BROWSER_HEADERS = {
   'User-Agent': UA,
@@ -84,7 +98,7 @@ async function searchTitle(title, year, tmdbId, wantSeries) {
   const q = norm(title).replace(/\s+/g, ' ');
   if (!q) return null;
   const data = await cached(`egy:search:${q}`, TTL.search, () =>
-    fetchJson(`${EGY}/api/v1/search/${encodeURIComponent(q)}?loader=searchAutocomplete`)
+    fetchJson(egyUrl(`/api/v1/search/${encodeURIComponent(q)}?loader=searchAutocomplete`))
   );
   const results = Array.isArray(data?.results) ? data.results : [];
   if (!results.length) return null;
@@ -125,7 +139,7 @@ function pickVideos(list) {
 
 async function resolveEmbed(embedUrl) {
   return cached(`egy:embed:${embedUrl}`, TTL.embed, async () => {
-    const html = await fetchText(embedUrl, {
+    const html = await fetchText(proxiedMediaUrl(embedUrl), {
       'User-Agent': UA,
       'Accept': 'text/html,*/*',
       'Referer': `${EGY}/`,
@@ -164,8 +178,13 @@ async function streamsFromVideos(videos) {
     }
     if (!urls) return;
     for (const url of urls.slice(0, 2)) {
+      // s1.egybestvid.com rejects cross-site browser requests — without the
+      // worker proxy the HLS URL is unplayable, so skip it entirely.
+      if (!EGY_PROXY && /(^|\.)egybestvid\.com/i.test(new URL(url).hostname)) continue;
       out.push({
-        url,
+        // HLS on s1.egybestvid.com rejects cross-site browser requests, so the
+        // URL is rewritten through the worker when EGY_PROXY is configured.
+        url: proxiedMediaUrl(url),
         name: `EgyDead · ${v.name || v.quality || 'Server'}${v.quality ? ` · ${String(v.quality).toUpperCase()}` : ''}`,
         title: `${v.name || 'EgyDead'} — ${url.split('/').pop()?.split('?')[0] || 'stream'}`,
         isHls: /\.m3u8(\?|$)/i.test(url),
@@ -179,7 +198,7 @@ async function streamsFromVideos(videos) {
 
 async function movieStreams(egyId) {
   return cached(`egy:title:${egyId}`, TTL.title, async () => {
-    const html = await fetchText(`${EGY}/titles/${egyId}/x`, PAGE_HEADERS);
+    const html = await fetchText(egyUrl(`/titles/${egyId}/x`), PAGE_HEADERS);
     if (!html) return null;
     const boot = parseBootstrap(html);
     const tp = boot?.loaders?.titlePage;
@@ -192,7 +211,7 @@ async function movieStreams(egyId) {
     // fallback: primary_video -> watch api
     const pv = title.primary_video;
     if (pv?.id) {
-      const wp = await cached(`egy:watch:${pv.id}`, TTL.watch, () => fetchJson(`${EGY}/api/v1/watch/${pv.id}`));
+      const wp = await cached(`egy:watch:${pv.id}`, TTL.watch, () => fetchJson(egyUrl(`/api/v1/watch/${pv.id}`)));
       const list = [];
       if (wp?.video) list.push(wp.video);
       if (Array.isArray(wp?.alternative_videos)) list.push(...wp.alternative_videos);
@@ -204,7 +223,7 @@ async function movieStreams(egyId) {
 
 async function episodeStreams(egyId, season, episode) {
   return cached(`egy:ep:${egyId}:${season}x${episode}`, TTL.episode, async () => {
-    const html = await fetchText(`${EGY}/titles/${egyId}/x/season/${season}/episode/${episode}`, PAGE_HEADERS);
+    const html = await fetchText(egyUrl(`/titles/${egyId}/x/season/${season}/episode/${episode}`), PAGE_HEADERS);
     if (!html) return null;
     const boot = parseBootstrap(html);
     const ep = boot?.loaders?.episodePage?.episode;
@@ -213,7 +232,7 @@ async function episodeStreams(egyId, season, episode) {
     if (videos.length) return { videos };
     const pv = ep.primary_video;
     if (pv?.id) {
-      const wp = await cached(`egy:watch:${pv.id}`, TTL.watch, () => fetchJson(`${EGY}/api/v1/watch/${pv.id}`));
+      const wp = await cached(`egy:watch:${pv.id}`, TTL.watch, () => fetchJson(egyUrl(`/api/v1/watch/${pv.id}`)));
       const list = [];
       if (wp?.video) list.push(wp.video);
       if (Array.isArray(wp?.alternative_videos)) list.push(...wp.alternative_videos);
@@ -237,16 +256,6 @@ export default async function handler(req, res) {
   const episode = parseInt(req.query.episode, 10) || null;
 
   if (action === 'ping') return res.status(200).json({ ok: true });
-  if (action === 'debug') {
-    const q = norm(title).replace(/\s+/g, ' ') || 'matrix';
-    try {
-      const r = await fetch(`${EGY}/api/v1/search/${encodeURIComponent(q)}?loader=searchAutocomplete`, { headers: JSON_HEADERS });
-      const text = await r.text();
-      return res.status(200).json({ status: r.status, len: text.length, head: text.slice(0, 300), cf: r.headers.get('cf-mitigated') || r.headers.get('server') || '' });
-    } catch (e) {
-      return res.status(200).json({ error: String(e?.message || e) });
-    }
-  }
   if (!title) return res.status(400).json({ error: 'title required' });
 
   try {
