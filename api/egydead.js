@@ -222,6 +222,11 @@ export default async function handler(req, res) {
   const episode = parseInt(req.query.episode, 10) || null;
 
   if (action === 'ping') return res.status(200).json({ ok: true });
+  if (action === 'debug') {
+    const q = norm(title).replace(/\s+/g, ' ') || 'matrix';
+    const html = await fetchText(`${EGY}/api/v1/search/${encodeURIComponent(q)}?loader=searchAutocomplete`, JSON_HEADERS);
+    return res.status(200).json({ len: html?.length || 0, head: (html || '').slice(0, 300) });
+  }
   if (!title) return res.status(400).json({ error: 'title required' });
 
   try {
