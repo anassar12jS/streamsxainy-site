@@ -153,7 +153,9 @@ function pickVideos(list) {
 
 async function egyResolveEmbed(embedUrl) {
   return egyCached(`egy:embed:${embedUrl}`, egyTTL.embed, async () => {
-    const html = await egyFetchText(embedUrl, { 'User-Agent': UA, 'Accept': 'text/html,*/*', 'Referer': `${EGY}/` });
+    // Referer must match what the HLS proxy path sends for s1.egybestvid.com
+    // (https://egybestvid.com/) — the signed m3u8 token is bound to it.
+    const html = await egyFetchText(embedUrl, { 'User-Agent': UA, 'Accept': 'text/html,*/*', 'Referer': 'https://egybestvid.com/' });
     if (!html) return null;
     const urls = [];
     const re = /file\s*:\s*"([^"]+)"/g;
