@@ -6,7 +6,7 @@
 const EGY = 'https://egydead.ca';
 // Cloudflare Worker proxy (worker/egy-proxy.js) — egydead.ca's CF challenge
 // blocks datacenter IPs, so server-side fetches go through the worker when set.
-const EGY_PROXY = process.env.EGY_PROXY_URL || '';
+const EGY_PROXY = process.env.EGY_PROXY_URL || 'https://egy-proxy.anasltccnt.workers.dev';
 const egyUrl = (path) => (EGY_PROXY ? `${EGY_PROXY}/egydead.ca${path}` : `${EGY}${path}`);
 const proxiedMediaUrl = (u) => {
   if (!EGY_PROXY) return u;
