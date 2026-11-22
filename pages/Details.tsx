@@ -17,7 +17,7 @@ import {
   Info, Plus, Check, Sparkles, ChevronRight, Layers, Share2, 
   AlertTriangle, Home, Clock, Calendar, Users, Clapperboard, Film, 
   ExternalLink, Image, Copy, Zap, CheckCircle2, ChevronDown, ListFilter,
-  DollarSign, Globe, Award, Heart, Ghost, Search, Maximize2
+  DollarSign, Globe, Award, Heart, Ghost, Search, Maximize2, Popcorn
 } from 'lucide-react';
 
 export interface GalleryAssetItem {
@@ -799,6 +799,28 @@ export const Details: React.FC = () => {
           >
             <Share2 className="w-4 h-4" />
           </button>
+          {imdbId && (
+            <a
+              href={`https://www.imdb.com/title/${imdbId}/`}
+              target="_blank"
+              rel="noreferrer"
+              className="p-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] text-amber-400 hover:text-amber-300 transition-colors"
+              title={`Open on IMDb (${imdbId})`}
+            >
+              <Clapperboard className="w-4 h-4" />
+            </a>
+          )}
+          {(type === MediaType.MOVIE || type === MediaType.TV) && (
+            <a
+              href={`https://letterboxd.com/search/${encodeURIComponent(`${title} ${releaseYear || ''}`.trim())}/`}
+              target="_blank"
+              rel="noreferrer"
+              className="p-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"
+              title="Search on Letterboxd"
+            >
+              <Popcorn className="w-4 h-4" />
+            </a>
+          )}
         </div>
       </div>
 

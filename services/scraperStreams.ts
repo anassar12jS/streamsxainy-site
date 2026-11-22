@@ -30,7 +30,7 @@ async function resolveEmbedViaProxy(embedUrl: string): Promise<{ url: string; is
   try {
     const u = new URL(embedUrl);
     const viaProxy = `${SCRAPER_WORKER}/${u.hostname}${u.pathname}${u.search}`;
-    const r = await fetch(viaProxy);
+    const r = await fetch(viaProxy, { signal: AbortSignal.timeout(30000) });
     if (!r.ok) return [];
     const html = await r.text();
 
@@ -84,7 +84,10 @@ export async function fetchScraperStreams(
   if (params.tmdb) q.set('tmdb', String(params.tmdb));
   if (params.season) q.set('season', String(params.season));
   if (params.episode) q.set('episode', String(params.episode));
-  const r = await fetch(`${SCRAPER_WORKER}/api/${provider}?${q.toString()}`);
+  // 90s ceiling — 5TV resolution chains several upstream fetches server-side.
+  const r = await fetch(`${SCRAPER_WORKER}/api/${provider}?${q.toString()}`, {
+    signal: AbortSignal.timeout(90000),
+  });
   if (!r.ok) return { streams: [] };
   const data: ScraperResult = await r.json();
 

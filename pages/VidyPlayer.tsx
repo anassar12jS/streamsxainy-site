@@ -266,6 +266,12 @@ export const VidyPlayer: React.FC = () => {
   const directStream = playableDirectStreams[directStreamIndex];
   const isDirectPlayback = isDirectMode && Boolean(directStream?.url);
 
+  // Latest scraper query — read inside the loading-timeout callback so a slow
+  // resolve (5TV does search → episode page → signed AJAX → embed extraction)
+  // isn't killed by the generic 30s direct-mode timeout mid-flight.
+  const scraperQueryRef = useRef<{ isFetching: boolean; isFetched: boolean; isError: boolean } | null>(null);
+  scraperQueryRef.current = isEgyDeadMode ? egydeadQuery : is5tvMode ? fiveTvQuery : null;
+
   useEffect(() => {
     setDirectStreamIndex(0);
   }, [provider, imdbId, isEpisode ? `${season}x${episode}` : 'movie', retryKey]);
@@ -650,6 +656,14 @@ export const VidyPlayer: React.FC = () => {
     window.clearTimeout(loadingTimeout.current);
     loadingTimeout.current = window.setTimeout(() => {
       if (isDirectMode) {
+        const scraperQuery = scraperQueryRef.current;
+        if (scraperQuery?.isFetching) {
+          // Scraper resolve still in flight — keep waiting. Once it settles,
+          // the empty-stream effect fails over on 0 results or the player
+          // loads the resolved stream.
+          setIsLoading(true);
+          return;
+        }
         handleDirectPlaybackFailureRef.current('timeout');
         return;
       }
@@ -740,7 +754,8 @@ export const VidyPlayer: React.FC = () => {
     if (!isDirectMode || !detailsQuery.isFetched) return;
     const scraperQuery = isEgyDeadMode ? egydeadQuery : is5tvMode ? fiveTvQuery : null;
     if (scraperQuery) {
-      if (scraperQuery.isFetched && playableDirectStreams.length === 0) {
+      const settled = scraperQuery.isFetched || scraperQuery.isError;
+      if (settled && playableDirectStreams.length === 0) {
         handleDirectPlaybackFailureRef.current('empty');
       }
       return;
