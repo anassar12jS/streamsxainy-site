@@ -176,29 +176,29 @@ async function egyResolveEmbed(embedUrl) {
   });
 }
 
+// Returns direct streams for non-embed sources plus raw embed URLs. Embed
+// pages are resolved CLIENT-side through the proxy path — the signed m3u8 is
+// bound to the worker egress IP that fetched the embed, and only proxy-path
+// requests reliably share that egress.
 async function egyStreamsFromVideos(videos, origin) {
   const chosen = pickVideos(videos);
   const out = [];
-  await Promise.all(chosen.map(async v => {
+  const embeds = [];
+  for (const v of chosen) {
     const src = v.src;
-    let urls = null;
+    const label = `EgyDead · ${v.name || v.quality || 'Server'}${v.quality ? ` · ${String(v.quality).toUpperCase()}` : ''}`;
     if (/\.html?(\?|$)/i.test(src) || /embed-/i.test(src)) {
-      urls = await egyResolveEmbed(src);
+      embeds.push({ embedUrl: src, name: label, title: v.name || 'EgyDead' });
     } else if (/\.(m3u8|mp4|mpd)(\?|#|$)/i.test(src)) {
-      urls = [src];
-    }
-    if (!urls) return;
-    for (const url of urls.slice(0, 2)) {
       out.push({
-        url: proxiedMediaUrl(url, origin),
-        name: `EgyDead · ${v.name || v.quality || 'Server'}${v.quality ? ` · ${String(v.quality).toUpperCase()}` : ''}`,
-        title: `${v.name || 'EgyDead'} — ${url.split('/').pop()?.split('?')[0] || 'stream'}`,
-        isHls: /\.m3u8(\?|$)/i.test(url),
+        url: proxiedMediaUrl(src, origin),
+        name: label,
+        title: `${v.name || 'EgyDead'} — ${src.split('/').pop()?.split('?')[0] || 'stream'}`,
+        isHls: /\.m3u8(\?|$)/i.test(src),
       });
     }
-  }));
-  const seen = new Set();
-  return out.filter(s => !seen.has(s.url) && seen.add(s.url));
+  }
+  return { streams: out, embeds };
 }
 
 async function egyMovieStreams(egyId) {
@@ -265,9 +265,10 @@ async function handleEgyDead(params, origin) {
     videos = r?.videos || [];
   }
 
-  const streams = await egyStreamsFromVideos(videos, origin);
+  const r = await egyStreamsFromVideos(videos, origin);
   return json({
-    streams,
+    streams: r.streams,
+    embeds: r.embeds,
     matched: {
       id: match.id,
       name: match.name,
