@@ -525,6 +525,20 @@ export default {
       try { return await handle5tv(url.searchParams); }
       catch (e) { return json({ streams: [], embeds: [], error: String(e?.message || e) }); }
     }
+    if (url.pathname === '/api/egydead-debug') {
+      // embed fetch + immediate m3u8 fetch inside ONE invocation
+      const stages = {};
+      const eh = await egyFetchText('https://egybestvid.com/embed-b2kbkard9v3g.html', { 'User-Agent': UA, 'Accept': 'text/html,*/*', 'Referer': 'https://egybestvid.com/' });
+      stages.embedLen = eh ? eh.length : 0;
+      const m = eh && eh.match(/file\s*:\s*"([^"]+)"/);
+      if (m) {
+        stages.m3u8 = m[1].slice(0, 100);
+        const r = await fetch(m[1], { headers: { 'User-Agent': UA, 'Referer': 'https://egybestvid.com/' } });
+        stages.m3u8Status = r.status;
+        stages.m3u8Head = (await r.text()).slice(0, 80);
+      }
+      return json(stages);
+    }
 
     // Proxy paths: /<host>/<path>
     const [hostSeg, ...rest] = url.pathname.split('/').filter(Boolean);
