@@ -15,6 +15,7 @@ import { getProgressForId, getTheme, saveProgress, addToWatchlist, removeFromWat
 import { getStreams, getEpisodeStreams } from '../services/addonService';
 import { PROVIDERS, ANIME_PROVIDERS, ProviderId, AnimeProviderId, getHealthBook, bumpProviderHealth, providersByHealth, healthDotClass } from '../services/streamProviders';
 import { fetchSubtitles, cueIndexAt, SUBTITLE_LANGUAGES, SubtitleTrack } from '../services/subtitles';
+import { fetchScraperStreams } from '../services/scraperStreams';
 import { MediaType, TMDBResult, Stream } from '../types';
 import { TMDB_POSTER_BASE, TMDB_IMAGE_BASE, TMDB_PROFILE_BASE, TMDB_BACKDROP_W1280 } from '../constants';
 
@@ -232,14 +233,10 @@ export const VidyPlayer: React.FC = () => {
   })();
   const egydeadQuery = useQuery<{ streams?: Stream[] }>({
     queryKey: ['egydead-streams', id, mediaType, isEpisode ? `${season}x${episode}` : 'movie'],
-    queryFn: async () => {
-      const params = new URLSearchParams({ action: 'streams', tmdb: String(id), type: mediaType, title: egyTitle });
-      if (egyYear) params.set('year', String(egyYear));
-      if (isEpisode) { params.set('season', String(season)); params.set('episode', String(episode)); }
-      const r = await fetch(`/api/egydead?${params.toString()}`);
-      if (!r.ok) return { streams: [] };
-      return r.json();
-    },
+    queryFn: () => fetchScraperStreams('egydead', {
+      type: mediaType, title: egyTitle, year: egyYear, tmdb: id,
+      season: isEpisode ? season : undefined, episode: isEpisode ? episode : undefined,
+    }),
     enabled: isEgyDeadMode && !!egyTitle,
     staleTime: 1000 * 60 * 10,
     retry: 0,
@@ -252,14 +249,10 @@ export const VidyPlayer: React.FC = () => {
   // 5TV scraper provider: resolves direct MP4 streams via /api/5tv
   const fiveTvQuery = useQuery<{ streams?: Stream[] }>({
     queryKey: ['5tv-streams', id, mediaType, isEpisode ? `${season}x${episode}` : 'movie'],
-    queryFn: async () => {
-      const params = new URLSearchParams({ action: 'streams', tmdb: String(id), type: mediaType, title: egyTitle });
-      if (egyYear) params.set('year', String(egyYear));
-      if (isEpisode) { params.set('season', String(season)); params.set('episode', String(episode)); }
-      const r = await fetch(`/api/5tv?${params.toString()}`);
-      if (!r.ok) return { streams: [] };
-      return r.json();
-    },
+    queryFn: () => fetchScraperStreams('5tv', {
+      type: mediaType, title: egyTitle, year: egyYear, tmdb: id,
+      season: isEpisode ? season : undefined, episode: isEpisode ? episode : undefined,
+    }),
     enabled: is5tvMode && !!egyTitle,
     staleTime: 1000 * 60 * 10,
     retry: 0,
