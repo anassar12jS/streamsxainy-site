@@ -206,6 +206,25 @@ export default async function handler(req, res) {
 
   const action = String(req.query.action || 'streams');
   if (action === 'ping') return res.status(200).json({ ok: true });
+  if (action === 'debug') {
+    const page = String(req.query.page || 'https://5tv.rest/episode/breaking-bad-5x2/');
+    const stages = {};
+    const html = await fetchText(page);
+    stages.page = html ? { ok: true, len: html.length, hasWatch: html.includes('ftv-watch') } : { ok: false };
+    if (html) {
+      const { objectId, servers } = parseWatchBox(html);
+      stages.parsed = { objectId, servers: servers.length };
+      if (objectId && servers[0]) {
+        const signed = await accessUrl(objectId, servers[0].id);
+        stages.signed = signed ? signed.slice(0, 120) : null;
+        if (signed) {
+          const media = await resolveEmbedMedia(signed);
+          stages.media = media ? media.url.slice(0, 120) : null;
+        }
+      }
+    }
+    return res.status(200).json(stages);
+  }
 
   const title = String(req.query.title || '').trim();
   const type = String(req.query.type || 'movie');

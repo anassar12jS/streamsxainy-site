@@ -258,6 +258,16 @@ export default async function handler(req, res) {
   const episode = parseInt(req.query.episode, 10) || null;
 
   if (action === 'ping') return res.status(200).json({ ok: true });
+  if (action === 'debug') {
+    try {
+      const u = egyUrl('/api/v1/search/matrix?loader=searchAutocomplete');
+      const r = await fetch(u, { headers: JSON_HEADERS, signal: AbortSignal.timeout(15000) });
+      const t = await r.text();
+      return res.status(200).json({ url: u.slice(0, 90), status: r.status, len: t.length, head: t.slice(0, 200), server: r.headers.get('server') || '' });
+    } catch (e) {
+      return res.status(200).json({ error: String(e?.message || e) });
+    }
+  }
   if (!title) return res.status(400).json({ error: 'title required' });
 
   try {
