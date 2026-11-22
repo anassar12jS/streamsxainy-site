@@ -4,18 +4,18 @@ import { useQuery } from '@tanstack/react-query';
 import { 
   ArrowLeft, Expand, ExternalLink, RotateCw, 
   Server, ChevronLeft, ChevronRight, AlertCircle, Tv, Film,
-  Ghost, Sparkles, Volume2, VolumeX, Subtitles, Check, Clock,
+  Ghost, Sparkles, Volume2, Subtitles, Check, Clock,
   Maximize2, Minimize2, Keyboard, Sun, Moon, ListVideo, Zap, X,
-  Star, Share2, Plus, Bookmark, Users, ChevronDown, Play, Pause, RotateCcw,
-  SlidersHorizontal, Rewind, FastForward, PictureInPicture2, Gauge
+  Star, Share2, Plus, Bookmark, Users, ChevronDown, Play, RotateCcw
 } from 'lucide-react';
+import { DirectVideoPlayer, isDirectPlayableStream } from '../components/DirectVideoPlayer';
 import { getDetails, getSeasonDetails, getRecommendations } from '../services/tmdb';
 import { searchAnimeByTitle, getAnimeById, mapAniListToTMDBDetail } from '../services/anilist';
-import { getProgressForId, getTheme, saveProgress, addToWatchlist, removeFromWatchlist, isInWatchlist, removeFromProgress, getAutoplayNext } from '../services/storage';
+import { getProgressForId, getTheme, saveProgress, addToWatchlist, removeFromWatchlist, isInWatchlist, removeFromProgress, getAutoplayNext, getDefaultServer } from '../services/storage';
 import { getStreams, getEpisodeStreams } from '../services/addonService';
 import { PROVIDERS, ANIME_PROVIDERS, ProviderId, AnimeProviderId, getHealthBook, bumpProviderHealth, providersByHealth, healthDotClass } from '../services/streamProviders';
 import { fetchSubtitles, cueIndexAt, SUBTITLE_LANGUAGES, SubtitleTrack } from '../services/subtitles';
-import { MediaType, TMDBResult, Stream } from '../types';
+import { MediaType, TMDBResult } from '../types';
 import { TMDB_POSTER_BASE, TMDB_IMAGE_BASE, TMDB_PROFILE_BASE, TMDB_BACKDROP_W1280 } from '../constants';
 
 const getThemeHex = () => {
@@ -47,20 +47,12 @@ const formatResumeTime = (secs: number): string => {
     : `${m}:${String(r).padStart(2, '0')}`;
 };
 
-const NON_BROWSER_VIDEO_RE = /\.(m3u8|mkv|avi|ts)(\?|$)/i;
-
-const isBrowserPlayableStream = (stream: Stream): boolean => {
-  if (!stream.url || !/^https?:\/\//i.test(stream.url)) return false;
-  if (stream.behaviorHints?.notWebReady) return false;
-  return !NON_BROWSER_VIDEO_RE.test(stream.url);
-};
-
 export const VidyPlayer: React.FC = () => {
   const { mediaType: mediaTypeParam, id: idParam, season: seasonParam, episode: episodeParam } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const playerRef = useRef<HTMLIFrameElement>(null);
-  const directVideoRef = useRef<HTMLVideoElement>(null);
+  const directFullscreenRef = useRef<(() => void) | null>(null);
   const loadingTimeout = useRef<number | undefined>(undefined);
   const lastSavedTime = useRef(0);
   const failoverAttempts = useRef(0);
@@ -84,6 +76,12 @@ export const VidyPlayer: React.FC = () => {
       const e = getHealthBook()[key];
       if (!e || e.fail <= e.ok + 1) return saved as ProviderId;
     }
+    const configuredDefault = getDefaultServer();
+    if (PROVIDERS.some(p => p.id === configuredDefault)) {
+      const key = `movie:${configuredDefault}`;
+      const e = getHealthBook()[key];
+      if (!e || e.fail <= e.ok + 1) return configuredDefault as ProviderId;
+    }
     const best = providersByHealth(PROVIDERS, 'movie')[0];
     return best.id;
   });
@@ -97,27 +95,6 @@ export const VidyPlayer: React.FC = () => {
   });
   const [retryKey, setRetryKey] = useState(0);
   const [directStreamIndex, setDirectStreamIndex] = useState(0);
-  const [directPlaying, setDirectPlaying] = useState(false);
-  const [directDuration, setDirectDuration] = useState(0);
-  const [directVolume, setDirectVolume] = useState(() => {
-    const v = parseFloat(safeStorageGet('vidy:volume') || '1');
-    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
-  });
-  const [directMuted, setDirectMuted] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(() => {
-    const v = parseFloat(safeStorageGet('vidy:rate') || '1');
-    return Number.isFinite(v) ? Math.min(2, Math.max(0.25, v)) : 1;
-  });
-  const [bufferedPct, setBufferedPct] = useState(0);
-  const [isPip, setIsPip] = useState(false);
-  const [hoverSeek, setHoverSeek] = useState<{ pct: number; time: number } | null>(null);
-  const [showSubsPanel, setShowSubsPanel] = useState(false);
-  const [directControlsVisible, setDirectControlsVisible] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const isSeekingRef = useRef(false);
-  const seekBarRef = useRef<HTMLDivElement>(null);
-  const directControlsTimer = useRef<number | undefined>(undefined);
-  const directPlayingRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasTimedOut, setHasTimedOut] = useState(false);
   const [isTheaterMode, setIsTheaterMode] = useState<boolean>(false);
@@ -241,7 +218,7 @@ export const VidyPlayer: React.FC = () => {
     retry: 0,
   });
   const playableDirectStreams = useMemo(
-    () => (directStreamsQuery.data?.streams || []).filter(isBrowserPlayableStream),
+    () => (directStreamsQuery.data?.streams || []).filter(isDirectPlayableStream),
     [directStreamsQuery.data]
   );
   const directStream = playableDirectStreams[directStreamIndex];
@@ -758,8 +735,11 @@ export const VidyPlayer: React.FC = () => {
   };
 
   const openFullscreen = () => {
-    const target = isDirectPlayback ? directVideoRef.current : playerRef.current;
-    void target?.requestFullscreen?.();
+    if (isDirectPlayback && directFullscreenRef.current) {
+      directFullscreenRef.current();
+      return;
+    }
+    void playerRef.current?.requestFullscreen?.();
   };
 
   const handleEpisodeChange = (newEp: number, targetSeason: number = season) => {
@@ -787,331 +767,21 @@ export const VidyPlayer: React.FC = () => {
     }
   };
 
-  const handleDirectLoaded = (e: React.SyntheticEvent<HTMLVideoElement>) => {
-    const video = e.currentTarget;
-    video.volume = directVolume;
-    video.muted = directMuted;
-    video.playbackRate = playbackRate;
-    markDirectPlaybackOk();
-    window.clearTimeout(loadingTimeout.current);
-    setIsLoading(false);
-    setHasTimedOut(false);
-    setVideoTime(0);
-    setDirectPlaying(false);
-    directPlayingRef.current = false;
-    setDirectControlsVisible(true);
-    if (Number.isFinite(video.duration) && video.duration > 0) {
-      setDirectDuration(video.duration);
-    }
-    if (resumeTime && resumeTime > 0) {
-      try { video.currentTime = resumeTime; } catch { /* some streams report duration late */ }
-    }
-  };
-
-  const handleDirectProgress = (e: React.SyntheticEvent<HTMLVideoElement>) => {
-    const v = e.currentTarget;
-    try {
-      if (v.buffered.length > 0 && v.duration > 0) {
-        setBufferedPct(Math.min(100, (v.buffered.end(v.buffered.length - 1) / v.duration) * 100));
-      }
-    } catch {}
-  };
-
-  const handleDirectDoubleClick = (e: React.MouseEvent<HTMLVideoElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (rect.width <= 0) return;
-    const rel = (e.clientX - rect.left) / rect.width;
-    seekDirectBy(rel < 0.5 ? -10 : 10);
-  };
-
-  const handleSeekHover = (e: React.MouseEvent<HTMLDivElement>) => {
-    const duration = Number.isFinite(directDuration) && directDuration > 0 ? directDuration : 0;
-    const video = directVideoRef.current;
-    const dur = duration || (video && Number.isFinite(video.duration) ? video.duration : 0);
-    if (dur <= 0) { setHoverSeek(null); return; }
-    const pct = seekFractionFromClientX(e.clientX);
-    setHoverSeek({ pct: pct * 100, time: pct * dur });
-  };
-
-  const handleDirectTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
-    const video = e.currentTarget;
-    const nowTs = Date.now();
-    if (nowTs - lastTimePush.current > 250) {
-      lastTimePush.current = nowTs;
-      setVideoTime(video.currentTime);
-    }
-    if (Number.isFinite(video.duration) && video.duration > 0 && video.duration !== directDuration) {
-      setDirectDuration(video.duration);
-    }
-    markDirectPlaybackOk();
-    const now = Date.now();
-    if (video.duration > 0 && now - lastSavedTime.current > 5000) {
-      lastSavedTime.current = now;
-      saveProgress({
-        id,
-        anilist_id: effectiveAnilistId,
-        media_type: mediaType,
-        title: details?.title || details?.name || '',
-        poster_path: details?.poster_path || null,
-        season: isEpisode && !isAnime ? season : undefined,
-        episode: (isEpisode || isAnime) ? episode : undefined,
-        currentTime: video.currentTime,
-        duration: video.duration,
-        progress: (video.currentTime / video.duration) * 100,
-      });
-    }
-  };
-
-  const handleDirectEnded = () => {
-    if (isEpisode && getAutoplayNext() && episode < totalEpisodesInSeason) {
-      handleEpisodeChange(episode + 1);
-    }
-  };
-
-  const directActionsRef = useRef<{
-    toggle: () => void;
-    seekBy: (delta: number) => void;
-    volumeBy: (delta: number) => void;
-    toggleMute: () => void;
-    rateBy: (dir: number) => void;
-    togglePip: () => void;
-    seekFraction: (frac: number) => void;
-    toggleSubs: () => void;
-  } | null>(null);
-
-  const pokeDirectControls = useCallback(() => {
-    setDirectControlsVisible(true);
-    window.clearTimeout(directControlsTimer.current);
-    if (directPlayingRef.current) {
-      directControlsTimer.current = window.setTimeout(() => setDirectControlsVisible(false), 2600);
-    }
-  }, []);
-
-  useEffect(() => () => window.clearTimeout(directControlsTimer.current), []);
-
-  useEffect(() => {
-    const onFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
-    document.addEventListener('fullscreenchange', onFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
-  }, []);
-
   const selectDirectStreamIndex = (nextIndex: number) => {
     if (!playableDirectStreams.length) return;
     const count = playableDirectStreams.length;
     const idx = ((nextIndex % count) + count) % count;
     if (idx === directStreamIndex) return;
     setDirectStreamIndex(idx);
-    setVideoTime(0);
-    setDirectDuration(0);
-    setDirectPlaying(false);
-    directPlayingRef.current = false;
     setIsLoading(true);
     setHasTimedOut(false);
   };
 
-  const toggleDirectPlay = () => {
-    const video = directVideoRef.current;
-    if (!video) return;
-    if (video.paused) {
-      void video.play().catch(() => {});
-    } else {
-      video.pause();
-    }
-    pokeDirectControls();
-  };
-
-  const seekDirectTo = (target: number) => {
-    const video = directVideoRef.current;
-    if (!video) return;
-    const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : directDuration;
-    const next = duration > 0 ? Math.min(Math.max(0, target), duration) : Math.max(0, target);
-    try { video.currentTime = next; } catch { /* stream may reject seek before metadata */ }
-    setVideoTime(next);
-    pokeDirectControls();
-  };
-
-  const seekDirectBy = (delta: number) => {
-    const video = directVideoRef.current;
-    if (!video) return;
-    seekDirectTo((Number.isFinite(video.currentTime) ? video.currentTime : videoTime) + delta);
-  };
-
-  const setDirectVolumeValue = (value: number, muted = false) => {
-    const video = directVideoRef.current;
-    if (!video) return;
-    const volume = Math.min(1, Math.max(0, value));
-    video.volume = volume;
-    video.muted = muted || volume === 0;
-    setDirectVolume(volume);
-    setDirectMuted(video.muted);
-    safeStorageSet('vidy:volume', String(volume));
-    pokeDirectControls();
-  };
-
-  const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-
-  const cyclePlaybackRate = (dir = 1) => {
-    setPlaybackRate(prev => {
-      const idx = PLAYBACK_RATES.findIndex(r => Math.abs(r - prev) < 0.01);
-      const base = idx < 0 ? PLAYBACK_RATES.indexOf(1) : idx;
-      const next = PLAYBACK_RATES[(base + dir + PLAYBACK_RATES.length) % PLAYBACK_RATES.length];
-      safeStorageSet('vidy:rate', String(next));
-      const v = directVideoRef.current;
-      if (v) v.playbackRate = next;
-      return next;
-    });
-    pokeDirectControls();
-  };
-
-  const toggleDirectPip = async () => {
-    const video = directVideoRef.current;
-    if (!video) return;
-    try {
-      if (document.pictureInPictureElement) {
-        await document.exitPictureInPicture();
-      } else {
-        await video.requestPictureInPicture();
-      }
-    } catch {}
-    pokeDirectControls();
-  };
-
-  useEffect(() => {
-    const onPip = () => setIsPip(Boolean(document.pictureInPictureElement));
-    document.addEventListener('enterpictureinpicture', onPip);
-    document.addEventListener('leavepictureinpicture', onPip);
-    return () => {
-      document.removeEventListener('enterpictureinpicture', onPip);
-      document.removeEventListener('leavepictureinpicture', onPip);
-    };
-  }, []);
-
-  const adjustDirectVolume = (delta: number) => {
-    const video = directVideoRef.current;
-    if (!video) return;
-    setDirectVolumeValue((video.muted ? 0 : video.volume) + delta, false);
-  };
-
-  const toggleDirectMute = () => {
-    const video = directVideoRef.current;
-    if (!video) return;
-    video.muted = !video.muted;
-    setDirectMuted(video.muted);
-    pokeDirectControls();
-  };
-
-  const seekFractionFromClientX = (clientX: number): number => {
-    const bar = seekBarRef.current;
-    if (!bar) return 0;
-    const rect = bar.getBoundingClientRect();
-    if (rect.width <= 0) return 0;
-    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-  };
-
-  const seekDirectFromPointer = (clientX: number) => {
-    const video = directVideoRef.current;
-    if (!video) return;
-    const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : directDuration;
-    if (duration <= 0) return;
-    seekDirectTo(seekFractionFromClientX(clientX) * duration);
-  };
-
-  const handleSeekPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    isSeekingRef.current = true;
-    try { seekBarRef.current?.setPointerCapture?.(e.pointerId); } catch { /* pointer capture optional */ }
-    seekDirectFromPointer(e.clientX);
-  };
-
-  const handleSeekPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isSeekingRef.current) return;
-    seekDirectFromPointer(e.clientX);
-  };
-
-  const handleSeekPointerEnd = () => {
-    isSeekingRef.current = false;
-  };
-
-  directActionsRef.current = {
-    toggle: toggleDirectPlay,
-    seekBy: seekDirectBy,
-    volumeBy: adjustDirectVolume,
-    toggleMute: toggleDirectMute,
-    rateBy: cyclePlaybackRate,
-    togglePip: () => { void toggleDirectPip(); },
-    seekFraction: (frac: number) => {
-      const video = directVideoRef.current;
-      const dur = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : directDuration;
-      if (dur > 0) seekDirectTo(Math.min(1, Math.max(0, frac)) * dur);
-    },
-    toggleSubs: () => {
-      setSubsOn(v => { safeStorageSet('vidy:subs-on', v ? '0' : '1'); return !v; });
-    },
-  };
-
-  // Keyboard Shortcuts: F (fullscreen), T (theater), L (lights), N (next), P (prev), R (reload)
+  // Global Player Shortcuts: F (fullscreen), T (theater), L (lights), N (next), P (prev), R (reload), S (server)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeTag = document.activeElement?.tagName || '';
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag)) return;
-
-      if (isDirectPlayback) {
-        if (e.key === ' ' || e.key.toLowerCase() === 'k') {
-          e.preventDefault();
-          directActionsRef.current?.toggle();
-          return;
-        }
-        if (e.key === 'ArrowLeft') {
-          e.preventDefault();
-          directActionsRef.current?.seekBy(-5);
-          return;
-        }
-        if (e.key === 'ArrowRight') {
-          e.preventDefault();
-          directActionsRef.current?.seekBy(5);
-          return;
-        }
-        if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          directActionsRef.current?.volumeBy(0.05);
-          return;
-        }
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          directActionsRef.current?.volumeBy(-0.05);
-          return;
-        }
-        if (e.key.toLowerCase() === 'm') {
-          e.preventDefault();
-          directActionsRef.current?.toggleMute();
-          return;
-        }
-        if (e.key === ',' || e.key === '<') {
-          e.preventDefault();
-          directActionsRef.current?.rateBy(-1);
-          return;
-        }
-        if (e.key === '.' || e.key === '>') {
-          e.preventDefault();
-          directActionsRef.current?.rateBy(1);
-          return;
-        }
-        if (e.key.toLowerCase() === 'i') {
-          e.preventDefault();
-          directActionsRef.current?.togglePip();
-          return;
-        }
-        if (e.key.toLowerCase() === 'c') {
-          e.preventDefault();
-          directActionsRef.current?.toggleSubs();
-          return;
-        }
-        if (/^[0-9]$/.test(e.key)) {
-          e.preventDefault();
-          directActionsRef.current?.seekFraction(parseInt(e.key, 10) / 10);
-          return;
-        }
-      }
 
       if (e.key.toLowerCase() === 'f') {
         e.preventDefault();
@@ -1147,16 +817,6 @@ export const VidyPlayer: React.FC = () => {
   const detailsUrl = isAnime && effectiveAnilistId 
     ? `/tv/${id}?anilistId=${effectiveAnilistId}` 
     : `/${mediaType}/${id}`;
-
-  const directProgressPct = directDuration > 0
-    ? Math.min(100, Math.max(0, (videoTime / directDuration) * 100))
-    : 0;
-
-  const directQualityLabel = (() => {
-    const name = directStream?.name || '';
-    const match = name.match(/(2160p|1080p|720p|480p|4k|hd)/i);
-    return match ? match[0].toUpperCase() : (name || 'DIRECT');
-  })();
 
   return (
     <main className="min-h-screen bg-[#070709] text-white flex flex-col font-sans selection:bg-[rgb(var(--primary-color))]/30 relative">
@@ -1627,298 +1287,53 @@ export const VidyPlayer: React.FC = () => {
               </div>
             )}
 
-            <div className={`relative w-full ${isTheaterMode ? 'aspect-[21/9] min-h-[480px] max-h-[84vh]' : 'aspect-video max-h-[78vh]'} bg-black rounded-2xl overflow-hidden ring-1 ring-white/15 shadow-2xl z-30 transition-all duration-300 ${isDirectPlayback && directPlaying && !directControlsVisible ? 'cursor-none' : ''}`}>
+            <div className={`relative w-full ${isTheaterMode ? 'aspect-[21/9] min-h-[480px] max-h-[84vh]' : 'aspect-video max-h-[78vh]'} bg-black rounded-2xl overflow-hidden ring-1 ring-white/15 shadow-2xl z-30 transition-all duration-300`}>
               {isDirectMode ? (
                 directStream?.url ? (
-                  <>
-                    <video
-                      key={`${directStream.url}_${retryKey}_${directStreamIndex}`}
-                      ref={directVideoRef}
-                      src={directStream.url}
-                      title={`${title} player`}
-                      className="absolute inset-0 w-full h-full bg-black cursor-pointer"
-                      autoPlay
-                      playsInline
-                      onLoadedData={handleDirectLoaded}
-                      onLoadedMetadata={(e) => {
-                        const v = e.currentTarget;
-                        if (Number.isFinite(v.duration) && v.duration > 0) setDirectDuration(v.duration);
-                      }}
-                      onTimeUpdate={handleDirectTimeUpdate}
-                      onProgress={handleDirectProgress}
-                      onDoubleClick={handleDirectDoubleClick}
-                      onPlay={() => { directPlayingRef.current = true; setDirectPlaying(true); pokeDirectControls(); }}
-                      onPause={() => { directPlayingRef.current = false; setDirectPlaying(false); setDirectControlsVisible(true); window.clearTimeout(directControlsTimer.current); }}
-                      onVolumeChange={(e) => { const v = e.currentTarget; setDirectVolume(v.volume); setDirectMuted(v.muted); }}
-                      onEnded={handleDirectEnded}
-                      onError={() => handleDirectPlaybackFailure('error')}
-                      onClick={toggleDirectPlay}
-                      onMouseMove={pokeDirectControls}
-                      onTouchStart={pokeDirectControls}
-                    />
-
-                    {isDirectPlayback && !directPlaying && !isLoading && !hasTimedOut && (
-                      <button
-                        type="button"
-                        onClick={toggleDirectPlay}
-                        className="absolute inset-0 z-30 flex items-center justify-center bg-black/20 cursor-pointer"
-                        aria-label="Play"
-                      >
-                        <span className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/60 border border-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-2xl">
-                          <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-current ml-1" />
-                        </span>
-                      </button>
-                    )}
-
-                    {isDirectPlayback && !isLoading && !hasTimedOut && (
-                      <div
-                        className={`absolute inset-x-0 bottom-0 z-40 bg-gradient-to-t from-black/85 via-black/35 to-transparent px-3 sm:px-4 pb-2 pt-10 transition-opacity duration-300 ${directControlsVisible || !directPlaying ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                        onMouseMove={pokeDirectControls}
-                        onTouchStart={pokeDirectControls}
-                      >
-                        <div
-                          ref={seekBarRef}
-                          className="group/seek relative h-1.5 sm:h-2 w-full cursor-pointer touch-none"
-                          onPointerDown={handleSeekPointerDown}
-                          onPointerMove={(e) => { handleSeekPointerMove(e); handleSeekHover(e); }}
-                          onPointerUp={handleSeekPointerEnd}
-                          onPointerCancel={handleSeekPointerEnd}
-                          onMouseMove={handleSeekHover}
-                          onMouseLeave={() => setHoverSeek(null)}
-                          role="slider"
-                          aria-label="Seek"
-                          aria-valuemin={0}
-                          aria-valuemax={Math.floor(directDuration || 0)}
-                          aria-valuenow={Math.floor(videoTime)}
-                        >
-                          {hoverSeek && (
-                            <div
-                              className="absolute -top-7 z-50 -translate-x-1/2 px-2 py-0.5 rounded-md bg-black/90 border border-white/20 text-[10px] font-mono text-white tabular-nums pointer-events-none shadow-lg"
-                              style={{ left: `${Math.min(96, Math.max(4, hoverSeek.pct))}%` }}
-                            >
-                              {formatResumeTime(hoverSeek.time)}
-                            </div>
-                          )}
-                          <div className="absolute inset-0 rounded-full bg-white/20 overflow-hidden">
-                            <div className="h-full bg-white/30" style={{ width: `${Math.min(100, bufferedPct)}%` }} />
-                            <div className="absolute inset-y-0 left-0 h-full bg-[rgb(var(--primary-color))]" style={{ width: `${directProgressPct}%` }} />
-                          </div>
-                          <div
-                            className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow opacity-0 group-hover/seek:opacity-100 transition-opacity pointer-events-none"
-                            style={{ left: `calc(${directProgressPct}% - 6px)` }}
-                          />
-                        </div>
-
-                        <div className="flex items-center gap-1.5 sm:gap-2 mt-2">
-                          <button
-                            type="button"
-                            onClick={toggleDirectPlay}
-                            className="p-2 rounded-lg text-white hover:bg-white/10 transition-colors cursor-pointer"
-                            aria-label={directPlaying ? 'Pause' : 'Play'}
-                            title={directPlaying ? 'Pause (Space)' : 'Play (Space)'}
-                          >
-                            {directPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current" />}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => seekDirectBy(-10)}
-                            className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                            aria-label="Back 10 seconds"
-                            title="Back 10s (, . for speed)"
-                          >
-                            <Rewind className="w-5 h-5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => seekDirectBy(10)}
-                            className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                            aria-label="Forward 10 seconds"
-                            title="Forward 10s"
-                          >
-                            <FastForward className="w-5 h-5" />
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={toggleDirectMute}
-                            className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                            aria-label={directMuted ? 'Unmute' : 'Mute'}
-                            title={directMuted ? 'Unmute (M)' : 'Mute (M)'}
-                          >
-                            {directMuted || directVolume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                          </button>
-                          <input
-                            type="range"
-                            min={0}
-                            max={1}
-                            step={0.05}
-                            value={directMuted ? 0 : directVolume}
-                            onChange={(e) => setDirectVolumeValue(parseFloat(e.target.value), false)}
-                            className="w-14 sm:w-20 h-1 accent-[rgb(var(--primary-color))] cursor-pointer hidden md:block"
-                            aria-label="Volume"
-                          />
-
-                          <span className="text-[11px] sm:text-xs font-mono text-white/80 tabular-nums px-1">
-                            {videoTime > 0 ? formatResumeTime(videoTime) : '0:00'} / {directDuration > 0 ? formatResumeTime(directDuration) : '--:--'}
-                          </span>
-
-                          <div className="flex-1" />
-
-                          {/* Subtitles: CC button + settings popover */}
-                          {!isAnimeDetected && imdbId && (
-                            <div className="relative">
-                              <button
-                                type="button"
-                                onClick={() => setShowSubsPanel(v => !v)}
-                                className={`relative p-2 rounded-lg transition-colors cursor-pointer ${
-                                  showSubsPanel || subsOn ? 'text-[rgb(var(--primary-color))] bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10'
-                                }`}
-                                aria-label="Subtitles"
-                                title="Subtitles (C)"
-                              >
-                                <Subtitles className="w-4 h-4" />
-                                {subsOn && (
-                                  <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[rgb(var(--primary-color))]" />
-                                )}
-                              </button>
-                              {showSubsPanel && (
-                                <>
-                                  <div className="fixed inset-0 z-40" onClick={() => setShowSubsPanel(false)} />
-                                  <div className="absolute bottom-full right-0 mb-2 z-50 w-60 rounded-2xl bg-[#141418]/95 backdrop-blur-xl border border-white/15 shadow-2xl p-3 text-xs select-none">
-                                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
-                                      <span className="font-bold text-white flex items-center gap-1.5">
-                                        <Subtitles className="w-3.5 h-3.5" /> Subtitles
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => setSubsOn(v => { safeStorageSet('vidy:subs-on', v ? '0' : '1'); return !v; })}
-                                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors cursor-pointer ${
-                                          subsOn ? 'bg-[rgb(var(--primary-color))] text-white' : 'bg-white/10 text-white/60 hover:text-white'
-                                        }`}
-                                      >
-                                        {subsOn ? 'ON' : 'OFF'}
-                                      </button>
-                                    </div>
-
-                                    {subsOn && (
-                                      <>
-                                        <div className="flex items-center justify-between py-1.5">
-                                          <span className="text-white/60">Language</span>
-                                          <select
-                                            value={subLang}
-                                            onChange={(e) => { setSubLang(e.target.value); safeStorageSet('vidy:sub-lang', e.target.value); }}
-                                            className="bg-black/50 border border-white/15 rounded-lg px-2 py-1 text-[11px] font-semibold text-white outline-none cursor-pointer"
-                                            aria-label="Subtitle language"
-                                          >
-                                            {SUBTITLE_LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
-                                          </select>
-                                        </div>
-                                        <div className="flex items-center justify-between py-1.5">
-                                          <span className="text-white/60">Sync offset</span>
-                                          <div className="flex items-center gap-1">
-                                            <button
-                                              type="button"
-                                              onClick={() => setSubOffset(v => { const n = Math.max(-60, Math.round((v - 0.5) * 2) / 2); safeStorageSet(subOffsetKey, String(n)); return n; })}
-                                              className="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold cursor-pointer"
-                                              title="Subtitles earlier"
-                                            >−</button>
-                                            <span className="w-12 text-center font-mono text-[11px] text-white/80 tabular-nums">
-                                              {subOffset > 0 ? `+${subOffset}` : subOffset}s
-                                            </span>
-                                            <button
-                                              type="button"
-                                              onClick={() => setSubOffset(v => { const n = Math.min(60, Math.round((v + 0.5) * 2) / 2); safeStorageSet(subOffsetKey, String(n)); return n; })}
-                                              className="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold cursor-pointer"
-                                              title="Subtitles later"
-                                            >+</button>
-                                          </div>
-                                        </div>
-                                        {subOffset !== 0 && (
-                                          <button
-                                            type="button"
-                                            onClick={() => { setSubOffset(0); safeStorageSet(subOffsetKey, '0'); }}
-                                            className="w-full mt-1 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-[10px] font-semibold transition-colors cursor-pointer"
-                                          >
-                                            Reset sync offset
-                                          </button>
-                                        )}
-                                        <p className="pt-1.5 mt-1 border-t border-white/10 text-[10px] text-white/40">
-                                          {subsQuery.isLoading
-                                            ? 'Loading subtitles…'
-                                            : subTrack
-                                              ? `${subTrack.cues?.length ?? 0} cues · ${subTrack.name || subTrack.lang || subLang}`
-                                              : 'No subtitles found for this title'}
-                                        </p>
-                                      </>
-                                    )}
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() => selectDirectStreamIndex(directStreamIndex + 1)}
-                            disabled={playableDirectStreams.length < 2}
-                            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-bold text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-40 disabled:pointer-events-none max-w-[9rem] sm:max-w-[12rem]"
-                            title={`Direct stream ${directStreamIndex + 1}/${playableDirectStreams.length}: ${directStream.name || directStream.url}`}
-                          >
-                            <SlidersHorizontal className="w-4 h-4 shrink-0" />
-                            <span className="truncate">{directQualityLabel}</span>
-                          </button>
-
-                          {isEpisode && episode < totalEpisodesInSeason && (
-                            <button
-                              type="button"
-                              onClick={() => handleEpisodeChange(episode + 1)}
-                              className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                              aria-label="Next episode"
-                              title="Next Episode (N)"
-                            >
-                              <ChevronRight className="w-5 h-5" />
-                            </button>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() => cyclePlaybackRate(1)}
-                            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                              playbackRate !== 1 ? 'text-[rgb(var(--primary-color))] bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10'
-                            }`}
-                            aria-label="Playback speed"
-                            title={`Playback speed ${playbackRate}x (, / . to adjust)`}
-                          >
-                            <Gauge className="w-4 h-4" />
-                            <span className="tabular-nums">{playbackRate % 1 === 0 ? playbackRate : playbackRate.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}x</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => void toggleDirectPip()}
-                            className={`p-2 rounded-lg transition-colors cursor-pointer ${
-                              isPip ? 'text-[rgb(var(--primary-color))] bg-white/10' : 'text-white/80 hover:text-white hover:bg-white/10'
-                            }`}
-                            aria-label="Picture in picture"
-                            title="Picture-in-Picture (I)"
-                          >
-                            <PictureInPicture2 className="w-5 h-5" />
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={openFullscreen}
-                            className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                            aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-                            title={isFullscreen ? 'Exit Fullscreen (F)' : 'Fullscreen (F)'}
-                          >
-                            {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </>
+                  <DirectVideoPlayer
+                    streams={playableDirectStreams}
+                    activeStreamIndex={directStreamIndex}
+                    onSelectStreamIndex={selectDirectStreamIndex}
+                    onStreamHealthy={markDirectPlaybackOk}
+                    onStreamFailure={(reason) => handleDirectPlaybackFailure(reason)}
+                    onSwitchToEmbedFallback={() => advanceStreamServer(true, 'Switched to mirror embed server')}
+                    fallbackButtonLabel="Try Mirror Embed"
+                    onLoaded={() => {
+                      window.clearTimeout(loadingTimeout.current);
+                      setIsLoading(false);
+                      setHasTimedOut(false);
+                      markDirectPlaybackOk();
+                    }}
+                    onProgressSave={(ct, dur) => {
+                      saveProgress({
+                        id,
+                        anilist_id: effectiveAnilistId,
+                        media_type: mediaType,
+                        title: details?.title || details?.name || '',
+                        poster_path: details?.poster_path || null,
+                        season: isEpisode && !isAnime ? season : undefined,
+                        episode: isEpisode || isAnime ? episode : undefined,
+                        currentTime: ct,
+                        duration: dur,
+                        progress: (ct / dur) * 100,
+                      });
+                    }}
+                    resumeTime={resumeTime}
+                    title={title}
+                    subtitleLabel={isEpisode ? `S${season} · E${episode}` : undefined}
+                    poster={backdrop}
+                    imdbId={imdbId}
+                    season={isEpisode ? season : undefined}
+                    episode={isEpisode ? episode : undefined}
+                    isAnime={isAnimeDetected}
+                    hasNextEpisode={isEpisode && episode < totalEpisodesInSeason}
+                    autoplayNext={getAutoplayNext()}
+                    onNextEpisode={() => handleEpisodeChange(episode + 1)}
+                    stageClassName="h-full w-full"
+                    retryNonce={retryKey}
+                    disableGlobalFullscreenKey
+                    fullscreenTriggerRef={directFullscreenRef}
+                  />
                 ) : null
               ) : (
                 <iframe
@@ -1939,7 +1354,7 @@ export const VidyPlayer: React.FC = () => {
               )}
 
               {/* Loading Indicator Overlay */}
-              {isLoading && (
+              {isLoading && (!isDirectMode || !directStream?.url) && (
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm gap-5 px-6">
                   <div className="flex items-end gap-1.5 h-12">
                     {[0, 1, 2, 3, 4].map(i => (
@@ -1969,7 +1384,7 @@ export const VidyPlayer: React.FC = () => {
               )}
 
               {/* Stream Failure Overlay (shown after all servers timed out) */}
-              {hasTimedOut && !isLoading && (
+              {hasTimedOut && !isLoading && (!isDirectMode || !directStream?.url) && (
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/95 backdrop-blur-sm gap-4 p-6 text-center">
                   <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/25 flex items-center justify-center text-red-400">
                     <AlertCircle className="w-7 h-7" />
@@ -2009,8 +1424,8 @@ export const VidyPlayer: React.FC = () => {
                 </div>
               )}
 
-              {/* Overlay subtitles synced to provider playback time */}
-              {activeCue && !isLoading && !hasTimedOut && (
+              {/* Overlay subtitles synced to embed provider playback time */}
+              {!isDirectPlayback && activeCue && !isLoading && !hasTimedOut && (
                 <div className="absolute inset-x-0 bottom-[13%] z-30 flex justify-center px-6 sm:px-16 pointer-events-none">
                   <p
                     className="max-w-3xl text-center text-white text-sm sm:text-lg font-semibold leading-snug whitespace-pre-line"
@@ -2474,8 +1889,12 @@ export const VidyPlayer: React.FC = () => {
                 <kbd className="px-2 py-1 rounded bg-black/60 border border-white/20 font-mono text-xs text-white">I</kbd>
               </div>
               <div className="flex items-center justify-between py-1.5 border-b border-white/5">
-                <span className="text-white/70">Toggle Subtitles</span>
+                <span className="text-white/70">Toggle Subtitles (Direct)</span>
                 <kbd className="px-2 py-1 rounded bg-black/60 border border-white/20 font-mono text-xs text-white">C</kbd>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-white/5">
+                <span className="text-white/70">Aspect Fit: Original / Zoom / Fill</span>
+                <kbd className="px-2 py-1 rounded bg-black/60 border border-white/20 font-mono text-xs text-white">Z</kbd>
               </div>
               <div className="flex items-center justify-between py-1.5 border-b border-white/5">
                 <span className="text-white/70">Seek to %</span>

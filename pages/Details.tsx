@@ -5,10 +5,11 @@ import { TMDBDetail, MediaType, Stream, TMDBEpisode, TMDBVideo } from '../types'
 import { getDetails, getVideos, getRecommendations, getSimilarMedia, getCollection, getSeasonDetails, getWatchProviders, WatchProvidersData } from '../services/tmdb';
 import { getAnimeById, mapAniListToTMDBDetail } from '../services/anilist';
 import { getStreams, getEpisodeStreams } from '../services/addonService';
-import { isInWatchlist, addToWatchlist, removeFromWatchlist, addToHistory, saveProgress, getProgressForId } from '../services/storage';
+import { isInWatchlist, addToWatchlist, removeFromWatchlist, addToHistory, saveProgress, getProgressForId, getDefaultServer } from '../services/storage';
 import { TMDB_IMAGE_BASE, TMDB_POSTER_BASE, TMDB_IMAGE_ORIGINAL, TMDB_BACKDROP_W1280, TMDB_BACKDROP_W780 } from '../constants';
 import { PROVIDERS, getHealthBook, healthDotClass } from '../services/streamProviders';
 import { StreamList } from '../components/StreamList';
+import { DirectVideoPlayer, isDirectPlayableStream } from '../components/DirectVideoPlayer';
 import { MediaCard } from '../components/MediaCard';
 import { Skeleton } from '../components/Skeleton';
 import { 
@@ -158,11 +159,10 @@ export const Details: React.FC = () => {
   const [inLibrary, setInLibrary] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [activeSection, setActiveSection] = useState<'none' | 'player' | 'downloads'>('none');
-  const [directUrl, setDirectUrl] = useState<string>('');
-  const [videoError, setVideoError] = useState(false);
+  const [directStreamList, setDirectStreamList] = useState<Stream[]>([]);
+  const [activeDirectIndex, setActiveDirectIndex] = useState<number>(0);
   const [selectedTrailer, setSelectedTrailer] = useState<TMDBVideo | null>(null);
   const [showTrailerModal, setShowTrailerModal] = useState(false);
-  const [showNextEpButton, setShowNextEpButton] = useState(false);
   const [isAutoPlayingNext, setIsAutoPlayingNext] = useState(false);
   const [selectedAssetIndex, setSelectedAssetIndex] = useState<number | null>(null);
   const [galleryFilter, setGalleryFilter] = useState<'all' | 'wallpapers' | 'logos' | 'posters'>('all');
@@ -171,7 +171,10 @@ export const Details: React.FC = () => {
   const [showStickyHeader, setShowStickyHeader] = useState(false);
   const [overviewExpanded, setOverviewExpanded] = useState(false);
   const [streamQualityFilter, setStreamQualityFilter] = useState<'all' | '4k' | '1080p' | '720p'>('all');
-  const [selectedServer, setSelectedServer] = useState<string>('direct');
+  const [selectedServer, setSelectedServer] = useState<string>(() => {
+    const def = getDefaultServer();
+    return FAST_SERVERS.some(s => s.id === def) ? def : 'ishowstream';
+  });
   const [showServerPicker, setShowServerPicker] = useState<boolean>(false);
   const [episodeSearchQuery, setEpisodeSearchQuery] = useState<string>('');
   const [logoLoadFailed, setLogoLoadFailed] = useState(false);
@@ -331,9 +334,16 @@ export const Details: React.FC = () => {
 
   // Play Stream Handler
   const handleStreamPlay = (stream: Stream) => {
-    setVideoError(false);
     if (stream.url) {
-      setDirectUrl(stream.url);
+      const playable = streams.filter(isDirectPlayableStream);
+      const existingIdx = playable.findIndex((s) => s.url === stream.url);
+      if (existingIdx >= 0) {
+        setDirectStreamList(playable);
+        setActiveDirectIndex(existingIdx);
+      } else {
+        setDirectStreamList([stream, ...playable]);
+        setActiveDirectIndex(0);
+      }
       activateSection('player');
     } else if (stream.infoHash) {
       const magnet = `magnet:?xt=urn:btih:${stream.infoHash}&dn=${encodeURIComponent(stream.title || 'video')}`;
@@ -415,20 +425,6 @@ export const Details: React.FC = () => {
     } else return;
     
     setIsAutoPlayingNext(true);
-    setShowNextEpButton(false);
-  };
-
-  const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
-    if (type !== MediaType.TV) return;
-    const video = e.currentTarget;
-    const timeLeft = video.duration - video.currentTime;
-    if (timeLeft <= 30 && timeLeft > 0) {
-      const count = getEpisodeCount(selectedSeason);
-      const hasNext = selectedEpisode < count || selectedSeason < (detail?.number_of_seasons || 1);
-      if (hasNext && !showNextEpButton) setShowNextEpButton(true);
-    } else {
-      if (showNextEpButton) setShowNextEpButton(false);
-    }
   };
 
   // Native Share / Clipboard Fallback
@@ -1308,50 +1304,49 @@ export const Details: React.FC = () => {
         <div ref={sectionContainerRef} className="scroll-mt-24">
           
           {/* Active Direct Video Player Section (if activated) */}
-          {activeSection === 'player' && (
-            <div className="mb-10 w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl ring-1 ring-white/10 relative">
-              {!videoError ? (
-                <>
-                  <video 
-                    controls 
-                    autoPlay 
-                    className="w-full h-full outline-none" 
-                    src={directUrl} 
-                    onError={() => setVideoError(true)} 
-                    onTimeUpdate={handleTimeUpdate} 
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => { setActiveSection('none'); setDirectUrl(''); }} 
-                    className="absolute top-4 right-4 bg-black/70 hover:bg-red-600 text-white p-2 rounded-xl transition-colors shadow-lg" 
-                    aria-label="Close video" 
-                    title="Close video"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                  {showNextEpButton && (
-                    <button 
-                      onClick={handleNextEpisode} 
-                      className="absolute bottom-16 right-4 sm:right-8 z-10 bg-white text-black px-5 py-3 rounded-xl font-bold shadow-2xl flex items-center gap-2 hover:bg-white/90 transition-colors"
-                    >
-                      <span>Next episode</span>
-                      <ChevronRight className="w-5 h-5" />
-                    </button>
-                  )}
-                </>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center p-6">
-                  <AlertCircle className="w-12 h-12 text-red-500 mb-3" />
-                  <p className="text-white font-bold text-lg mb-1">Direct stream playback failed</p>
-                  <p className="text-white/60 text-sm max-w-sm mb-4">The chosen stream could not be loaded directly. You can select another stream or play with Vidy Player.</p>
-                  <button 
-                    onClick={() => openVidyPlayer()}
-                    className="bg-[rgb(var(--primary-color))] text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow hover:brightness-110"
-                  >
-                    Switch to Vidy Player
-                  </button>
-                </div>
-              )}
+          {activeSection === 'player' && directStreamList.length > 0 && (
+            <div className="mb-10 w-full shadow-2xl ring-1 ring-white/10 rounded-2xl overflow-hidden">
+              <DirectVideoPlayer
+                streams={directStreamList}
+                activeStreamIndex={activeDirectIndex}
+                onSelectStreamIndex={setActiveDirectIndex}
+                onSwitchToEmbedFallback={() => openVidyPlayer()}
+                fallbackButtonLabel="Switch to Vidy Player"
+                onProgressSave={(ct, dur) => {
+                  if (!detail) return;
+                  saveProgress({
+                    id: detail.id,
+                    anilist_id: effectiveAnilistId,
+                    media_type: type,
+                    title: detail.title || detail.name || '',
+                    poster_path: detail.poster_path || null,
+                    season: type === MediaType.TV ? selectedSeason : undefined,
+                    episode: type === MediaType.TV ? selectedEpisode : undefined,
+                    currentTime: ct,
+                    duration: dur,
+                    progress: (ct / dur) * 100,
+                  });
+                }}
+                onClose={() => {
+                  setActiveSection('none');
+                  setDirectStreamList([]);
+                }}
+                resumeTime={resumeSeconds}
+                title={title}
+                subtitleLabel={type === MediaType.TV ? `Season ${selectedSeason} · Episode ${selectedEpisode}` : undefined}
+                poster={backdropUrl || undefined}
+                imdbId={imdbId}
+                season={type === MediaType.TV ? selectedSeason : undefined}
+                episode={type === MediaType.TV ? selectedEpisode : undefined}
+                isAnime={isAnime}
+                hasNextEpisode={
+                  type === MediaType.TV &&
+                  (selectedEpisode < getEpisodeCount(selectedSeason) || selectedSeason < (detail?.number_of_seasons || 1))
+                }
+                autoplayNext={true}
+                onNextEpisode={handleNextEpisode}
+                stageClassName="aspect-video"
+              />
             </div>
           )}
 

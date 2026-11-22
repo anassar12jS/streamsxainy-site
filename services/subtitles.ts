@@ -77,3 +77,47 @@ export const SUBTITLE_LANGUAGES: { code: string; label: string }[] = [
   { code: 'nl', label: 'Dutch' },
   { code: 'sv', label: 'Swedish' },
 ];
+
+function parseTimestamp(raw: string): number | null {
+  const clean = raw.trim().replace(',', '.');
+  const parts = clean.split(':');
+  if (parts.length < 2 || parts.length > 3) return null;
+  const nums = parts.map(Number);
+  if (nums.some((n) => !Number.isFinite(n))) return null;
+  if (nums.length === 3) return nums[0] * 3600 + nums[1] * 60 + nums[2];
+  return nums[0] * 60 + nums[1];
+}
+
+export function parseSubtitleText(rawText: string, name = 'Custom Subtitles'): SubtitleTrack | null {
+  const normalized = rawText.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+  const blocks = normalized.split(/\n{2,}/);
+  const cues: SubtitleCue[] = [];
+
+  for (const block of blocks) {
+    const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) continue;
+    const timingIdx = lines.findIndex((l) => l.includes('-->'));
+    if (timingIdx < 0) continue;
+
+    const timingLine = lines[timingIdx];
+    const [startRaw, endRawWithMeta] = timingLine.split('-->');
+    if (!startRaw || !endRawWithMeta) continue;
+    const endRaw = endRawWithMeta.trim().split(/\s+/)[0];
+    const start = parseTimestamp(startRaw);
+    const end = parseTimestamp(endRaw);
+    if (start === null || end === null || end <= start) continue;
+
+    const text = lines
+      .slice(timingIdx + 1)
+      .join('\n')
+      .replace(/<[^>]+>/g, '')
+      .trim();
+    if (!text) continue;
+    cues.push({ start, end, text });
+  }
+
+  if (!cues.length) return null;
+  cues.sort((a, b) => a.start - b.start);
+  return { cues, lang: 'custom', name, total: cues.length };
+}
+
