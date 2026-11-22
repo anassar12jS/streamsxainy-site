@@ -244,7 +244,9 @@ async function episodeStreams(egyId, season, episode) {
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'public, max-age=300');
+  // Never cache failures — a cached "not found" would hide recovered upstreams
+  // (and Vercel's edge caches whatever Cache-Control we send).
+  res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   const action = String(req.query.action || 'streams');
