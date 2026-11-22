@@ -19,6 +19,7 @@ export const PROVIDERS = [
   { id: 'vidsrc-me', name: 'VidSrc ME', speed: 'Fast ⚡', quality: '1080p', badge: 'Mirror 5' },
   { id: '2embed', name: '2Embed', speed: 'Fast ⚡', quality: '1080p', badge: 'Mirror 6' },
   { id: 'multiembed', name: 'MultiEmbed', speed: 'Fast ⚡', quality: '1080p', badge: 'Mirror 7' },
+  { id: 'egydead', name: 'EgyDead', speed: 'HD 📡', quality: 'HLS · egydead.ca', badge: 'Scraper' },
 ] as const;
 
 export type ProviderId = typeof PROVIDERS[number]['id'];

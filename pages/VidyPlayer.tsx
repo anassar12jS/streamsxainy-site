@@ -15,7 +15,7 @@ import { getProgressForId, getTheme, saveProgress, addToWatchlist, removeFromWat
 import { getStreams, getEpisodeStreams } from '../services/addonService';
 import { PROVIDERS, ANIME_PROVIDERS, ProviderId, AnimeProviderId, getHealthBook, bumpProviderHealth, providersByHealth, healthDotClass } from '../services/streamProviders';
 import { fetchSubtitles, cueIndexAt, SUBTITLE_LANGUAGES, SubtitleTrack } from '../services/subtitles';
-import { MediaType, TMDBResult } from '../types';
+import { MediaType, TMDBResult, Stream } from '../types';
 import { TMDB_POSTER_BASE, TMDB_IMAGE_BASE, TMDB_PROFILE_BASE, TMDB_BACKDROP_W1280 } from '../constants';
 
 const getThemeHex = () => {
@@ -207,20 +207,47 @@ export const VidyPlayer: React.FC = () => {
   const effectiveAnilistId = anilistIdParam || aniListConverted?.id || anilistLookupQuery.data || (isAnimeDetected ? id : undefined);
   const isAnime = Boolean(anilistIdParam || isAnimeDetected || aniListConverted);
 
-  const isDirectMode = provider === 'direct' && !isAnime;
+  const isEgyDeadMode = provider === 'egydead' && !isAnime;
+  const isDirectMode = (provider === 'direct' || provider === 'egydead') && !isAnime;
   const directStreamsQuery = useQuery({
     queryKey: ['direct-streams', imdbId, isEpisode ? `${season}x${episode}` : 'movie'],
     queryFn: () => isEpisode
       ? getEpisodeStreams(imdbId!, season, episode, { timeoutMs: 25000 })
       : getStreams(MediaType.MOVIE, imdbId!, { timeoutMs: 25000 }),
-    enabled: isDirectMode && Boolean(imdbId),
+    enabled: provider === 'direct' && !isAnime && Boolean(imdbId),
     staleTime: 1000 * 60 * 5,
     retry: 0,
   });
-  const playableDirectStreams = useMemo(
+  const addonDirectStreams = useMemo(
     () => (directStreamsQuery.data?.streams || []).filter(isDirectPlayableStream),
     [directStreamsQuery.data]
   );
+
+  // EgyDead scraper provider: resolves HLS streams via /api/egydead
+  const egyTitle = details?.title || details?.name || '';
+  const egyYear = (() => {
+    const d = details?.release_date || details?.first_air_date || '';
+    return d ? parseInt(d, 10) || null : null;
+  })();
+  const egydeadQuery = useQuery<{ streams?: Stream[] }>({
+    queryKey: ['egydead-streams', id, mediaType, isEpisode ? `${season}x${episode}` : 'movie'],
+    queryFn: async () => {
+      const params = new URLSearchParams({ action: 'streams', tmdb: String(id), type: mediaType, title: egyTitle });
+      if (egyYear) params.set('year', String(egyYear));
+      if (isEpisode) { params.set('season', String(season)); params.set('episode', String(episode)); }
+      const r = await fetch(`/api/egydead?${params.toString()}`);
+      if (!r.ok) return { streams: [] };
+      return r.json();
+    },
+    enabled: isEgyDeadMode && !!egyTitle,
+    staleTime: 1000 * 60 * 10,
+    retry: 0,
+  });
+  const egyDirectStreams = useMemo(
+    () => ((egydeadQuery.data?.streams || []) as Stream[]).filter(isDirectPlayableStream),
+    [egydeadQuery.data]
+  );
+  const playableDirectStreams = isEgyDeadMode ? egyDirectStreams : addonDirectStreams;
   const directStream = playableDirectStreams[directStreamIndex];
   const isDirectPlayback = isDirectMode && Boolean(directStream?.url);
 
@@ -499,6 +526,7 @@ export const VidyPlayer: React.FC = () => {
         return `https://multiembed.mov/?${mmParams.toString()}`;
       }
       case 'direct':
+      case 'egydead':
         return '';
       default: {
         const ishowParams = new URLSearchParams({
@@ -573,7 +601,7 @@ export const VidyPlayer: React.FC = () => {
 
   const failDirectAndFallback = (penalizeProvider = true, message = 'Direct streams unavailable — trying next server') => {
     if (penalizeProvider) {
-      bumpProviderHealth('movie:direct', 'fail');
+      bumpProviderHealth(`movie:${provider}`, 'fail');
       setProviderHealthVersion(v => v + 1);
     }
     advanceStreamServerRef.current(true, message, false);
@@ -605,7 +633,7 @@ export const VidyPlayer: React.FC = () => {
 
     window.clearTimeout(loadingTimeout.current);
     loadingTimeout.current = window.setTimeout(() => {
-      if (provider === 'direct' && !isAnime) {
+      if (isDirectMode) {
         handleDirectPlaybackFailureRef.current('timeout');
         return;
       }
@@ -620,7 +648,7 @@ export const VidyPlayer: React.FC = () => {
         setHasTimedOut(true);
         setIsLoading(false);
       }
-    }, provider === 'direct' && !isAnime ? 30000 : 12000);
+    }, isDirectMode ? 30000 : 12000);
 
     return () => window.clearTimeout(loadingTimeout.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -694,10 +722,16 @@ export const VidyPlayer: React.FC = () => {
   // embed mirror instead of sitting on a black screen.
   useEffect(() => {
     if (!isDirectMode || !detailsQuery.isFetched) return;
+    if (isEgyDeadMode) {
+      if (egydeadQuery.isFetched && playableDirectStreams.length === 0) {
+        handleDirectPlaybackFailureRef.current('empty');
+      }
+      return;
+    }
     if (!imdbId || (directStreamsQuery.isFetched && playableDirectStreams.length === 0)) {
       handleDirectPlaybackFailureRef.current('empty');
     }
-  }, [isDirectMode, detailsQuery.isFetched, imdbId, directStreamsQuery.isFetched, playableDirectStreams.length]);
+  }, [isDirectMode, isEgyDeadMode, detailsQuery.isFetched, imdbId, directStreamsQuery.isFetched, egydeadQuery.isFetched, playableDirectStreams.length]);
 
   // Ensure item is tracked in Continue Watching upon starting playback
   useEffect(() => {
@@ -759,7 +793,7 @@ export const VidyPlayer: React.FC = () => {
   };
 
   const markDirectPlaybackOk = () => {
-    const healthKey = 'movie:direct';
+    const healthKey = `movie:${provider}`;
     if (confirmedPlaybackFor.current !== healthKey) {
       confirmedPlaybackFor.current = healthKey;
       bumpProviderHealth(healthKey, 'ok');
