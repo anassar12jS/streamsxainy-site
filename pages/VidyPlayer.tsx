@@ -13,7 +13,7 @@ import { getDetails, getSeasonDetails, getRecommendations } from '../services/tm
 import { searchAnimeByTitle, getAnimeById, mapAniListToTMDBDetail } from '../services/anilist';
 import { getProgressForId, getTheme, saveProgress, addToWatchlist, removeFromWatchlist, isInWatchlist, removeFromProgress, getAutoplayNext, getDefaultServer } from '../services/storage';
 import { getStreams, getEpisodeStreams } from '../services/addonService';
-import { PROVIDERS, ANIME_PROVIDERS, ProviderId, AnimeProviderId, getHealthBook, bumpProviderHealth, providersByHealth, healthDotClass } from '../services/streamProviders';
+import { PROVIDERS, ANIME_PROVIDERS, ProviderId, AnimeProviderId, getAvailableProviders, hasFebboxAddon, isProviderAvailable, getHealthBook, bumpProviderHealth, providersByHealth, healthDotClass } from '../services/streamProviders';
 import { fetchSubtitles, cueIndexAt, SUBTITLE_LANGUAGES, SubtitleTrack } from '../services/subtitles';
 import { fetchScraperStreams, ScraperEmbed } from '../services/scraperStreams';
 import { MediaType, TMDBResult, Stream } from '../types';
@@ -67,25 +67,53 @@ export const VidyPlayer: React.FC = () => {
 
   const providerStorageKey = `vidy:provider:${mediaType}:${id}`;
   const initialServer = searchParams.get('server') as ProviderId;
+  const [addonVersion, setAddonVersion] = useState(0);
+  useEffect(() => {
+    const syncAddons = () => setAddonVersion(v => v + 1);
+    window.addEventListener('streamhub:settings-changed', syncAddons);
+    window.addEventListener('storage', syncAddons);
+    return () => {
+      window.removeEventListener('streamhub:settings-changed', syncAddons);
+      window.removeEventListener('storage', syncAddons);
+    };
+  }, []);
+
+  const availableProviders = useMemo(() => {
+    void addonVersion;
+    return getAvailableProviders();
+  }, [addonVersion]);
+  const febboxEnabled = useMemo(() => {
+    void addonVersion;
+    return hasFebboxAddon();
+  }, [addonVersion]);
+
   const [providerHealthVersion, setProviderHealthVersion] = useState(0);
   const [provider, setProviderState] = useState<ProviderId>(() => {
-    if (PROVIDERS.some(p => p.id === initialServer)) return initialServer;
+    const allowed = getAvailableProviders();
+    if (isProviderAvailable(initialServer)) return initialServer;
     const saved = safeStorageGet(providerStorageKey);
-    if (PROVIDERS.some(p => p.id === saved)) {
+    if (isProviderAvailable(saved)) {
       // Honor the remembered choice unless that mirror has a proven bad record
       const key = `movie:${saved}`;
       const e = getHealthBook()[key];
-      if (!e || e.fail <= e.ok + 1) return saved as ProviderId;
+      if (!e || e.fail <= e.ok + 1) return saved;
     }
     const configuredDefault = getDefaultServer();
-    if (PROVIDERS.some(p => p.id === configuredDefault)) {
+    if (isProviderAvailable(configuredDefault)) {
       const key = `movie:${configuredDefault}`;
       const e = getHealthBook()[key];
-      if (!e || e.fail <= e.ok + 1) return configuredDefault as ProviderId;
+      if (!e || e.fail <= e.ok + 1) return configuredDefault;
     }
-    const best = providersByHealth(PROVIDERS, 'movie')[0];
+    const best = providersByHealth(allowed, 'movie')[0];
     return best.id;
   });
+
+  useEffect(() => {
+    if (!febboxEnabled && provider === 'direct') {
+      const fallback = availableProviders[0]?.id || 'ishowstream';
+      setProviderState(fallback);
+    }
+  }, [febboxEnabled, provider, availableProviders]);
   const [animeProvider, setAnimeProvider] = useState<AnimeProviderId>(() => {
     const saved = safeStorageGet('vidy:anime-provider');
     return ANIME_PROVIDERS.some(p => p.id === saved) ? (saved as AnimeProviderId) : 'aniembed';
@@ -211,13 +239,13 @@ export const VidyPlayer: React.FC = () => {
 
   const isEgyDeadMode = provider === 'egydead' && !isAnime;
   const is5tvMode = provider === '5tv' && !isAnime;
-  const isDirectMode = (provider === 'direct' || provider === 'egydead' || provider === '5tv') && !isAnime;
+  const isDirectMode = ((provider === 'direct' && febboxEnabled) || provider === 'egydead' || provider === '5tv') && !isAnime;
   const directStreamsQuery = useQuery({
     queryKey: ['direct-streams', imdbId, isEpisode ? `${season}x${episode}` : 'movie'],
     queryFn: () => isEpisode
       ? getEpisodeStreams(imdbId!, season, episode, { timeoutMs: 25000 })
       : getStreams(MediaType.MOVIE, imdbId!, { timeoutMs: 25000 }),
-    enabled: provider === 'direct' && !isAnime && Boolean(imdbId),
+    enabled: provider === 'direct' && febboxEnabled && !isAnime && Boolean(imdbId),
     staleTime: 1000 * 60 * 5,
     retry: 0,
   });
@@ -368,8 +396,8 @@ export const VidyPlayer: React.FC = () => {
   // dead mirrors get skipped instead of tried in fixed sequence.
   const movieProviderOrder = useMemo(() => {
     void providerHealthVersion;
-    return providersByHealth(PROVIDERS, 'movie');
-  }, [providerHealthVersion]);
+    return providersByHealth(availableProviders, 'movie');
+  }, [providerHealthVersion, availableProviders]);
 
   const animeProviderOrder = useMemo(() => {
     void providerHealthVersion;
@@ -686,7 +714,7 @@ export const VidyPlayer: React.FC = () => {
         showToast(`5TV mirror timed out — trying ${fiveTvEmbeds[nextEmbedIdx]?.host || `mirror ${nextEmbedIdx + 1}`}`);
         return;
       }
-      const maxAttempts = isAnime ? ANIME_PROVIDERS.length - 1 : PROVIDERS.length - 1;
+      const maxAttempts = isAnime ? ANIME_PROVIDERS.length - 1 : availableProviders.length - 1;
       const timedOutKey = isAnime ? `anime:${animeProvider}` : `movie:${provider}`;
       bumpProviderHealth(timedOutKey, 'fail');
       setProviderHealthVersion(v => v + 1);
@@ -1234,7 +1262,7 @@ export const VidyPlayer: React.FC = () => {
                   Select Player Source
                 </h2>
                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-white/10 text-white/80">
-                  {PROVIDERS.length} Streaming Mirrors
+                  {availableProviders.length} Streaming Mirrors
                 </span>
               </div>
               <p className="text-[11px] sm:text-xs text-white/50">
@@ -1244,7 +1272,7 @@ export const VidyPlayer: React.FC = () => {
 
             {/* Provider Buttons Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10 gap-2">
-              {PROVIDERS.map((p, idx) => {
+              {availableProviders.map((p, idx) => {
                 const isActive = provider === p.id;
                 return (
                   <button
@@ -1280,7 +1308,11 @@ export const VidyPlayer: React.FC = () => {
                       }`}>
                         {p.quality}
                       </span>
-                      <span className="text-[9px] font-semibold uppercase tracking-wide text-white/40 truncate">
+                      <span className={`text-[9px] font-semibold uppercase tracking-wide truncate ${
+                        p.badge === 'Arabic Sub'
+                          ? (isActive ? 'text-amber-300 font-bold' : 'text-amber-400 font-bold')
+                          : 'text-white/40'
+                      }`}>
                         {p.badge}
                       </span>
                     </div>

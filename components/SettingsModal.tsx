@@ -26,11 +26,11 @@ const THEME_OPTIONS = [
 
 const SERVER_OPTIONS = [
   { id: 'ishowstream', name: 'iShowStream (Ultra Fast ⚡ · Default)' },
+  { id: 'cinemaos', name: 'CinemaOS (High Bitrate)' },
   { id: 'vidy', name: 'Vidy Prime (Fast Multi-Audio)' },
   { id: 'vidlypro', name: 'Vidly Pro (4K · Ultra)' },
   { id: 'vidlink', name: 'VidLink (Adaptive 4K)' },
   { id: 'vidsrc-wtf', name: 'VidSrc WTF' },
-  { id: 'cinemaos', name: 'CinemaOS' },
   { id: 'vidfastpro', name: 'VidFast' },
 ];
 
@@ -481,13 +481,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           {activeTab === 'providers' && (
             <div className="space-y-4">
               <p className="text-xs text-[var(--text-muted)]">
-                Connect external Torrentio / Stremio manifest URLs for torrent streams:
+                Connect external Torrentio / Stremio manifest URLs (add a FebBox addon to unlock the Direct Streams player):
               </p>
 
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Provider Name (e.g. Torrentio)"
+                  placeholder="Provider Name (e.g. Torrentio, FebBox)"
                   value={newProviderName}
                   onChange={e => setNewProviderName(e.target.value)}
                   className="w-1/3 bg-[var(--bg-input)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)]"

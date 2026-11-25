@@ -7,7 +7,7 @@ import { getAnimeById, mapAniListToTMDBDetail } from '../services/anilist';
 import { getStreams, getEpisodeStreams } from '../services/addonService';
 import { isInWatchlist, addToWatchlist, removeFromWatchlist, addToHistory, saveProgress, getProgressForId, getDefaultServer } from '../services/storage';
 import { TMDB_IMAGE_BASE, TMDB_POSTER_BASE, TMDB_IMAGE_ORIGINAL, TMDB_BACKDROP_W1280, TMDB_BACKDROP_W780 } from '../constants';
-import { PROVIDERS, getHealthBook, healthDotClass } from '../services/streamProviders';
+import { getAvailableProviders, isProviderAvailable, getHealthBook, healthDotClass } from '../services/streamProviders';
 import { StreamList } from '../components/StreamList';
 import { DirectVideoPlayer, isDirectPlayableStream } from '../components/DirectVideoPlayer';
 import { MediaCard } from '../components/MediaCard';
@@ -38,9 +38,6 @@ type TabKey = 'overview' | 'episodes' | 'streams' | 'videos' | 'photos';
 
 const AVATAR_FALLBACK_SVG = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22120%22%20height%3D%22160%22%20viewBox%3D%220%200%20120%20160%22%3E%3Crect%20fill%3D%22%2318181b%22%20width%3D%22120%22%20height%3D%22160%22%2F%3E%3Ccircle%20cx%3D%2260%22%20cy%3D%2260%22%20r%3D%2226%22%20fill%3D%22%233f3f46%22%2F%3E%3Cpath%20d%3D%22M24%20140c0-20%2016-36%2036-36s36%2016%2036%2036%22%20fill%3D%22%233f3f46%22%2F%3E%3C%2Fsvg%3E';
 const POSTER_FALLBACK_SVG = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22300%22%20height%3D%22450%22%20viewBox%3D%220%200%20300%20450%22%3E%3Crect%20fill%3D%22%2318181b%22%20width%3D%22300%22%20height%3D%22450%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20text-anchor%3D%22middle%22%20fill%3D%22%2371717a%22%20font-family%3D%22sans-serif%22%20font-size%3D%2216%22%3ENo%20Poster%3C%2Ftext%3E%3C%2Fsvg%3E';
-
-// Fast server picker mirrors the shared provider registry (same list VidyPlayer uses)
-const FAST_SERVERS = PROVIDERS.map(p => ({ id: p.id, name: p.name, speed: p.speed, badge: p.badge }));
 
 export const Details: React.FC = () => {
   const { id } = useParams();
@@ -171,10 +168,33 @@ export const Details: React.FC = () => {
   const [showStickyHeader, setShowStickyHeader] = useState(false);
   const [overviewExpanded, setOverviewExpanded] = useState(false);
   const [streamQualityFilter, setStreamQualityFilter] = useState<'all' | '4k' | '1080p' | '720p'>('all');
+  const [providerVersion, setProviderVersion] = useState(0);
+  useEffect(() => {
+    const syncProviders = () => setProviderVersion(v => v + 1);
+    window.addEventListener('streamhub:settings-changed', syncProviders);
+    window.addEventListener('storage', syncProviders);
+    return () => {
+      window.removeEventListener('streamhub:settings-changed', syncProviders);
+      window.removeEventListener('storage', syncProviders);
+    };
+  }, []);
+
+  const fastServers = useMemo(() => {
+    void providerVersion;
+    return getAvailableProviders().map(p => ({ id: p.id, name: p.name, speed: p.speed, badge: p.badge }));
+  }, [providerVersion]);
+
   const [selectedServer, setSelectedServer] = useState<string>(() => {
     const def = getDefaultServer();
-    return FAST_SERVERS.some(s => s.id === def) ? def : 'ishowstream';
+    return isProviderAvailable(def) ? def : 'ishowstream';
   });
+
+  useEffect(() => {
+    if (!fastServers.some(s => s.id === selectedServer)) {
+      const def = getDefaultServer();
+      setSelectedServer(fastServers.some(s => s.id === def) ? def : (fastServers[0]?.id || 'ishowstream'));
+    }
+  }, [fastServers, selectedServer]);
   const [showServerPicker, setShowServerPicker] = useState<boolean>(false);
   const [episodeSearchQuery, setEpisodeSearchQuery] = useState<string>('');
   const [logoLoadFailed, setLogoLoadFailed] = useState(false);
@@ -364,7 +384,8 @@ export const Details: React.FC = () => {
     
     const params = new URLSearchParams();
     if (effectiveAnilistId) params.set('anilistId', effectiveAnilistId.toString());
-    const targetServer = serverOverride || selectedServer;
+    const requestedServer = serverOverride || selectedServer;
+    const targetServer = isProviderAvailable(requestedServer) ? requestedServer : 'ishowstream';
     if (targetServer) {
       params.set('server', targetServer);
     }
@@ -1112,7 +1133,7 @@ export const Details: React.FC = () => {
                       <Server className="w-4 h-4 text-[rgb(var(--primary-color))]" />
                       <span className="hidden sm:inline text-xs text-white/70">Server:</span>
                       <span className="text-xs font-bold text-white group-hover:text-[rgb(var(--primary-color))] transition-colors">
-                        {FAST_SERVERS.find(s => s.id === selectedServer)?.name || 'iShowStream'}
+                        {fastServers.find(s => s.id === selectedServer)?.name || 'iShowStream'}
                       </span>
                       <ChevronDown className={`w-3.5 h-3.5 text-white/60 transition-transform ${showServerPicker ? 'rotate-180' : ''}`} />
                     </button>
@@ -1126,7 +1147,7 @@ export const Details: React.FC = () => {
                           <span className="text-[10px] text-emerald-400 font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">Ad-Free</span>
                         </div>
                         <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-1 mt-1.5 pr-0.5">
-                          {FAST_SERVERS.map(srv => {
+                          {fastServers.map(srv => {
                             const isSelected = selectedServer === srv.id;
                             return (
                               <button
