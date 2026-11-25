@@ -2,7 +2,7 @@
 import React from 'react';
 import { Shield, Lock, FileText, AlertTriangle } from 'lucide-react';
 
-const CONTACT_EMAIL = 'streamhub.dmca@proton.me';
+const CONTACT_EMAIL = 'contact@xainy.me';
 const LAST_UPDATED = 'November 2026';
 
 const LegalLayout: React.FC<{ title: string; icon: React.ElementType; children: React.ReactNode }> = ({ title, icon: Icon, children }) => (
