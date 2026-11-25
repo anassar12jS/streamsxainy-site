@@ -12,7 +12,25 @@ export default defineConfig(({ mode }) => {
   if (env.FOOTBALL_DATA_TOKEN) authHeaders['X-Auth-Token'] = env.FOOTBALL_DATA_TOKEN;
 
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      {
+        name: 'local-api-5tv',
+        configureServer(server) {
+          server.middlewares.use('/api/5tv', async (req, res) => {
+            try {
+              // @ts-expect-error JS serverless endpoint
+              const mod = await import('./api/5tv.js');
+              await mod.default(req, res);
+            } catch (e) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ streams: [], embeds: [], error: String(e) }));
+            }
+          });
+        },
+      },
+    ],
     resolve: {
       alias: {
         '@': resolve(__dirname, './'),

@@ -325,20 +325,25 @@ const decodeEntities = s => String(s || '')
   .replace(/&#0?39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>')
   .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n));
 
-async function ftvSearchLinks(q) {
+async function ftvSearchItems(q) {
   return ftvCached(`ftv:search:${q}`, ftvTTL.search, async () => {
-    // WordPress search feed — /search/<q>/feed/rss2/ returns nothing on 5tv;
-    // the real endpoint is /?s=<q>&feed=rss2
     const xml = await ftvFetchText(`${SITE}/?s=${encodeURIComponent(q).replace(/%20/g, '+')}&feed=rss2`, { timeoutMs: 12000 });
     if (!xml) return [];
-    const links = [];
-    const re = /<link>(https:\/\/5tv\.rest\/[^<]+)<\/link>/g;
+    const items = [];
+    const seen = new Set();
+    const itemRe = /<item>([\s\S]*?)<\/item>/g;
     let m;
-    while ((m = re.exec(xml))) {
-      const u = decodeEntities(m[1]);
-      if (!links.includes(u)) links.push(u);
+    while ((m = itemRe.exec(xml))) {
+      const block = m[1];
+      const linkM = block.match(/<link>(https:\/\/5tv\.rest\/[^<]+)<\/link>/);
+      if (!linkM) continue;
+      const link = decodeEntities(linkM[1]).trim();
+      if (seen.has(link)) continue;
+      seen.add(link);
+      const titleM = block.match(/<title>([\s\S]*?)<\/title>/);
+      items.push({ link, title: titleM ? decodeEntities(titleM[1]).trim() : '' });
     }
-    return links;
+    return items;
   });
 }
 
@@ -352,31 +357,40 @@ function slugScore(linkSlug, titleSlug) {
   return Math.round((hit / b.length) * 60);
 }
 
+function ftvItemScore(item, titleSlug) {
+  let rawSlug = '';
+  try {
+    rawSlug = decodeURIComponent(new URL(item.link).pathname.split('/').filter(Boolean).pop() || '');
+  } catch {}
+  const cleaned = rawSlug.replace(/-\d{4}.*$/, '').replace(/-\d+(?:x\d+)?$/, '');
+  return Math.max(slugScore(slugify(cleaned), titleSlug), slugScore(slugify(item.title), titleSlug));
+}
+
 async function ftvFindMovieUrl(title, year) {
   const q = norm(title);
+  if (!q) return null;
   const titleSlug = slugify(title);
-  const links = await ftvSearchLinks(q);
+  const items = await ftvSearchItems(q);
   let best = null, bestScore = -1;
-  for (const u of links) {
-    const m = u.match(/\/movie\/([^/]+)\/?$/);
-    if (!m) continue;
-    const sc = slugScore(m[1].replace(/-\d{4}.*$/, ''), titleSlug);
-    if (sc > bestScore) { bestScore = sc; best = u; }
+  for (const item of items) {
+    if (!/\/movie\/[^/]+\/?$/.test(item.link)) continue;
+    let sc = ftvItemScore(item, titleSlug);
+    if (year && (item.link.includes(String(year)) || item.title.includes(String(year)))) sc += 15;
+    if (sc > bestScore) { bestScore = sc; best = item.link; }
   }
-  if (bestScore < 30) {
-    for (const cand of [`${SITE}/movie/${titleSlug}-${year}/`, `${SITE}/movie/${titleSlug}/`]) {
-      const html = await ftvFetchText(cand, { timeoutMs: 10000 });
-      if (html && html.includes('ftv-watch')) return cand;
-    }
-    return null;
+  if (best && bestScore >= 40) return best;
+  const cands = year ? [`${SITE}/movie/${titleSlug}-${year}/`, `${SITE}/movie/${titleSlug}/`] : [`${SITE}/movie/${titleSlug}/`];
+  for (const cand of cands) {
+    const html = await ftvFetchText(cand, { timeoutMs: 10000 });
+    if (html && html.includes('ftv-watch')) return cand;
   }
-  return best;
+  return null;
 }
 
 // 5TV episode slugs end in either "-<s>x<e>" (multi-season) or "-<e>"
 // (single-season), often prefixed with an Arabic title slug.
-// e.g. "…-breaking-bad-5x2" or "%d9%81…-vincenzo-20"
-function parseFtveEpisode(slug) {
+function parseFtveEpisode(rawSlug) {
+  const slug = (() => { try { return decodeURIComponent(rawSlug); } catch { return rawSlug; } })();
   let m = slug.match(/^(.*)-(\d+)x(\d+)$/);
   if (m) return { show: m[1], season: +m[2], episode: +m[3] };
   m = slug.match(/^(.*)-(\d+)$/);
@@ -408,36 +422,40 @@ async function ftvSeriesEpisodeUrl(seriesSlug, season, episode) {
 }
 
 async function ftvFindEpisodeUrl(title, season, episode) {
+  const q = norm(title);
+  if (!q) return null;
   const titleSlug = slugify(title);
-  const links = await ftvSearchLinks(norm(title));
+  const items = await ftvSearchItems(q);
 
-  // Pass 1: exact episode match straight from search results.
   let best = null, bestScore = -1;
-  for (const u of links) {
-    const m = u.match(/\/episode\/([^/]+?)\/?$/);
+  for (const item of items) {
+    const m = item.link.match(/\/episode\/([^/]+?)\/?$/);
     if (!m) continue;
     const ep = parseFtveEpisode(m[1]);
     if (!ep) continue;
-    const sc = slugScore(ep.show, titleSlug);
+    const sc = Math.max(slugScore(slugify(ep.show), titleSlug), slugScore(slugify(item.title), titleSlug));
     if (ep.season === season && ep.episode === episode && sc > bestScore) {
-      bestScore = sc; best = u;
+      bestScore = sc; best = item.link;
     }
   }
-  if (best && bestScore >= 30) return best;
+  if (best && bestScore >= 35) return best;
 
-  // Pass 2: derive the /series/<slug>/ page from any episode of the same
-  // show in the results, then pick the requested episode from its listing.
-  // This is the reliable path — canonical slugs carry Arabic prefixes that
-  // can't be guessed.
   const showCandidates = [];
-  for (const u of links) {
-    const m = u.match(/\/episode\/([^/]+?)\/?$/);
-    if (!m) continue;
-    const ep = parseFtveEpisode(m[1]);
-    if (!ep) continue;
-    const sc = slugScore(ep.show, titleSlug);
-    if (sc >= 30 && !showCandidates.some(c => c.slug === ep.show)) {
-      showCandidates.push({ slug: ep.show, score: sc });
+  for (const item of items) {
+    const epM = item.link.match(/\/episode\/([^/]+?)\/?$/);
+    const serM = item.link.match(/\/series\/([^/]+?)\/?$/);
+    if (epM) {
+      const ep = parseFtveEpisode(epM[1]);
+      if (!ep) continue;
+      const sc = Math.max(slugScore(slugify(ep.show), titleSlug), slugScore(slugify(item.title), titleSlug));
+      if (sc >= 35 && !showCandidates.some(c => c.slug === ep.show)) {
+        showCandidates.push({ slug: ep.show, score: sc });
+      }
+    } else if (serM) {
+      const sc = ftvItemScore(item, titleSlug);
+      if (sc >= 35 && !showCandidates.some(c => c.slug === serM[1])) {
+        showCandidates.push({ slug: serM[1], score: sc });
+      }
     }
   }
   showCandidates.sort((a, b) => b.score - a.score);
@@ -446,7 +464,6 @@ async function ftvFindEpisodeUrl(title, season, episode) {
     if (url) return url;
   }
 
-  // Pass 3: guess canonical episode URLs (WP 301s resolve most of these).
   for (const cand of [
     `${SITE}/episode/${titleSlug}-${season}x${episode}/`,
     ...(season === 1 ? [`${SITE}/episode/${titleSlug}-${episode}/`] : []),
@@ -454,6 +471,8 @@ async function ftvFindEpisodeUrl(title, season, episode) {
     const html = await ftvFetchText(cand, { timeoutMs: 10000 });
     if (html && html.includes('ftv-watch')) return cand;
   }
+  const directSeriesEp = await ftvSeriesEpisodeUrl(titleSlug, season, episode);
+  if (directSeriesEp) return directSeriesEp;
   return null;
 }
 
@@ -490,7 +509,6 @@ async function ftvResolveEmbedMedia(embedUrl) {
   return ftvCached(`ftv:embed:${embedUrl}`, ftvTTL.resolve, async () => {
     const html = await ftvFetchText(embedUrl, { referer: SITE + '/' });
     if (!html) return null;
-    // 71stream.one: Inertia data-page JSON -> props.url
     const m = html.match(/data-page="([^"]+)"/);
     if (m) {
       try {
@@ -501,7 +519,6 @@ async function ftvResolveEmbedMedia(embedUrl) {
         }
       } catch { /* fall through */ }
     }
-    // ult4vid.one / ultra4vid: plain <video data-link="...">
     const v = html.match(/<video[^>]+data-link="([^"]+)"/i);
     if (v) {
       const url = decodeEntities(v[1]);
@@ -511,29 +528,57 @@ async function ftvResolveEmbedMedia(embedUrl) {
   });
 }
 
+const FTV_SIGNED_HOSTS = /^(?:www\.)?(?:71stream\.one|ult4vid\.one|ultra4vid\.cam)$/i;
+const FTV_BLOCKED_IFRAME_HOSTS = /^(?:drive\.google\.com|docs\.google\.com)$/i;
+const FTV_EMBED_PRIORITY = [
+  'smoothpre', 'vk.com', 'vidhide', 'asnwish', 'jodwish',
+  'd0000d', 'dood', 'upstream', 'do7go', 'vidmoly',
+  '71stream', 'ult4vid', 'ultra4vid',
+];
+const ftvHostRank = (host) => {
+  const h = host.toLowerCase();
+  const idx = FTV_EMBED_PRIORITY.findIndex(p => h.includes(p));
+  return idx >= 0 ? idx : FTV_EMBED_PRIORITY.length;
+};
+
 async function ftvStreamsForPage(pageUrl) {
   return ftvCached(`ftv:page:${pageUrl}`, ftvTTL.page, async () => {
     const html = await ftvFetchText(pageUrl);
     if (!html || !html.includes('ftv-watch')) return null;
     const { objectId, servers } = ftvParseWatchBox(html);
-    if (!objectId || !servers.length) return { streams: [] };
+    if (!servers.length) return { streams: [], embeds: [] };
 
     const out = [];
     const embeds = [];
-    await Promise.all(servers.slice(0, 3).map(async (sv, i) => {
-      const signed = await ftvAccessUrl(objectId, sv.id);
-      if (!signed) return;
-      const host = new URL(sv.url).hostname.replace(/^www\./, '');
-      embeds.push({ embedUrl: signed, name: `5TV · ${host}`, host });
-      const media = await ftvResolveEmbedMedia(signed);
-      if (!media) return;
-      out.push({
-        url: media.url,
-        name: `5TV · ${host}${i === 0 ? '' : ` ${i + 1}`}`,
-        title: media.title || `${host} — ${pageUrl.split('/').filter(Boolean).pop()}`,
-        isHls: /\.m3u8(\?|$)/i.test(media.url),
+    await Promise.all(servers.slice(0, 10).map(async (sv, i) => {
+      let parsed;
+      try { parsed = new URL(sv.url); } catch { return; }
+      const host = parsed.hostname.replace(/^www\./, '').toLowerCase();
+      if (FTV_BLOCKED_IFRAME_HOSTS.test(host)) return;
+
+      let finalEmbed = `${parsed.protocol}//${host}${parsed.pathname}${parsed.search}${parsed.hash}`;
+      if (FTV_SIGNED_HOSTS.test(host) && objectId) {
+        const signed = await ftvAccessUrl(objectId, sv.id);
+        if (!signed) return;
+        finalEmbed = signed;
+        const media = await ftvResolveEmbedMedia(signed);
+        if (media) {
+          out.push({
+            url: media.url,
+            name: `5TV · ${host}${i === 0 ? '' : ` ${i + 1}`}`,
+            title: media.title || `${host} — ${pageUrl.split('/').filter(Boolean).pop()}`,
+            isHls: /\.m3u8(\?|$)/i.test(media.url),
+          });
+        }
+      }
+      embeds.push({
+        embedUrl: finalEmbed,
+        name: `5TV · ${host}`,
+        title: `${host} — ${pageUrl.split('/').filter(Boolean).pop()}`,
+        host,
       });
     }));
+    embeds.sort((a, b) => ftvHostRank(a.host) - ftvHostRank(b.host));
     return { streams: out, embeds };
   });
 }

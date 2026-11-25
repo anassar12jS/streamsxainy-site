@@ -1,6 +1,6 @@
-// Scraper providers resolve through the Cloudflare Worker (worker/egy-proxy.js)
-// because egydead.ca's CF challenge and 71stream.one's IP filter block Vercel,
-// and s1.egybestvid.com rejects cross-site browser HLS requests.
+// Scraper providers resolve through /api/5tv (same-origin on Vercel / Vite dev)
+// or the Cloudflare Worker (worker/egy-proxy.js) for egydead.ca CF bypass +
+// s1.egybestvid.com HLS proxying.
 export const SCRAPER_WORKER = 'https://egy-proxy.anasltccnt.workers.dev';
 
 export interface ScraperStream {
@@ -12,9 +12,16 @@ export interface ScraperStream {
   host?: string;
 }
 
+export interface ScraperEmbed {
+  embedUrl: string;
+  name?: string;
+  title?: string;
+  host?: string;
+}
+
 export interface ScraperResult {
   streams?: ScraperStream[];
-  embeds?: { embedUrl: string; name?: string; title?: string; host?: string }[];
+  embeds?: ScraperEmbed[];
   matched?: unknown;
   error?: string;
 }
@@ -23,14 +30,18 @@ const decodeEntities = (s: string) =>
   s.replace(/&amp;/g, '&').replace(/&#038;/g, '&').replace(/&quot;/g, '"')
     .replace(/&#0?39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 
+const PROXY_EXTRACTABLE_HOSTS = /(?:^|\.)(?:egybestvid\.com|71stream\.one|ult4vid\.one|ultra4vid\.cam)$/i;
+const BLOCKED_IFRAME_HOSTS = /(?:^|\.)(?:drive\.google\.com|docs\.google\.com)$/i;
+
 // Fetch an embed page through the worker proxy and extract direct media URLs.
 // The signed HLS token is bound to the worker egress IP that fetched the embed,
 // so this MUST go through the same proxy path the player uses for playback.
 async function resolveEmbedViaProxy(embedUrl: string): Promise<{ url: string; isHls: boolean }[]> {
   try {
     const u = new URL(embedUrl);
+    if (!PROXY_EXTRACTABLE_HOSTS.test(u.hostname)) return [];
     const viaProxy = `${SCRAPER_WORKER}/${u.hostname}${u.pathname}${u.search}`;
-    const r = await fetch(viaProxy, { signal: AbortSignal.timeout(30000) });
+    const r = await fetch(viaProxy, { signal: AbortSignal.timeout(25000) });
     if (!r.ok) return [];
     const html = await r.text();
 
@@ -75,6 +86,18 @@ async function resolveEmbedViaProxy(embedUrl: string): Promise<{ url: string; is
   }
 }
 
+async function fetchJsonWithTimeout(url: string, timeoutMs: number): Promise<ScraperResult | null> {
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!r.ok) return null;
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchScraperStreams(
   provider: 'egydead' | '5tv',
   params: { type: string; title: string; year?: number | null; tmdb?: number; season?: number; episode?: number }
@@ -84,40 +107,77 @@ export async function fetchScraperStreams(
   if (params.tmdb) q.set('tmdb', String(params.tmdb));
   if (params.season) q.set('season', String(params.season));
   if (params.episode) q.set('episode', String(params.episode));
-  // 90s ceiling — 5TV resolution chains several upstream fetches server-side.
-  const r = await fetch(`${SCRAPER_WORKER}/api/${provider}?${q.toString()}`, {
-    signal: AbortSignal.timeout(90000),
-  });
-  if (!r.ok) return { streams: [] };
-  const data: ScraperResult = await r.json();
+
+  let data: ScraperResult | null = null;
+  if (provider === '5tv') {
+    data = await fetchJsonWithTimeout(`/api/5tv?${q.toString()}`, 35000);
+    if (!data || (!data.streams?.length && !data.embeds?.length)) {
+      const workerData = await fetchJsonWithTimeout(`${SCRAPER_WORKER}/api/5tv?${q.toString()}`, 45000);
+      if (workerData && (workerData.streams?.length || workerData.embeds?.length || !data)) {
+        data = workerData;
+      }
+    }
+  } else {
+    data = await fetchJsonWithTimeout(`${SCRAPER_WORKER}/api/egydead?${q.toString()}`, 45000);
+  }
+
+  if (!data) return { streams: [], embeds: [] };
 
   const streams = [...(data.streams || [])];
-  const embeds = data.embeds || [];
+  const rawEmbeds = data.embeds || [];
 
-  // Resolve embed pages through the proxy path (IP-bound tokens require it).
-  // Skip embeds whose host already produced a direct stream.
+  const cleanEmbeds: ScraperEmbed[] = [];
+  const seenEmbeds = new Set<string>();
+  for (const e of rawEmbeds) {
+    if (!e?.embedUrl || !/^https?:\/\//i.test(e.embedUrl)) continue;
+    let host = e.host || '';
+    try {
+      const u = new URL(e.embedUrl);
+      if (BLOCKED_IFRAME_HOSTS.test(u.hostname)) continue;
+      host = host || u.hostname.replace(/^www\./, '');
+    } catch {
+      continue;
+    }
+    if (seenEmbeds.has(e.embedUrl)) continue;
+    seenEmbeds.add(e.embedUrl);
+    cleanEmbeds.push({ ...e, host });
+  }
+
+  // Only attempt proxy-based media extraction for hosts whose embed pages
+  // return direct MP4/HLS manifests via the worker proxy.
   const directHosts = new Set(
     streams.map(s => {
       try { return new URL(s.url || '').hostname; } catch { return ''; }
     })
   );
-  const pending = embeds.filter(e => {
-    try { return !directHosts.has(new URL(e.embedUrl).hostname); } catch { return true; }
+  const pending = cleanEmbeds.filter(e => {
+    try {
+      const u = new URL(e.embedUrl);
+      return PROXY_EXTRACTABLE_HOSTS.test(u.hostname) && !directHosts.has(u.hostname);
+    } catch {
+      return false;
+    }
   }).slice(0, 3);
 
-  const resolved = await Promise.all(
-    pending.map(async e => {
-      const media = await resolveEmbedViaProxy(e.embedUrl);
-      return media.map(m => ({
-        url: m.url,
-        name: e.name || 'Embed',
-        title: e.title || e.name || 'stream',
-        isHls: m.isHls,
-      }));
-    })
-  );
-  for (const list of resolved) streams.push(...list);
+  if (pending.length > 0) {
+    const resolved = await Promise.all(
+      pending.map(async e => {
+        const media = await resolveEmbedViaProxy(e.embedUrl);
+        return media.map(m => ({
+          url: m.url,
+          name: e.name || 'Embed',
+          title: e.title || e.name || 'stream',
+          isHls: m.isHls,
+        }));
+      })
+    );
+    for (const list of resolved) streams.push(...list);
+  }
 
-  const seen = new Set<string>();
-  return { ...data, streams: streams.filter(s => s.url && !seen.has(s.url) && seen.add(s.url)) };
+  const seenStreams = new Set<string>();
+  return {
+    ...data,
+    streams: streams.filter(s => s.url && !seenStreams.has(s.url) && seenStreams.add(s.url)),
+    embeds: cleanEmbeds,
+  };
 }

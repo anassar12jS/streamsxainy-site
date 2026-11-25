@@ -15,7 +15,7 @@ import { getProgressForId, getTheme, saveProgress, addToWatchlist, removeFromWat
 import { getStreams, getEpisodeStreams } from '../services/addonService';
 import { PROVIDERS, ANIME_PROVIDERS, ProviderId, AnimeProviderId, getHealthBook, bumpProviderHealth, providersByHealth, healthDotClass } from '../services/streamProviders';
 import { fetchSubtitles, cueIndexAt, SUBTITLE_LANGUAGES, SubtitleTrack } from '../services/subtitles';
-import { fetchScraperStreams } from '../services/scraperStreams';
+import { fetchScraperStreams, ScraperEmbed } from '../services/scraperStreams';
 import { MediaType, TMDBResult, Stream } from '../types';
 import { TMDB_POSTER_BASE, TMDB_IMAGE_BASE, TMDB_PROFILE_BASE, TMDB_BACKDROP_W1280 } from '../constants';
 
@@ -96,6 +96,7 @@ export const VidyPlayer: React.FC = () => {
   });
   const [retryKey, setRetryKey] = useState(0);
   const [directStreamIndex, setDirectStreamIndex] = useState(0);
+  const [fiveTvEmbedIndex, setFiveTvEmbedIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [hasTimedOut, setHasTimedOut] = useState(false);
   const [isTheaterMode, setIsTheaterMode] = useState<boolean>(false);
@@ -246,8 +247,8 @@ export const VidyPlayer: React.FC = () => {
     [egydeadQuery.data]
   );
 
-  // 5TV scraper provider: resolves direct MP4 streams via /api/5tv
-  const fiveTvQuery = useQuery<{ streams?: Stream[] }>({
+  // 5TV scraper provider: resolves direct MP4 streams or embed mirrors via /api/5tv
+  const fiveTvQuery = useQuery<{ streams?: Stream[]; embeds?: ScraperEmbed[] }>({
     queryKey: ['5tv-streams', id, mediaType, isEpisode ? `${season}x${episode}` : 'movie'],
     queryFn: () => fetchScraperStreams('5tv', {
       type: mediaType, title: egyTitle, year: egyYear, tmdb: id,
@@ -261,19 +262,27 @@ export const VidyPlayer: React.FC = () => {
     () => ((fiveTvQuery.data?.streams || []) as Stream[]).filter(isDirectPlayableStream),
     [fiveTvQuery.data]
   );
+  const fiveTvEmbeds = useMemo(
+    () => (fiveTvQuery.data?.embeds || []).filter((e) => Boolean(e?.embedUrl)),
+    [fiveTvQuery.data]
+  );
 
   const playableDirectStreams = isEgyDeadMode ? egyDirectStreams : is5tvMode ? fiveTvDirectStreams : addonDirectStreams;
   const directStream = playableDirectStreams[directStreamIndex];
+  const activeFiveTvEmbed = is5tvMode ? fiveTvEmbeds[fiveTvEmbedIndex] : undefined;
+  const is5tvEmbedMode = is5tvMode && playableDirectStreams.length === 0 && Boolean(activeFiveTvEmbed?.embedUrl);
   const isDirectPlayback = isDirectMode && Boolean(directStream?.url);
+  const isDirectVideoActive = isDirectMode && (!is5tvMode || playableDirectStreams.length > 0);
+  const isScraperFetching = (isEgyDeadMode && egydeadQuery.isFetching) || (is5tvMode && fiveTvQuery.isFetching);
 
   // Latest scraper query — read inside the loading-timeout callback so a slow
-  // resolve (5TV does search → episode page → signed AJAX → embed extraction)
-  // isn't killed by the generic 30s direct-mode timeout mid-flight.
+  // resolve isn't killed mid-flight before failing over or loading.
   const scraperQueryRef = useRef<{ isFetching: boolean; isFetched: boolean; isError: boolean } | null>(null);
   scraperQueryRef.current = isEgyDeadMode ? egydeadQuery : is5tvMode ? fiveTvQuery : null;
 
   useEffect(() => {
     setDirectStreamIndex(0);
+    setFiveTvEmbedIndex(0);
   }, [provider, imdbId, isEpisode ? `${season}x${episode}` : 'movie', retryKey]);
 
   useEffect(() => {
@@ -281,6 +290,12 @@ export const VidyPlayer: React.FC = () => {
       setDirectStreamIndex(0);
     }
   }, [playableDirectStreams.length, directStreamIndex]);
+
+  useEffect(() => {
+    if (fiveTvEmbeds.length > 0 && fiveTvEmbedIndex >= fiveTvEmbeds.length) {
+      setFiveTvEmbedIndex(0);
+    }
+  }, [fiveTvEmbeds.length, fiveTvEmbedIndex]);
 
   // Sync watchlist status
   useEffect(() => {
@@ -548,8 +563,9 @@ export const VidyPlayer: React.FC = () => {
       }
       case 'direct':
       case 'egydead':
-      case '5tv':
         return '';
+      case '5tv':
+        return is5tvEmbedMode ? (activeFiveTvEmbed?.embedUrl || '') : '';
       default: {
         const ishowParams = new URLSearchParams({
           branding: 'streamsxainy',
@@ -563,9 +579,9 @@ export const VidyPlayer: React.FC = () => {
           : `https://ishowstream.cc/embed/movie/${id}?${ishowParams.toString()}`;
       }
     }
-  }, [provider, animeProvider, animeLang, isEpisode, isAnime, id, externalId, season, episode, effectiveAnilistId, resumeTime, themeHex]);
+  }, [provider, animeProvider, animeLang, isEpisode, isAnime, id, externalId, season, episode, effectiveAnilistId, resumeTime, themeHex, is5tvEmbedMode, activeFiveTvEmbed?.embedUrl]);
 
-  const externalUrl = isDirectMode ? directStream?.url : embedUrl;
+  const externalUrl = isDirectVideoActive ? directStream?.url : embedUrl;
 
   const advanceStreamServer = useCallback((manual = false, message?: string, persistChoice = true) => {
     if (isAnime) {
@@ -654,17 +670,20 @@ export const VidyPlayer: React.FC = () => {
     setHasTimedOut(false);
 
     window.clearTimeout(loadingTimeout.current);
+    const timeoutMs = isScraperFetching ? 45000 : isDirectVideoActive ? 30000 : 12000;
     loadingTimeout.current = window.setTimeout(() => {
-      if (isDirectMode) {
-        const scraperQuery = scraperQueryRef.current;
-        if (scraperQuery?.isFetching) {
-          // Scraper resolve still in flight — keep waiting. Once it settles,
-          // the empty-stream effect fails over on 0 results or the player
-          // loads the resolved stream.
-          setIsLoading(true);
-          return;
-        }
+      if (isScraperFetching || scraperQueryRef.current?.isFetching) {
         handleDirectPlaybackFailureRef.current('timeout');
+        return;
+      }
+      if (isDirectVideoActive) {
+        handleDirectPlaybackFailureRef.current('timeout');
+        return;
+      }
+      if (is5tvMode && fiveTvEmbeds.length > 0 && fiveTvEmbedIndex + 1 < fiveTvEmbeds.length) {
+        const nextEmbedIdx = fiveTvEmbedIndex + 1;
+        setFiveTvEmbedIndex(nextEmbedIdx);
+        showToast(`5TV mirror timed out — trying ${fiveTvEmbeds[nextEmbedIdx]?.host || `mirror ${nextEmbedIdx + 1}`}`);
         return;
       }
       const maxAttempts = isAnime ? ANIME_PROVIDERS.length - 1 : PROVIDERS.length - 1;
@@ -678,11 +697,11 @@ export const VidyPlayer: React.FC = () => {
         setHasTimedOut(true);
         setIsLoading(false);
       }
-    }, isDirectMode ? 30000 : 12000);
+    }, timeoutMs);
 
     return () => window.clearTimeout(loadingTimeout.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [provider, animeProvider, animeLang, season, episode, retryKey, isAnime, directStreamIndex]);
+  }, [provider, animeProvider, animeLang, season, episode, retryKey, isAnime, directStreamIndex, fiveTvEmbedIndex, isScraperFetching, is5tvEmbedMode]);
 
   // Handle postMessage playback events from providers
   useEffect(() => {
@@ -754,16 +773,33 @@ export const VidyPlayer: React.FC = () => {
     if (!isDirectMode || !detailsQuery.isFetched) return;
     const scraperQuery = isEgyDeadMode ? egydeadQuery : is5tvMode ? fiveTvQuery : null;
     if (scraperQuery) {
-      const settled = scraperQuery.isFetched || scraperQuery.isError;
-      if (settled && playableDirectStreams.length === 0) {
+      const settled = (scraperQuery.isFetched || scraperQuery.isError) && !scraperQuery.isFetching;
+      const has5tvEmbeds = is5tvMode && fiveTvEmbeds.length > 0;
+      if (settled && playableDirectStreams.length === 0 && !has5tvEmbeds) {
         handleDirectPlaybackFailureRef.current('empty');
       }
       return;
     }
-    if (!imdbId || (directStreamsQuery.isFetched && playableDirectStreams.length === 0)) {
+    if (!imdbId || (directStreamsQuery.isFetched && !directStreamsQuery.isFetching && playableDirectStreams.length === 0)) {
       handleDirectPlaybackFailureRef.current('empty');
     }
-  }, [isDirectMode, isEgyDeadMode, is5tvMode, detailsQuery.isFetched, imdbId, directStreamsQuery.isFetched, egydeadQuery.isFetched, fiveTvQuery.isFetched, playableDirectStreams.length]);
+  }, [
+    isDirectMode,
+    isEgyDeadMode,
+    is5tvMode,
+    detailsQuery.isFetched,
+    imdbId,
+    directStreamsQuery.isFetched,
+    directStreamsQuery.isFetching,
+    egydeadQuery.isFetched,
+    egydeadQuery.isFetching,
+    egydeadQuery.isError,
+    fiveTvQuery.isFetched,
+    fiveTvQuery.isFetching,
+    fiveTvQuery.isError,
+    playableDirectStreams.length,
+    fiveTvEmbeds.length,
+  ]);
 
   // Ensure item is tracked in Continue Watching upon starting playback
   useEffect(() => {
@@ -787,6 +823,9 @@ export const VidyPlayer: React.FC = () => {
     setIsLoading(true);
     setHasTimedOut(false);
     setRetryKey(current => current + 1);
+    if (isEgyDeadMode) void egydeadQuery.refetch();
+    else if (is5tvMode) void fiveTvQuery.refetch();
+    else if (provider === 'direct' && !isAnime) void directStreamsQuery.refetch();
     showToast('Reloading stream player...');
   };
 
@@ -1309,6 +1348,38 @@ export const VidyPlayer: React.FC = () => {
           </div>
         )}
 
+        {/* 5TV Asia Embed Mirror Picker (when using 5TV iframe embeds) */}
+        {is5tvEmbedMode && fiveTvEmbeds.length > 0 && !isTheaterMode && (
+          <div className="bg-[#111115] border border-white/10 rounded-2xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 shadow-lg">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-white/60">
+              5TV Mirrors ({fiveTvEmbeds.length})
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {fiveTvEmbeds.map((emb, idx) => {
+                const active = idx === fiveTvEmbedIndex;
+                return (
+                  <button
+                    key={`${emb.embedUrl}_${idx}`}
+                    type="button"
+                    onClick={() => {
+                      setFiveTvEmbedIndex(idx);
+                      setIsLoading(true);
+                      setHasTimedOut(false);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                      active
+                        ? 'bg-[rgb(var(--primary-color))] text-white'
+                        : 'bg-white/5 hover:bg-white/10 text-white/75 border border-white/10'
+                    }`}
+                  >
+                    {emb.host || emb.name || `Mirror ${idx + 1}`}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* The Video Iframe Viewport Container or Unreleased Episode Notice */}
         {isEpisodeUpcoming ? (
           <div className="relative w-full aspect-video bg-[#111115] rounded-2xl overflow-hidden ring-1 ring-amber-500/30 shadow-2xl flex flex-col items-center justify-center p-6 text-center">
@@ -1354,7 +1425,7 @@ export const VidyPlayer: React.FC = () => {
             )}
 
             <div className={`relative w-full ${isTheaterMode ? 'aspect-[21/9] min-h-[480px] max-h-[84vh]' : 'aspect-video max-h-[78vh]'} bg-black rounded-2xl overflow-hidden ring-1 ring-white/15 shadow-2xl z-30 transition-all duration-300`}>
-              {isDirectMode ? (
+              {isDirectVideoActive ? (
                 directStream?.url ? (
                   <DirectVideoPlayer
                     streams={playableDirectStreams}
@@ -1401,26 +1472,27 @@ export const VidyPlayer: React.FC = () => {
                     fullscreenTriggerRef={directFullscreenRef}
                   />
                 ) : null
-              ) : (
+              ) : embedUrl ? (
                 <iframe
-                  key={`${isAnime ? animeProvider : provider}_${retryKey}_${season}_${episode}_${animeLang}`}
+                  key={`${isAnime ? animeProvider : provider}_${retryKey}_${season}_${episode}_${animeLang}_${fiveTvEmbedIndex}`}
                   ref={playerRef}
                   src={embedUrl}
                   title={`${title} player`}
                   className="absolute inset-0 w-full h-full border-0"
                   allowFullScreen
                   allow="encrypted-media; autoplay *; fullscreen *; picture-in-picture *"
-                  referrerPolicy="origin"
+                  referrerPolicy={is5tvMode ? 'no-referrer' : 'origin'}
                   onLoad={() => {
                     window.clearTimeout(loadingTimeout.current);
                     setIsLoading(false);
                     setHasTimedOut(false);
+                    if (is5tvMode) markDirectPlaybackOk();
                   }}
                 />
-              )}
+              ) : null}
 
               {/* Loading Indicator Overlay */}
-              {isLoading && (!isDirectMode || !directStream?.url) && (
+              {isLoading && (!isDirectVideoActive || !directStream?.url) && (
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm gap-5 px-6">
                   <div className="flex items-end gap-1.5 h-12">
                     {[0, 1, 2, 3, 4].map(i => (
@@ -1450,7 +1522,7 @@ export const VidyPlayer: React.FC = () => {
               )}
 
               {/* Stream Failure Overlay (shown after all servers timed out) */}
-              {hasTimedOut && !isLoading && (!isDirectMode || !directStream?.url) && (
+              {hasTimedOut && !isLoading && (!isDirectVideoActive || !directStream?.url) && (
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/95 backdrop-blur-sm gap-4 p-6 text-center">
                   <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/25 flex items-center justify-center text-red-400">
                     <AlertCircle className="w-7 h-7" />
