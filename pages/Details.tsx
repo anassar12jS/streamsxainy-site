@@ -14,10 +14,10 @@ import { MediaCard } from '../components/MediaCard';
 import { Skeleton } from '../components/Skeleton';
 import { 
   ArrowLeft, Star, Youtube, Play, Tv, X, Server, AlertCircle, Download, 
-  Info, Plus, Check, Sparkles, ChevronRight, Layers, Share2, 
+  Info, Plus, Check, ChevronRight, Layers, Share2, Loader2,
   AlertTriangle, Home, Clock, Calendar, Users, Clapperboard, Film, 
   ExternalLink, Image, Copy, Zap, CheckCircle2, ChevronDown, ListFilter,
-  DollarSign, Globe, Award, Heart, Ghost, Search, Maximize2, Popcorn
+  DollarSign, Globe, Award, Heart, Search, Maximize2, Popcorn
 } from 'lucide-react';
 
 export interface GalleryAssetItem {
@@ -863,8 +863,6 @@ export const Details: React.FC = () => {
             <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)]/65 to-[var(--bg-main)]/20" />
             <div className="absolute inset-0 bg-gradient-to-r from-[var(--bg-main)] via-[var(--bg-main)]/80 to-transparent w-full lg:w-3/4" />
             <div className="absolute inset-0 bg-radial-gradient from-transparent via-transparent to-[var(--bg-main)]/90" />
-            {/* Ambient theme glow */}
-            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[rgb(var(--primary-color))]/15 rounded-full blur-[120px] pointer-events-none" />
           </div>
         ) : (
           <div className="absolute inset-0 bg-gradient-to-b from-[#18181b] to-[var(--bg-main)]" />
@@ -925,11 +923,11 @@ export const Details: React.FC = () => {
                 <div className="flex flex-col justify-center min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     {isAnime ? (
-                      <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-pink-400 bg-pink-500/15 px-2 py-0.5 rounded-full border border-pink-500/30">
-                        <Ghost className="w-3 h-3" /> Anime Series
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[rgb(var(--primary-color))]">
+                        Anime Series
                       </span>
                     ) : (
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--primary-color))]">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[rgb(var(--primary-color))]">
                         {type === MediaType.TV ? 'Series' : 'Feature Film'}
                       </span>
                     )}
@@ -984,11 +982,11 @@ export const Details: React.FC = () => {
               <div className="hidden lg:block mb-4">
                 <div className="flex items-center gap-3 mb-2.5">
                   {isAnime ? (
-                    <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-pink-400 bg-pink-500/15 px-3 py-1 rounded-full border border-pink-500/30 shadow-sm">
-                      <Ghost className="w-3.5 h-3.5" /> AniList Anime Series
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[rgb(var(--primary-color))]">
+                      Anime Series
                     </span>
                   ) : (
-                    <span className="text-xs font-bold uppercase tracking-[0.2em] text-[rgb(var(--primary-color))]">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[rgb(var(--primary-color))]">
                       {type === MediaType.TV ? 'Television Series' : 'Feature Film'}
                     </span>
                   )}
@@ -1017,7 +1015,7 @@ export const Details: React.FC = () => {
                       <h1 className="sr-only">{title}</h1>
                     </div>
                   ) : (
-                    <h1 className="text-3xl sm:text-4xl xl:text-5xl font-black text-white tracking-tight leading-[1.08] max-w-4xl drop-shadow-md">
+                    <h1 className="font-display text-3xl sm:text-4xl xl:text-5xl font-bold text-white tracking-tight leading-[1.08] max-w-4xl">
                       {title}
                     </h1>
                   )}
@@ -2344,9 +2342,8 @@ export const Details: React.FC = () => {
         {((recommendations && recommendations.length > 0) || (similarMedia && similarMedia.length > 0)) && (
           <div className="mt-14 pt-10 border-t border-[var(--border-color)]">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-black text-[var(--text-main)] flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-[rgb(var(--primary-color))]" /> 
-                Recommended For You
+              <h2 className="font-display text-xl font-semibold text-[var(--text-main)] tracking-tight">
+                Recommended
               </h2>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
@@ -2485,12 +2482,11 @@ export const Details: React.FC = () => {
                   />
                 )}
 
-                {/* Loading Banner for 4K / 8K */}
                 {!isFullResLoaded && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-10 pointer-events-none">
-                    <div className="flex items-center gap-2.5 text-xs font-bold text-white bg-black/85 px-4 py-2 rounded-xl border border-white/20 shadow-2xl">
-                      <Sparkles className="w-4 h-4 text-amber-400 animate-spin" />
-                      <span>Loading Full Quality ({currentAsset.resolutionText})...</span>
+                    <div className="flex items-center gap-2.5 text-xs font-medium text-white bg-black/85 px-4 py-2 rounded-xl border border-white/15">
+                      <Loader2 className="w-4 h-4 text-[rgb(var(--primary-color))] animate-spin" />
+                      <span>Loading {currentAsset.resolutionText}...</span>
                     </div>
                   </div>
                 )}

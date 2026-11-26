@@ -31,97 +31,12 @@ import {
 import { LEAGUE_TABLES, LeagueTeamStanding } from '../data/sportsStandings';
 import { REGIONS, RegionOption } from '../constants/regions';
 import { getLiveLeagueStandings, getLeagueTopScorers } from '../services/footballApi';
-import { getTeamLogoUrl, CLUB_BRAND_COLORS } from '../data/clubLogos';
+import { getTeamBrand } from '../data/clubLogos';
+import { TeamLogo, LeagueLogo } from '../components/TeamLogo';
 import { useSyncedClock, formatMatchCountdown, getSyncedNow } from '../services/clockSync';
 import { SportsMultiviewModal } from '../components/SportsMultiviewModal';
 import { Reveal } from '../components/Reveal';
 
-// Team initials / fallback color generator
-const generateColor = (name: string) => {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  const c = (hash & 0x00ffffff).toString(16).toUpperCase();
-  return '#' + '00000'.substring(0, 6 - c.length) + c;
-};
-
-const getTeamBrand = (name: string) => {
-  const normalizedName = name.trim().toLowerCase();
-  const knownBrand = CLUB_BRAND_COLORS[name]
-    || Object.entries(CLUB_BRAND_COLORS).find(([team]) => {
-      const normalizedTeam = team.toLowerCase();
-      return normalizedName.includes(normalizedTeam) || normalizedTeam.includes(normalizedName);
-    })?.[1];
-  return knownBrand || { primary: generateColor(name || 'Sport'), secondary: '#111827' };
-};
-
-const dynamicTeamLogoRequests = new Map<string, Promise<string | undefined>>();
-
-const getDynamicTeamLogo = (teamName: string): Promise<string | undefined> => {
-  const normalizedName = teamName.trim().toLowerCase();
-  if (!normalizedName) return Promise.resolve(undefined);
-  const cachedRequest = dynamicTeamLogoRequests.get(normalizedName);
-  if (cachedRequest) return cachedRequest;
-
-  const request = (async () => {
-    const cacheKey = `streamhub_team_logo_${normalizedName}`;
-    try {
-      const stored = localStorage.getItem(cacheKey);
-      if (stored) {
-        try {
-          const cached = JSON.parse(stored);
-          if (cached && cached.expiresAt > Date.now()) return cached.url || undefined;
-        } catch {
-          if (stored.startsWith('http')) return stored;
-        }
-      }
-    } catch {
-      // Continue with a network lookup when browser storage is unavailable.
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3500);
-    let foundLogo: string | undefined;
-    let lookupSucceeded = false;
-    try {
-      const query = encodeURIComponent(teamName.replace(/[⚽🏎️🥊🏀🏈🎾]/g, '').trim());
-      const response = await fetch(`https://site.api.espn.com/apis/search/v2?query=${query}&limit=1`, {
-        signal: controller.signal
-      });
-      if (!response.ok) throw new Error('Team logo lookup failed');
-      lookupSucceeded = true;
-      const data = await response.json();
-      const team = data.results?.find((result: any) => result.type === 'team')?.contents?.[0];
-      foundLogo = team?.image?.default || team?.image?.defaultDark || team?.logo || undefined;
-    } catch {
-      foundLogo = undefined;
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    try {
-      localStorage.setItem(cacheKey, JSON.stringify({
-        url: foundLogo || null,
-        expiresAt: Date.now() + (foundLogo ? 90 : lookupSucceeded ? 1 : 5 / (24 * 60)) * 24 * 60 * 60 * 1000
-      }));
-    } catch {
-      // The in-memory promise still avoids duplicate lookups during this visit.
-    }
-    return foundLogo;
-  })();
-
-  dynamicTeamLogoRequests.set(normalizedName, request);
-  request.then(foundLogo => {
-    if (!foundLogo) {
-      const retryAfterMs = 5 * 60 * 1000;
-      setTimeout(() => {
-        if (dynamicTeamLogoRequests.get(normalizedName) === request) {
-          dynamicTeamLogoRequests.delete(normalizedName);
-        }
-      }, retryAfterMs);
-    }
-  });
-  return request;
-};
 
 export const normalizeTimezone = (tz?: string): string => {
   if (!tz || tz === 'Etc/GMT-1' || tz === 'Etc/GMT+1' || tz === 'UTC') return 'UTC';
@@ -332,96 +247,6 @@ const MatchCountdown = React.memo(({ date, now }: { date: number; now: number })
   );
 });
 
-// Team Crest Logo with Multi-Stage Resolution, Image Proxy Failover & Brand Crest Fallback
-const TeamLogo: React.FC<{ name: string; logo?: string; className?: string; size?: string }> = React.memo(
-  ({ name, logo, className = 'w-10 h-10', size = 'text-xs' }) => {
-    // 1. Resolve to guaranteed working logo or proxied URL
-    const targetUrl = useMemo(() => getTeamLogoUrl(name, logo), [name, logo]);
-    const [currentSrc, setCurrentSrc] = useState(targetUrl);
-    const [retriedWithProxy, setRetriedWithProxy] = useState(false);
-    const [lookedUp, setLookedUp] = useState(false);
-    const [imgFailed, setImgFailed] = useState(false);
-
-    const brand = useMemo(() => getTeamBrand(name), [name]);
-
-    const initials = useMemo(() => {
-      const parts = (name || '').trim().split(/\s+/);
-      if (parts.length === 1) return parts[0].slice(0, 3).toUpperCase();
-      return parts.map(n => n[0]).slice(0, 3).join('').toUpperCase();
-    }, [name]);
-
-    useEffect(() => {
-      const resolved = getTeamLogoUrl(name, logo);
-      let active = true;
-      setCurrentSrc(resolved);
-      setRetriedWithProxy(false);
-      setLookedUp(false);
-      setImgFailed(false);
-
-      if (!resolved && name) {
-        setLookedUp(true);
-        getDynamicTeamLogo(name).then(foundLogo => {
-          if (!active) return;
-          if (foundLogo) setCurrentSrc(foundLogo);
-          else setImgFailed(true);
-        });
-      } else if (!name) {
-        setImgFailed(true);
-      }
-
-      return () => { active = false; };
-    }, [name, logo]);
-
-    const handleImgError = () => {
-      // If direct image failed and hasn't been proxied yet, retry through wsrv.nl proxy
-      if (!retriedWithProxy && currentSrc && !currentSrc.includes('wsrv.nl') && currentSrc.startsWith('http')) {
-        setRetriedWithProxy(true);
-        setCurrentSrc(`https://wsrv.nl/?url=${encodeURIComponent(currentSrc)}&w=96&output=png`);
-      } else if (!lookedUp && name) {
-        setLookedUp(true);
-        getDynamicTeamLogo(name).then(foundLogo => {
-          if (foundLogo && foundLogo !== currentSrc) {
-            setCurrentSrc(foundLogo);
-            setRetriedWithProxy(false);
-          } else {
-            setImgFailed(true);
-          }
-        });
-      } else {
-        setImgFailed(true);
-      }
-    };
-
-    if (currentSrc && !imgFailed) {
-      return (
-        <div className={`relative shrink-0 flex items-center justify-center p-1 bg-[var(--bg-main)]/90 rounded-xl border border-[var(--border-subtle)] shadow-sm ${className}`}>
-          <img
-            src={currentSrc}
-            alt={name}
-            className="w-full h-full object-contain drop-shadow-md transition-transform hover:scale-110"
-            onError={handleImgError}
-            loading="lazy"
-            referrerPolicy="no-referrer"
-          />
-        </div>
-      );
-    }
-
-    // High-impact brand crest fallback
-    return (
-      <div
-        className={`rounded-xl flex flex-col items-center justify-center font-black shrink-0 shadow-md border border-white/20 select-none overflow-hidden relative ${className}`}
-        style={{
-          background: `linear-gradient(135deg, ${brand.primary} 0%, ${brand.secondary} 100%)`,
-          color: brand.primary === '#FFFFFF' ? '#0f172a' : '#FFFFFF'
-        }}
-        title={name}
-      >
-        <span className={`${size} tracking-tighter drop-shadow-sm`}>{initials || 'FC'}</span>
-      </div>
-    );
-  }
-);
 
 // Interactive Goal, Kickoff & Alert Audio Chimes (Web Audio API - no external assets)
 const playScoreAlertSound = (type: 'goal' | 'kickoff' | 'preview' = 'goal') => {
@@ -1326,8 +1151,11 @@ const MatchGridCard = React.memo(({
             {match.category}
           </span>
           {match.competition && (
-            <span className="max-w-[150px] truncate text-[9px] font-bold px-2 py-0.5 rounded-lg bg-black/50 backdrop-blur-md text-white/80 border border-white/10">
-              {match.competition}
+            <span className="max-w-[170px] inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-lg bg-black/50 backdrop-blur-md text-white/85 border border-white/10">
+              {match.category === 'football' && (
+                <LeagueLogo name={match.competition} fallbackEmoji="🏆" className="w-3.5 h-3.5" emojiClassName="text-[10px]" />
+              )}
+              <span className="truncate">{match.competition}</span>
             </span>
           )}
           {isMorocco && (
@@ -1393,7 +1221,13 @@ const MatchGridCard = React.memo(({
           <div className="flex items-center justify-between gap-3">
             {/* Home Team */}
             <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0 group-hover:scale-105 transition-transform text-center">
-              <TeamLogo name={match.teams!.home.name} logo={match.teams!.home.logo} className="w-14 h-14 sm:w-16 sm:h-16" />
+              <TeamLogo
+                name={match.teams!.home.name}
+                logo={match.teams!.home.logo}
+                competition={match.competition}
+                category={match.category}
+                className="w-14 h-14 sm:w-16 sm:h-16"
+              />
               <span className="text-sm font-bold text-[var(--text-main)] text-center leading-tight line-clamp-2 w-full min-h-[34px] flex items-center justify-center">
                 {match.teams!.home.name}
               </span>
@@ -1437,7 +1271,13 @@ const MatchGridCard = React.memo(({
 
             {/* Away Team */}
             <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0 group-hover:scale-105 transition-transform text-center">
-              <TeamLogo name={match.teams!.away.name} logo={match.teams!.away.logo} className="w-14 h-14 sm:w-16 sm:h-16" />
+              <TeamLogo
+                name={match.teams!.away.name}
+                logo={match.teams!.away.logo}
+                competition={match.competition}
+                category={match.category}
+                className="w-14 h-14 sm:w-16 sm:h-16"
+              />
               <span className="text-sm font-bold text-[var(--text-main)] text-center leading-tight line-clamp-2 w-full min-h-[34px] flex items-center justify-center">
                 {match.teams!.away.name}
               </span>
@@ -1625,7 +1465,13 @@ const MatchListRow = React.memo(({
                 <span className="text-xs sm:text-sm font-bold text-[var(--text-main)] truncate text-right">
                   {match.teams!.home.name}
                 </span>
-                <TeamLogo name={match.teams!.home.name} logo={match.teams!.home.logo} className="w-8 h-8" />
+                <TeamLogo
+                  name={match.teams!.home.name}
+                  logo={match.teams!.home.logo}
+                  competition={match.competition}
+                  category={match.category}
+                  className="w-8 h-8"
+                />
               </div>
 
               {match.score ? (
@@ -1646,7 +1492,13 @@ const MatchListRow = React.memo(({
 
               {/* Away */}
               <div className="flex items-center gap-2 flex-1 min-w-0">
-                <TeamLogo name={match.teams!.away.name} logo={match.teams!.away.logo} className="w-8 h-8" />
+                <TeamLogo
+                  name={match.teams!.away.name}
+                  logo={match.teams!.away.logo}
+                  competition={match.competition}
+                  category={match.category}
+                  className="w-8 h-8"
+                />
                 <span className="text-xs sm:text-sm font-bold text-[var(--text-main)] truncate">
                   {match.teams!.away.name}
                 </span>
@@ -1661,8 +1513,11 @@ const MatchListRow = React.memo(({
             </div>
           )}
           {match.competition && (
-            <p className="mt-1 text-[10px] text-[var(--text-muted)] truncate">
-              {match.competition}{match.venueCity ? ` · ${match.venueCity}` : ''}
+            <p className="mt-1 text-[10px] text-[var(--text-muted)] truncate flex items-center gap-1">
+              {match.category === 'football' && (
+                <LeagueLogo name={match.competition} fallbackEmoji="🏆" className="w-3.5 h-3.5" emojiClassName="text-[10px]" />
+              )}
+              <span className="truncate">{match.competition}{match.venueCity ? ` · ${match.venueCity}` : ''}</span>
             </p>
           )}
         </div>
@@ -2380,7 +2235,13 @@ export const Sports: React.FC = () => {
               {featuredMatch.teams?.home && featuredMatch.teams?.away && (
                 <div className="flex items-center gap-6 bg-[var(--bg-main)]/90 backdrop-blur-md p-6 rounded-2xl border border-[var(--border-subtle)] shadow-2xl">
                   <div className="flex flex-col items-center gap-2">
-                    <TeamLogo name={featuredMatch.teams.home.name} logo={featuredMatch.teams.home.logo} className="w-16 h-16" />
+                    <TeamLogo
+                      name={featuredMatch.teams.home.name}
+                      logo={featuredMatch.teams.home.logo}
+                      competition={featuredMatch.competition}
+                      category={featuredMatch.category}
+                      className="w-16 h-16"
+                    />
                     <span className="text-xs font-bold text-[var(--text-main)] max-w-[100px] truncate text-center">
                       {featuredMatch.teams.home.name}
                     </span>
@@ -2389,7 +2250,13 @@ export const Sports: React.FC = () => {
                   <span className="text-2xl font-black text-[var(--text-muted)] italic">VS</span>
 
                   <div className="flex flex-col items-center gap-2">
-                    <TeamLogo name={featuredMatch.teams.away.name} logo={featuredMatch.teams.away.logo} className="w-16 h-16" />
+                    <TeamLogo
+                      name={featuredMatch.teams.away.name}
+                      logo={featuredMatch.teams.away.logo}
+                      competition={featuredMatch.competition}
+                      category={featuredMatch.category}
+                      className="w-16 h-16"
+                    />
                     <span className="text-xs font-bold text-[var(--text-main)] max-w-[100px] truncate text-center">
                       {featuredMatch.teams.away.name}
                     </span>
@@ -3266,7 +3133,11 @@ export const Sports: React.FC = () => {
                         : 'bg-[var(--bg-card)] text-[var(--text-muted)] border-[var(--border-subtle)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
                     }`}
                   >
-                    <span>{league.flag}</span>
+                    {league.category === 'football' ? (
+                      <LeagueLogo name={league.name} fallbackEmoji={league.flag} className="w-4 h-4" emojiClassName="text-sm leading-none" />
+                    ) : (
+                      <span>{league.flag}</span>
+                    )}
                     <span>{league.shortName || league.name.split(' (')[0]}</span>
                   </button>
                 ))}
@@ -3329,7 +3200,13 @@ export const Sports: React.FC = () => {
                   {/* Card Header */}
                   <div className="p-4 sm:p-5 border-b border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[var(--bg-main)]/50">
                     <div className="flex items-center gap-3">
-                      <span className="text-3xl">{currentTable.flag}</span>
+                      <div className="w-10 h-10 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] flex items-center justify-center p-1 shadow-sm shrink-0">
+                        {currentTable.category === 'football' ? (
+                          <LeagueLogo name={currentTable.name || liveStandingsData?.name} fallbackEmoji={currentTable.flag} className="w-8 h-8" emojiClassName="text-2xl leading-none" />
+                        ) : (
+                          <span className="text-2xl leading-none">{currentTable.flag}</span>
+                        )}
+                      </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-base sm:text-lg font-black text-[var(--text-main)]">
@@ -3416,7 +3293,14 @@ export const Sports: React.FC = () => {
                               </td>
                               <td className="py-3 px-3 sm:px-4">
                                 <div className="flex items-center gap-2.5 min-w-0">
-                                  <TeamLogo name={team.team} logo={team.logo} className="w-6 h-6 shrink-0" size="text-[9px]" />
+                                  <TeamLogo
+                                    name={team.team}
+                                    logo={team.logo}
+                                    competition={currentTable.name || liveStandingsData?.name}
+                                    category={currentTable.category || 'football'}
+                                    className="w-6 h-6 shrink-0"
+                                    size="text-[9px]"
+                                  />
                                   <span className="font-bold text-[var(--text-main)] truncate">{team.team}</span>
                                 </div>
                               </td>
@@ -3499,7 +3383,14 @@ export const Sports: React.FC = () => {
                                   </td>
                                   <td className="py-3 px-3 sm:px-4">
                                     <div className="flex items-center gap-2">
-                                      <TeamLogo name={scorer.team} logo={scorer.teamLogo} className="w-5 h-5 shrink-0" size="text-[8px]" />
+                                      <TeamLogo
+                                        name={scorer.team}
+                                        logo={scorer.teamLogo}
+                                        competition={liveStandingsData?.name || currentTable.name}
+                                        category="football"
+                                        className="w-5 h-5 shrink-0"
+                                        size="text-[8px]"
+                                      />
                                       <span className="text-[var(--text-muted)] truncate">{scorer.team}</span>
                                     </div>
                                   </td>
@@ -3567,7 +3458,13 @@ export const Sports: React.FC = () => {
               {previewMatch.teams?.home && previewMatch.teams?.away ? (
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex flex-col items-center flex-1 text-center">
-                    <TeamLogo name={previewMatch.teams.home.name} logo={previewMatch.teams.home.logo} className="w-14 h-14 mb-2" />
+                    <TeamLogo
+                      name={previewMatch.teams.home.name}
+                      logo={previewMatch.teams.home.logo}
+                      competition={previewMatch.competition}
+                      category={previewMatch.category}
+                      className="w-14 h-14 mb-2"
+                    />
                     <span className="text-xs font-bold text-[var(--text-main)] line-clamp-1">{previewMatch.teams.home.name}</span>
                   </div>
                   <div className="flex flex-col items-center">
@@ -3591,7 +3488,13 @@ export const Sports: React.FC = () => {
                     )}
                   </div>
                   <div className="flex flex-col items-center flex-1 text-center">
-                    <TeamLogo name={previewMatch.teams.away.name} logo={previewMatch.teams.away.logo} className="w-14 h-14 mb-2" />
+                    <TeamLogo
+                      name={previewMatch.teams.away.name}
+                      logo={previewMatch.teams.away.logo}
+                      competition={previewMatch.competition}
+                      category={previewMatch.category}
+                      className="w-14 h-14 mb-2"
+                    />
                     <span className="text-xs font-bold text-[var(--text-main)] line-clamp-1">{previewMatch.teams.away.name}</span>
                   </div>
                 </div>

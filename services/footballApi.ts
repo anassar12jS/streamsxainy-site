@@ -1,6 +1,7 @@
 import { LeagueTable, LeagueTeamStanding, LEAGUE_TABLES } from '../data/sportsStandings';
 import { getTeamLogoUrl } from '../data/clubLogos';
 import { LeagueTopScorer, SportsMatch } from '../types';
+import { loadFootballLogosIndex } from './footballLogos';
 
 const ESPN_API_BASE = 'https://site.api.espn.com/apis/v2/sports/soccer';
 const ESPN_SCOREBOARD_BASE = 'https://site.api.espn.com/apis/site/v2/sports/soccer';
@@ -82,8 +83,11 @@ const parseFootballDataStandings = (data: any, fallbackTable: LeagueTable): Leag
     const rank = item.position || idx + 1;
     const teamName = item.team?.shortName || item.team?.name || 'Club';
     
-    // Resolve logo with fallback
-    let logo = item.team?.crest || getTeamLogoUrl(teamName);
+    // Resolve logo preferring football-logos.cc with API crest / table fallback
+    let logo = getTeamLogoUrl(teamName, item.team?.crest, {
+      competition: fallbackTable.name,
+      category: 'football',
+    });
     if (!logo && fallbackTable.standings) {
       const match = fallbackTable.standings.find(s => 
         s.team.toLowerCase().includes(teamName.toLowerCase()) || 
@@ -145,7 +149,10 @@ const fetchEspnStandings = async (slug: string, fallbackTable: LeagueTable): Pro
 
     const rank = entry.rank || statsMap.rank || index + 1;
     const teamName = entry.team?.displayName || entry.team?.name || 'Club';
-    let logo = entry.team?.logo || getTeamLogoUrl(teamName);
+    const logo = getTeamLogoUrl(teamName, entry.team?.logo, {
+      competition: fallbackTable.name,
+      category: 'football',
+    });
 
     const qualification = String(entry.note?.description || '').toLowerCase();
     let zone: 'ucl' | 'uel' | 'conf' | 'relegation' | undefined;
@@ -178,6 +185,7 @@ const fetchEspnStandings = async (slug: string, fallbackTable: LeagueTable): Pro
  * Primary function: Get live league standings with 3-tier resilience
  */
 export const getLiveLeagueStandings = async (leagueId: string, forceRefresh = false): Promise<LiveStandingsResult> => {
+  void loadFootballLogosIndex();
   const fallbackTable = LEAGUE_TABLES.find(l => l.id === leagueId) || LEAGUE_TABLES[0];
 
   const lsKey = `streamhub_standings_v2_${leagueId}`;
@@ -285,6 +293,7 @@ export const getLiveLeagueStandings = async (leagueId: string, forceRefresh = fa
  * Get top scorers for a competition
  */
 export const getLeagueTopScorers = async (leagueId: string): Promise<LeagueTopScorer[]> => {
+  void loadFootballLogosIndex();
   const fdCode = FD_LEAGUE_MAP[leagueId];
   if (!fdCode) return [];
 
@@ -295,12 +304,16 @@ export const getLeagueTopScorers = async (leagueId: string): Promise<LeagueTopSc
 
   try {
     const data = await fetchFootballData(`/competitions/${fdCode}/scorers?limit=10`);
+    const leagueName = LEAGUE_TABLES.find(l => l.id === leagueId)?.name || data.competition?.name;
     if (Array.isArray(data.scorers) && data.scorers.length > 0) {
       const parsed: LeagueTopScorer[] = data.scorers.map((s: any, idx: number) => ({
         rank: idx + 1,
         name: s.player?.name || 'Player',
         team: s.team?.name || s.team?.shortName || '',
-        teamLogo: s.team?.crest || getTeamLogoUrl(s.team?.name || ''),
+        teamLogo: getTeamLogoUrl(s.team?.name || s.team?.shortName || '', s.team?.crest, {
+          competition: leagueName,
+          category: 'football',
+        }),
         goals: s.goals || 0,
         assists: s.assists || 0,
         playedGames: s.playedGames || 0
@@ -410,8 +423,8 @@ export const fetchEspnLiveScoreboard = async (): Promise<SportsMatch[]> => {
         const homeName = homeComp.team?.shortDisplayName || homeComp.team?.displayName || homeComp.team?.name || 'Home';
         const awayName = awayComp.team?.shortDisplayName || awayComp.team?.displayName || awayComp.team?.name || 'Away';
 
-        const homeLogo = homeComp.team?.logo || getTeamLogoUrl(homeName);
-        const awayLogo = awayComp.team?.logo || getTeamLogoUrl(awayName);
+        const homeLogo = getTeamLogoUrl(homeName, homeComp.team?.logo, { competition, category: 'football' });
+        const awayLogo = getTeamLogoUrl(awayName, awayComp.team?.logo, { competition, category: 'football' });
 
         const state = comp.status?.type?.state; // 'in' = live, 'post' = finished, 'pre' = scheduled
         const detail = comp.status?.type?.detail || '';
@@ -521,8 +534,8 @@ export const fetchEspnLiveScoreboard = async (): Promise<SportsMatch[]> => {
 
         const homeName = homeComp.team?.displayName || homeComp.team?.name || 'Home';
         const awayName = awayComp.team?.displayName || awayComp.team?.name || 'Away';
-        const homeLogo = homeComp.team?.logo || getTeamLogoUrl(homeName);
-        const awayLogo = awayComp.team?.logo || getTeamLogoUrl(awayName);
+        const homeLogo = getTeamLogoUrl(homeName, homeComp.team?.logo, { competition, category: cat });
+        const awayLogo = getTeamLogoUrl(awayName, awayComp.team?.logo, { competition, category: cat });
 
         const state = comp.status?.type?.state;
         const detail = comp.status?.type?.detail || '';
@@ -574,6 +587,7 @@ export const fetchEspnLiveScoreboard = async (): Promise<SportsMatch[]> => {
  * Get live matches across subscribed competitions with real-time scores
  */
 export const getLiveMatchesFromApi = async (): Promise<SportsMatch[]> => {
+  void loadFootballLogosIndex();
   if (liveMatchesCache && Date.now() - liveMatchesCache.timestamp < MATCHES_CACHE_TTL) {
     return liveMatchesCache.data;
   }
@@ -608,11 +622,17 @@ export const getLiveMatchesFromApi = async (): Promise<SportsMatch[]> => {
             teams: {
               home: {
                 name: homeName,
-                logo: m.homeTeam?.crest || getTeamLogoUrl(homeName)
+                logo: getTeamLogoUrl(homeName, m.homeTeam?.crest, {
+                  competition: m.competition?.name,
+                  category: 'football',
+                })
               },
               away: {
                 name: awayName,
-                logo: m.awayTeam?.crest || getTeamLogoUrl(awayName)
+                logo: getTeamLogoUrl(awayName, m.awayTeam?.crest, {
+                  competition: m.competition?.name,
+                  category: 'football',
+                })
               }
             },
             sources: [],

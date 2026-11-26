@@ -1,8 +1,11 @@
+import { resolveFootballLogoSync, isNonFootballSport } from '../services/footballLogos';
+
 /**
- * Verified high-fidelity club crest logos
- * Sourced directly from worldcup26.ir live football API & official CDNs
- * All URLs are verified 200 OK with cross-origin headers
+ * Verified high-fidelity club crest logos & Leo4815162342/football-logos integration
+ * Football clubs, national teams, and competitions resolve via football-logos.cc first
+ * with worldcup26.ir / ESPN / Wikimedia fallbacks.
  */
+
 
 export const VERIFIED_CLUB_LOGOS: Record<string, string> = {
   "Barcelona": "https://worldcup26.ir/media/clubs/545419bb2f40a648c6467e8a10bd01a2cd724758e9059360a1b4193050a135d3.png",
@@ -325,35 +328,85 @@ export const CLUB_BRAND_COLORS: Record<string, { primary: string; secondary: str
   }
 };
 
+export interface TeamLogoResolveOptions {
+  competition?: string;
+  category?: string;
+  preferFootballLogos?: boolean;
+}
+
+const generateFallbackBrandColor = (name: string): string => {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  const c = (hash & 0x00ffffff).toString(16).toUpperCase();
+  return '#' + '00000'.substring(0, 6 - c.length) + c;
+};
+
+export const getTeamBrand = (name: string): { primary: string; secondary: string } => {
+  const normalizedName = (name || '').trim().toLowerCase();
+  const knownBrand =
+    CLUB_BRAND_COLORS[name] ||
+    Object.entries(CLUB_BRAND_COLORS).find(([team]) => {
+      const normalizedTeam = team.toLowerCase();
+      return normalizedName.includes(normalizedTeam) || normalizedTeam.includes(normalizedName);
+    })?.[1];
+  return knownBrand || { primary: generateFallbackBrandColor(name || 'Sport'), secondary: '#111827' };
+};
+
 /**
  * Returns a guaranteed working logo URL for any team name.
+ * For football matches/tables, prioritizes Leo4815162342/football-logos (football-logos.cc)
+ * when loaded, falling back cleanly to ESPN / Football-Data / verified crests.
  */
-export const getTeamLogoUrl = (teamName: string, rawLogo?: string): string => {
+export const getTeamLogoUrl = (
+  teamName: string,
+  rawLogo?: string,
+  options?: TeamLogoResolveOptions
+): string => {
   if (!teamName) return rawLogo || '';
 
-  // 1. If valid external rawLogo is passed (e.g. from ESPN, Football-Data, worldcup26.ir), prioritize it
+  const cleanName = teamName.trim();
+
+  // 1. Prioritize Leo4815162342/football-logos for football when index is ready
+  if (!isNonFootballSport(options?.category) && options?.preferFootballLogos !== false) {
+    const flUrl = resolveFootballLogoSync(cleanName, {
+      competition: options?.competition,
+      category: options?.category,
+      kind: 'team',
+    });
+    if (flUrl) return flUrl;
+  }
+
+  // 2. If valid external rawLogo is passed (e.g. from ESPN, Football-Data, worldcup26.ir), use it
   if (rawLogo && rawLogo.startsWith('http') && !rawLogo.endsWith('/.png')) {
-    if ((rawLogo.includes('wikimedia.org') || rawLogo.includes('wikipedia.org') || rawLogo.includes('fotmob.com')) && !rawLogo.includes('wsrv.nl')) {
+    if (
+      (rawLogo.includes('wikimedia.org') ||
+        rawLogo.includes('wikipedia.org') ||
+        rawLogo.includes('fotmob.com')) &&
+      !rawLogo.includes('wsrv.nl') &&
+      !rawLogo.includes('football-logos.cc')
+    ) {
       return 'https://wsrv.nl/?url=' + encodeURIComponent(rawLogo) + '&w=96&output=png';
     }
     return rawLogo;
   }
 
-  const cleanName = teamName.trim();
-  
-  // 2. Direct match in verified dictionary
+  // 3. Direct match in verified dictionary
   if (VERIFIED_CLUB_LOGOS[cleanName]) {
     return VERIFIED_CLUB_LOGOS[cleanName];
   }
 
-  // 3. Fuzzy match in verified dictionary
+  // 4. Case-insensitive exact match, then fuzzy match in verified dictionary
   const lower = cleanName.toLowerCase();
   for (const [key, url] of Object.entries(VERIFIED_CLUB_LOGOS)) {
+    if (lower === key.toLowerCase()) return url;
+  }
+  for (const [key, url] of Object.entries(VERIFIED_CLUB_LOGOS)) {
     const keyLower = key.toLowerCase();
-    if (lower === keyLower || lower.includes(keyLower) || keyLower.includes(lower)) {
+    if (lower.includes(keyLower) || keyLower.includes(lower)) {
       return url;
     }
   }
 
   return rawLogo || '';
 };
+

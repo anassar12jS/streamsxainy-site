@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { RefreshCw, AlertCircle, Heart, Radio, History, ListMusic, SlidersHorizontal, Eye, EyeOff, Play, Pause, Sparkles, Search } from 'lucide-react';
+import { RefreshCw, AlertCircle, Heart, Radio, History, ListMusic, SlidersHorizontal, Eye, EyeOff, Play, Pause, Disc3, Search } from 'lucide-react';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
 import { useSessionStore } from '../store/useSessionStore';
 import { getHomeShelves, resolveTrackDurations, getRadioTracks, resolveArtistId, resolveAlbumId } from '../api/innertube';
@@ -41,11 +41,11 @@ const saveCachedShelves = (channelId: string, data: HomeShelf[]) => {
 };
 
 const QUICK_TILES = [
-  { to: '/music/library/liked', label: 'Liked Songs', sub: 'Your favorites', icon: Heart, bg: 'from-rose-500/80 to-pink-700/80' },
-  { to: '/music/radio', label: 'Radio', sub: 'Live stations', icon: Radio, bg: 'from-violet-500/80 to-purple-800/80' },
-  { to: '/music/replay', label: 'Replay', sub: 'Your year in music', icon: History, bg: 'from-emerald-500/80 to-teal-800/80' },
-  { to: '/music/library/playlists', label: 'Playlists', sub: 'Your mixes', icon: ListMusic, bg: 'from-sky-500/80 to-blue-800/80' },
-  { to: '/music/new', label: 'New Releases', sub: 'Fresh drops', icon: Sparkles, bg: 'from-amber-500/80 to-orange-800/80' },
+  { to: '/music/library/liked', label: 'Liked Songs', sub: 'Your favorites', icon: Heart, bg: 'from-rose-500/85 to-pink-700/90' },
+  { to: '/music/radio', label: 'Radio', sub: 'Live stations', icon: Radio, bg: 'from-violet-500/85 to-purple-800/90' },
+  { to: '/music/replay', label: 'Replay', sub: 'Your year in music', icon: History, bg: 'from-emerald-500/85 to-teal-800/90' },
+  { to: '/music/library/playlists', label: 'Playlists', sub: 'Your mixes', icon: ListMusic, bg: 'from-sky-500/85 to-blue-800/90' },
+  { to: '/music/new', label: 'New Releases', sub: 'Fresh drops', icon: Disc3, bg: 'from-amber-500/85 to-orange-800/90' },
 ] as const;
 
 interface BrowseRouteProps {
@@ -339,24 +339,19 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
       className="relative space-y-6 lg:space-y-10 animate-fade-in pb-4 max-w-7xl mx-auto px-0.5 sm:px-4"
       style={{ fontFamily: 'var(--bitchord-font)' }}
     >
-      {/* Ambient tint: crisp black on mobile (< lg), gentle artwork glow on desktop */}
+      {/* Dynamic Artwork Ambient Glow */}
       {currentTrack?.artwork && (
-        <div
-          className="fixed inset-0 pointer-events-none z-0"
-          aria-hidden="true"
-        >
+        <div className="fixed inset-0 pointer-events-none z-0" aria-hidden="true">
           <img
             src={currentTrack.artwork}
             alt=""
-            className="w-full h-full object-cover opacity-[0.12] lg:opacity-[0.38] blur-[120px] scale-110"
+            className="w-full h-full object-cover opacity-[0.12] lg:opacity-[0.28] blur-[100px] scale-110"
             style={{
               maskImage:
-                'linear-gradient(to bottom, black 0%, rgba(0,0,0,0.55) 35%, rgba(0,0,0,0.28) 65%, transparent 90%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
+                'linear-gradient(to bottom, black 0%, rgba(0,0,0,0.5) 40%, transparent 85%)',
               WebkitMaskImage:
-                'linear-gradient(to bottom, black 0%, rgba(0,0,0,0.55) 35%, rgba(0,0,0,0.28) 65%, transparent 90%), linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)',
-              maskComposite: 'intersect',
-              WebkitMaskComposite: 'source-in',
-            } as React.CSSProperties}
+                'linear-gradient(to bottom, black 0%, rgba(0,0,0,0.5) 40%, transparent 85%)',
+            }}
           />
         </div>
       )}
@@ -530,11 +525,11 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
             key={to}
             type="button"
             onClick={() => navigate(to)}
-            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${bg} w-40 shrink-0 p-4 text-left shadow-lg active:scale-[0.98] transition-transform cursor-pointer`}
+            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${bg} ring-1 ring-white/15 w-40 shrink-0 p-4 text-left shadow-lg active:scale-[0.98] transition-transform cursor-pointer`}
           >
-            <Icon className="w-5 h-5 text-white/90 mb-6" />
+            <Icon className="w-5 h-5 text-white/95 mb-6" />
             <p className="text-white font-bold text-sm leading-tight">{label}</p>
-            <p className="text-white/70 text-[11px] mt-0.5">{sub}</p>
+            <p className="text-white/75 text-[11px] mt-0.5">{sub}</p>
           </button>
         ))}
       </div>
@@ -544,11 +539,11 @@ export const BrowseRoute: React.FC<BrowseRouteProps> = ({ onOpenAccountModal }) 
             key={to}
             type="button"
             onClick={() => navigate(to)}
-            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${bg} p-4 xl:p-5 text-left shadow-lg hover:scale-[1.02] active:scale-[0.99] transition-transform cursor-pointer group`}
+            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${bg} ring-1 ring-white/15 p-4 xl:p-5 text-left shadow-lg hover:scale-[1.02] active:scale-[0.99] transition-all cursor-pointer group`}
           >
-            <Icon className="w-6 h-6 text-white/90 mb-7 group-hover:scale-110 transition-transform" />
+            <Icon className="w-6 h-6 text-white/95 mb-7 group-hover:scale-110 transition-transform" />
             <p className="text-white font-bold text-sm xl:text-base leading-tight">{label}</p>
-            <p className="text-white/70 text-xs mt-0.5 truncate">{sub}</p>
+            <p className="text-white/75 text-xs mt-0.5 truncate">{sub}</p>
           </button>
         ))}
       </div>

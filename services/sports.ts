@@ -1,6 +1,7 @@
 import { SportsMatch, SportsStream, SportsChannel247, LiveMatchScoreboard } from '../types';
 import { getLiveMatchesFromApi } from './footballApi';
 import { getTeamLogoUrl } from '../data/clubLogos';
+import { loadFootballLogosIndex } from './footballLogos';
 
 // Multi-proxy list with failover for environments where direct fetch is blocked
 const PROXY_CANDIDATES = [
@@ -673,16 +674,13 @@ const mergeMatchData = (target: SportsMatch, incoming: SportsMatch) => {
     }
   }
 
-  // 2. Guarantee Logos via getTeamLogoUrl
+  // 2. Guarantee Logos via getTeamLogoUrl (prioritizing football-logos.cc for football)
   if (target.teams) {
-    if (!target.teams.home.logo) {
-      const l = getTeamLogoUrl(target.teams.home.name);
-      if (l) target.teams.home.logo = l;
-    }
-    if (!target.teams.away.logo) {
-      const l = getTeamLogoUrl(target.teams.away.name);
-      if (l) target.teams.away.logo = l;
-    }
+    const logoOpts = { competition: target.competition, category: target.category };
+    const resolvedHome = getTeamLogoUrl(target.teams.home.name, target.teams.home.logo, logoOpts);
+    if (resolvedHome) target.teams.home.logo = resolvedHome;
+    const resolvedAway = getTeamLogoUrl(target.teams.away.name, target.teams.away.logo, logoOpts);
+    if (resolvedAway) target.teams.away.logo = resolvedAway;
   }
 
   // 3. Clean Title
@@ -757,6 +755,9 @@ export const getAllMatches = async (): Promise<SportsMatch[]> => {
     return cachedMatches;
   }
 
+  // Warm football-logos index concurrently with sports feeds
+  void loadFootballLogosIndex();
+
   // Fetch StreamFree, PPV.st, and Real-Time ESPN/Football-Data scoreboards concurrently
   // Bound the initial page load even when an upstream feed is hanging or rejecting requests.
   const [sfMatches, ppvMatches, liveApiMatches] = await Promise.all([
@@ -795,19 +796,18 @@ export const getAllMatches = async (): Promise<SportsMatch[]> => {
     } else {
       // Ensure teams and logos exist
       const teams = extractTeamsFromMatch(candidate);
+      const logoOpts = { competition: candidate.competition, category: candidate.category };
       if (teams && (!candidate.teams || normalizeTeamToken(candidate.teams.home.name) === normalizeTeamToken(candidate.teams.away.name))) {
         candidate.teams = {
-          home: { name: teams.home, logo: getTeamLogoUrl(teams.home) },
-          away: { name: teams.away, logo: getTeamLogoUrl(teams.away) }
+          home: { name: teams.home, logo: getTeamLogoUrl(teams.home, undefined, logoOpts) },
+          away: { name: teams.away, logo: getTeamLogoUrl(teams.away, undefined, logoOpts) }
         };
         candidate.title = `${teams.home} vs ${teams.away}`;
       } else if (candidate.teams) {
-        if (!candidate.teams.home.logo) {
-          candidate.teams.home.logo = getTeamLogoUrl(candidate.teams.home.name);
-        }
-        if (!candidate.teams.away.logo) {
-          candidate.teams.away.logo = getTeamLogoUrl(candidate.teams.away.name);
-        }
+        const homeLogo = getTeamLogoUrl(candidate.teams.home.name, candidate.teams.home.logo, logoOpts);
+        if (homeLogo) candidate.teams.home.logo = homeLogo;
+        const awayLogo = getTeamLogoUrl(candidate.teams.away.name, candidate.teams.away.logo, logoOpts);
+        if (awayLogo) candidate.teams.away.logo = awayLogo;
       }
       mergedList.push(candidate);
     }

@@ -17,10 +17,9 @@ import { TMDBResult, AniListResult, MediaType } from '../types';
 import { TMDB_POSTER_BASE, POSTER_FALLBACK_SVG } from '../constants';
 import { MediaCard } from '../components/MediaCard';
 import { 
-  Ghost, TrendingUp, Calendar, Star, Flame, Play, AlertTriangle, 
-  RefreshCw, Loader2, Sparkles, ChevronLeft, ChevronRight, 
-  Plus, Check, CheckCircle2, Info, Compass, Clapperboard, Layers, Search, X,
-  Clock, Mic
+  TrendingUp, Calendar, Star, Play, AlertTriangle, 
+  RefreshCw, Loader2, ChevronLeft, ChevronRight, 
+  CheckCircle2, Info, Search, X, Clock, Flame, Award, Tv
 } from 'lucide-react';
 import { RowSkeleton, Skeleton } from '../components/Skeleton';
 
@@ -30,14 +29,14 @@ interface AnimeProps {
 
 // Anime Genre Definitions
 const ANIME_GENRES = [
-  { id: 'all', label: 'All', icon: Sparkles },
-  { id: 'Action', label: 'Action & Shounen', icon: Flame },
-  { id: 'Fantasy', label: 'Fantasy & Isekai', icon: Ghost },
-  { id: 'Romance', label: 'Romance', icon: Star },
-  { id: 'Sci-Fi', label: 'Sci-Fi & Mecha', icon: Compass },
-  { id: 'Psychological', label: 'Psychological', icon: Clapperboard },
-  { id: 'Comedy', label: 'Comedy', icon: Sparkles },
-  { id: 'Supernatural', label: 'Supernatural', icon: Ghost },
+  { id: 'all', label: 'All' },
+  { id: 'Action', label: 'Action' },
+  { id: 'Fantasy', label: 'Fantasy' },
+  { id: 'Romance', label: 'Romance' },
+  { id: 'Sci-Fi', label: 'Sci-Fi' },
+  { id: 'Psychological', label: 'Psychological' },
+  { id: 'Comedy', label: 'Comedy' },
+  { id: 'Supernatural', label: 'Supernatural' },
 ];
 
 // Legendary Anime Studios with real verified TMDB series data
@@ -147,17 +146,18 @@ const AnimeRow = React.memo(({
   return (
     <div className="mb-12 relative group/row">
       <div className="flex items-center justify-between mb-4 px-4 sm:px-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="w-1 h-5 rounded-full bg-[rgb(var(--primary-color))] shrink-0" />
           {Icon && (
-            <div className="p-1.5 rounded-lg bg-pink-500/10 text-pink-500">
-              <Icon className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-[rgb(var(--primary-color))]/12 border border-[rgb(var(--primary-color))]/25 flex items-center justify-center text-[rgb(var(--primary-color))] shrink-0">
+              <Icon className="w-4 h-4" />
             </div>
           )}
-          <h2 className="text-xl sm:text-2xl font-bold text-[var(--text-main)] tracking-tight">
+          <h2 className="font-display text-lg sm:text-xl font-bold text-[var(--text-main)] tracking-tight">
             {title}
           </h2>
           {badge && (
-            <span className="hidden sm:inline-flex items-center text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded bg-[var(--bg-hover)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
+            <span className="px-2 py-0.5 rounded-md bg-[rgb(var(--primary-color))]/15 text-[rgb(var(--primary-color))] text-[11px] font-semibold">
               {badge}
             </span>
           )}
@@ -568,7 +568,7 @@ export const Anime: React.FC<AnimeProps> = ({ onSelect }) => {
       {/* Cinematic Anime Hero Carousel */}
       {currentHero && (
         <div 
-          className="relative h-[80vh] min-h-[560px] max-h-[800px] w-full mb-10 group/hero"
+          className="relative h-[80vh] min-h-[560px] max-h-[800px] w-full mb-10 group/hero bg-[#09090b]"
           onMouseEnter={() => setIsHeroHovered(true)}
           onMouseLeave={() => setIsHeroHovered(false)}
         >
@@ -584,118 +584,108 @@ export const Anime: React.FC<AnimeProps> = ({ onSelect }) => {
                 <img 
                   src={item.bannerImage || item.coverImage.extraLarge} 
                   alt={item.title.english || item.title.romaji} 
-                  className="w-full h-full object-cover object-center transform scale-100 group-hover/hero:scale-105 transition-transform duration-[12s] ease-out filter brightness-95"
+                  className="w-full h-full object-cover object-center transform scale-100 group-hover/hero:scale-105 transition-transform duration-[12s] ease-out filter brightness-90"
                 />
               </div>
             ))}
 
-            {/* Seamless Top Vignette into Navbar Background */}
-            <div className="absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-[var(--bg-main)] via-[var(--bg-main)]/60 to-transparent pointer-events-none z-10" />
+            {/* Top Scrim */}
+            <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-[#09090b]/80 via-[#09090b]/35 to-transparent pointer-events-none z-10" />
 
-            {/* Left Vignette for Perfect Contrast */}
-            <div className="absolute inset-0 bg-gradient-to-r from-[var(--bg-main)] via-[var(--bg-main)]/85 to-transparent w-full lg:w-3/5 z-10" />
+            {/* Left Scrim for Contrast */}
+            <div className="absolute inset-0 bg-gradient-to-r from-[#09090b]/95 via-[#09090b]/70 to-transparent w-full lg:w-3/5 z-10" />
 
-            {/* Bottom Seamless Fade */}
-            <div className="absolute inset-x-0 bottom-0 h-52 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)]/80 to-transparent pointer-events-none z-10" />
-
-            {/* Pink / Purple Ambient Theme Glow */}
-            <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-pink-500/15 rounded-full blur-[110px] pointer-events-none z-10" />
+            {/* Bottom Scrim */}
+            <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-[#09090b] via-[#09090b]/75 to-transparent pointer-events-none z-10" />
           </div>
 
           {/* Hero Content Body */}
-          <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-end pb-16 sm:pb-20">
-            <div className="max-w-2xl flex flex-col gap-3.5">
+          <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-end pb-14 sm:pb-18">
+            <div className="max-w-2xl flex flex-col gap-3">
               
-              {/* Eyebrow Kicker with Native Kanji */}
-              <div className="flex flex-wrap items-center gap-2 text-xs font-bold tracking-wider uppercase animate-fade-in">
-                <span className="flex items-center gap-1.5 text-pink-400">
-                  <Ghost className="w-3.5 h-3.5" />
-                  <span>AniList Trending #{heroIndex + 1}</span>
+              {/* Editorial Eyebrow with Native Kanji */}
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold tracking-wider uppercase animate-fade-in">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[rgb(var(--primary-color))] text-white shadow-md shadow-[rgb(var(--primary-color))]/35">
+                  <Flame className="w-3 h-3 fill-current" />
+                  <span>Featured Anime</span>
                 </span>
                 {currentHero.title.native && (
-                  <>
-                    <span className="text-white/30">·</span>
-                    <span className="text-pink-200/80 font-medium normal-case font-sans tracking-wide">
-                      {currentHero.title.native}
-                    </span>
-                  </>
+                  <span className="px-2.5 py-1 rounded-md bg-black/55 backdrop-blur-md border border-white/15 text-white/90 normal-case tracking-wide">
+                    {currentHero.title.native}
+                  </span>
                 )}
               </div>
 
               {/* Main Title */}
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white leading-[1.08] tracking-tight drop-shadow-2xl animate-fade-in line-clamp-2">
+              <h1 className="font-display text-3xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-[1.06] tracking-tight animate-fade-in line-clamp-2 drop-shadow-[0_6px_24px_rgba(0,0,0,0.75)]" style={{ textWrap: 'balance' }}>
                 {currentHero.title.english || currentHero.title.romaji}
               </h1>
 
-              {/* Metadata Row */}
-              <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm font-medium text-white/80 animate-fade-in">
+              {/* Metadata Pills */}
+              <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm font-semibold text-white/90 animate-fade-in tabular-nums">
                 {currentHero.averageScore && (
-                  <span className="flex items-center gap-1.5 text-pink-400 font-bold">
-                    <Star className="w-3.5 h-3.5 fill-pink-400 shrink-0" />
-                    <span>{(currentHero.averageScore / 10).toFixed(1)} / 10</span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-400/30 text-amber-300 backdrop-blur-md">
+                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 shrink-0" />
+                    <span>{(currentHero.averageScore / 10).toFixed(1)}</span>
                   </span>
                 )}
                 {currentHero.nextAiringEpisode && (
-                  <>
-                    <span className="text-white/30">·</span>
-                    <span className="flex items-center gap-1 text-emerald-400 font-bold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      <span>EP {currentHero.nextAiringEpisode.episode} ({formatCountdown(currentHero.nextAiringEpisode.airingAt)})</span>
-                    </span>
-                  </>
+                  <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 backdrop-blur-md">
+                    Ep {currentHero.nextAiringEpisode.episode} in {formatCountdown(currentHero.nextAiringEpisode.airingAt)}
+                  </span>
                 )}
-                <span className="text-white/30">·</span>
-                <span className="text-white/90 font-semibold">{currentHero.status || 'ANIME'}</span>
+                <span className="px-2.5 py-1 rounded-lg bg-white/10 border border-white/15 backdrop-blur-md text-white">
+                  {currentHero.status || 'Anime'}
+                </span>
                 {currentHero.genres?.slice(0, 3).map(genre => (
-                  <React.Fragment key={genre}>
-                    <span className="text-white/30">·</span>
-                    <span className="text-white/70">{genre}</span>
-                  </React.Fragment>
+                  <span
+                    key={genre}
+                    className="px-2.5 py-1 rounded-lg bg-black/45 border border-white/15 backdrop-blur-md text-white/85"
+                  >
+                    {genre}
+                  </span>
                 ))}
               </div>
 
               {/* Synopsis */}
-              <p className="text-zinc-200/90 text-sm sm:text-base line-clamp-3 max-w-xl drop-shadow-sm font-normal leading-relaxed animate-fade-in">
+              <p className="text-zinc-200/90 text-sm sm:text-base line-clamp-3 max-w-xl font-normal leading-relaxed animate-fade-in drop-shadow">
                 {cleanDescription(currentHero.description)}
               </p>
 
               {/* CTA Action Buttons */}
-              <div className="flex flex-wrap items-center gap-3 pt-3 animate-fade-in">
-                
-                {/* Watch Now Button */}
+              <div className="flex flex-wrap items-center gap-3 pt-2 animate-fade-in">
                 <button
                   onClick={() => handleAnimeSelect(mapAniListToTMDB(currentHero))}
                   disabled={loadingHero}
-                  className="flex items-center gap-2.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:brightness-110 text-white px-7 py-3.5 rounded-xl font-bold text-sm sm:text-base shadow-xl shadow-pink-600/30 hover:-translate-y-0.5 transition-all group disabled:opacity-50"
+                  className="flex items-center gap-2 bg-[rgb(var(--primary-color))] hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] text-white px-6 py-3 rounded-xl font-bold text-sm shadow-xl shadow-[rgb(var(--primary-color))]/40 transition-all disabled:opacity-50 cursor-pointer"
                 >
                   {loadingHero ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-current transition-transform group-hover:scale-110" />
+                    <Play className="w-4 h-4 fill-current" />
                   )}
-                  <span>{loadingHero ? 'Connecting...' : 'Watch Anime'}</span>
+                  <span>{loadingHero ? 'Loading...' : 'Watch Now'}</span>
                 </button>
 
-                {/* More Details Button */}
                 <button
                   onClick={() => handleAnimeSelect(mapAniListToTMDB(currentHero))}
-                  className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/15 text-white px-5 py-3.5 rounded-xl font-semibold text-sm backdrop-blur-md transition-all"
+                  className="flex items-center gap-2 bg-white/15 hover:bg-white/25 border border-white/20 text-white px-5 py-3 rounded-xl font-semibold text-sm backdrop-blur-md transition-all cursor-pointer"
                 >
                   <Info className="w-4 h-4" />
-                  <span>Anime Details</span>
+                  <span>Details</span>
                 </button>
               </div>
             </div>
 
             {/* Desktop Carousel Thumbnail Switcher */}
-            <div className="hidden lg:flex items-center gap-2.5 absolute bottom-16 right-8 z-20 bg-black/40 p-2 rounded-2xl border border-white/15 backdrop-blur-md">
+            <div className="hidden lg:flex items-center gap-2.5 absolute bottom-16 right-8 z-20 bg-black/50 p-2 rounded-2xl border border-white/15 backdrop-blur-md">
               {featuredAnime.map((item, idx) => (
                 <button
                   key={item.id}
                   onClick={() => setHeroIndex(idx)}
-                  className={`relative w-20 h-12 rounded-xl overflow-hidden border-2 transition-all group ${
+                  className={`relative w-20 h-12 rounded-xl overflow-hidden border-2 transition-all group cursor-pointer ${
                     idx === heroIndex 
-                      ? 'border-pink-500 scale-105 shadow-lg' 
+                      ? 'border-[rgb(var(--primary-color))] scale-105 shadow-lg shadow-[rgb(var(--primary-color))]/30' 
                       : 'border-transparent opacity-60 hover:opacity-100'
                   }`}
                   title={item.title.english || item.title.romaji}
@@ -707,7 +697,7 @@ export const Anime: React.FC<AnimeProps> = ({ onSelect }) => {
                   />
                   <div className="absolute inset-0 bg-black/30 group-hover:bg-transparent transition-colors" />
                   {idx === heroIndex && (
-                    <div className="absolute bottom-1 left-1.5 w-1.5 h-1.5 rounded-full bg-pink-500" />
+                    <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[rgb(var(--primary-color))]" />
                   )}
                 </button>
               ))}
@@ -732,71 +722,54 @@ export const Anime: React.FC<AnimeProps> = ({ onSelect }) => {
       )}
 
       {/* Main Anime Content Container */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10 relative z-10 -mt-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10 relative z-20">
 
-        {/* Anime Controls Bar: Genre Navigation & Dubbed/Subbed Audio Switcher */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[var(--bg-card)] p-3 rounded-2xl border border-[var(--border-subtle)] shadow-lg">
+        {/* Floating Glass Genre Navigation & Audio Switcher */}
+        <div className="-mt-14 sm:-mt-16 mb-2 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-[var(--bg-card)]/90 backdrop-blur-xl border border-[var(--border-subtle)] p-2 rounded-2xl shadow-2xl">
           
-          {/* Genre Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 md:pb-0 flex-1">
+          {/* Genre Tabs */}
+          <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar pb-1 md:pb-0 flex-1">
             {ANIME_GENRES.map(genre => {
-              const Icon = genre.icon;
               const isActive = activeGenre === genre.id;
               return (
                 <button
                   key={genre.id}
                   onClick={() => setActiveGenre(genre.id)}
-                  className={`shrink-0 flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  className={`shrink-0 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                     isActive 
-                      ? 'bg-pink-500 text-white shadow-md shadow-pink-500/20' 
-                      : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
+                      ? 'bg-[rgb(var(--primary-color))] text-white shadow-lg shadow-[rgb(var(--primary-color))]/30' 
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)]/70'
                   }`}
                 >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{genre.label}</span>
+                  {genre.label}
                 </button>
               );
             })}
           </div>
 
           {/* Subbed vs Dubbed Audio Mode Switcher */}
-          <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/5 shrink-0 self-start md:self-auto">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-muted)] px-2 font-bold flex items-center gap-1">
-              <Mic className="w-3 h-3 text-pink-400" /> Audio:
+          <div className="flex items-center gap-1 bg-[var(--bg-main)] p-1 rounded-xl border border-[var(--border-subtle)] shrink-0 self-start md:self-auto">
+            <span className="text-[11px] font-semibold text-[var(--text-muted)] px-2">
+              Audio
             </span>
-            <button
-              type="button"
-              onClick={() => setAudioMode('all')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                audioMode === 'all'
-                  ? 'bg-pink-500 text-white shadow-sm'
-                  : 'text-[var(--text-muted)] hover:text-white'
-              }`}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              onClick={() => setAudioMode('sub')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                audioMode === 'sub'
-                  ? 'bg-pink-500 text-white shadow-sm'
-                  : 'text-[var(--text-muted)] hover:text-white'
-              }`}
-            >
-              🇯🇵 Sub
-            </button>
-            <button
-              type="button"
-              onClick={() => setAudioMode('dub')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                audioMode === 'dub'
-                  ? 'bg-pink-500 text-white shadow-sm'
-                  : 'text-[var(--text-muted)] hover:text-white'
-              }`}
-            >
-              🎙️ Dubbed
-            </button>
+            {([
+              { id: 'all', label: 'All' },
+              { id: 'sub', label: 'Sub' },
+              { id: 'dub', label: 'Dub' },
+            ] as const).map(opt => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setAudioMode(opt.id)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  audioMode === opt.id
+                    ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
 
         </div>
@@ -808,23 +781,21 @@ export const Anime: React.FC<AnimeProps> = ({ onSelect }) => {
               <RowSkeleton />
             ) : (
               <AnimeRow 
-                title={`${activeGenre} Anime Picks`} 
-                badge="FILTERED"
+                title={`${activeGenre} Anime`} 
+                icon={Flame}
                 items={filterByAudio(genreItems)} 
-                icon={Flame} 
                 onClick={handleAnimeSelect} 
               />
             )}
           </div>
         )}
 
-        {/* Live Airing Schedule & Episode Countdowns Row */}
+        {/* Airing Schedule & Countdowns Row */}
         {airing && airing.length > 0 && (
           <AnimeRow 
-            title="⚡ Live Airing Schedule & Episode Countdowns" 
-            badge="DROPPING TODAY"
+            title="Airing Schedule" 
+            icon={Clock}
             items={filterByAudio(airing)} 
-            icon={Clock} 
             onClick={handleAnimeSelect} 
           />
         )}
@@ -832,10 +803,9 @@ export const Anime: React.FC<AnimeProps> = ({ onSelect }) => {
         {/* Seasonal Anime Broadcast Row */}
         {season && (
           <AnimeRow 
-            title={`Broadcasting This Season (${currentSeasonName})`} 
-            badge="ONGOING"
+            title={`This Season (${currentSeasonName})`} 
+            icon={Calendar}
             items={filterByAudio(season)} 
-            icon={Calendar} 
             onClick={handleAnimeSelect} 
           />
         )}
@@ -843,10 +813,9 @@ export const Anime: React.FC<AnimeProps> = ({ onSelect }) => {
         {/* Trending Anime Row */}
         {trending && (
           <AnimeRow 
-            title="Trending Anime Series" 
-            badge="VIRAL"
+            title="Trending Anime" 
+            icon={TrendingUp}
             items={filterByAudio(trending)} 
-            icon={TrendingUp} 
             onClick={handleAnimeSelect} 
           />
         )}
@@ -854,54 +823,62 @@ export const Anime: React.FC<AnimeProps> = ({ onSelect }) => {
         {/* All-Time Fan Favorites */}
         {popular && (
           <AnimeRow 
-            title="All-Time Most Popular Anime" 
-            badge="HALL OF FAME"
+            title="Most Popular" 
+            icon={Flame}
             items={filterByAudio(popular)} 
-            icon={Star} 
             onClick={handleAnimeSelect} 
           />
         )}
 
-        {/* Top Rated Masterpieces */}
+        {/* Top Rated */}
         {topRated && topRated.length > 0 && (
           <AnimeRow 
-            title="Top Rated Masterpieces" 
-            badge="CRITICS"
+            title="Top Rated" 
+            icon={Award}
             items={filterByAudio(topRated)} 
-            icon={Ghost} 
             onClick={handleAnimeSelect} 
           />
         )}
 
-        {/* Legendary Studios Spotlight Section */}
-        <div className="bg-gradient-to-r from-[var(--bg-card)] via-[var(--bg-card)]/80 to-[var(--bg-main)] p-6 rounded-3xl border border-[var(--border-subtle)] shadow-xl">
+        {/* Studios Directory Section */}
+        <div className="bg-[var(--bg-card)] p-6 rounded-2xl border border-[var(--border-subtle)] shadow-xl relative overflow-hidden">
           <div className="flex items-center gap-3 mb-5">
-            <div className="p-2 rounded-xl bg-pink-500/10 text-pink-500">
-              <Layers className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[rgb(var(--primary-color))] to-rose-700 flex items-center justify-center text-white shadow-lg shadow-[rgb(var(--primary-color))]/30 shrink-0">
+              <Tv className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-[var(--text-main)]">Legendary Anime Studios</h3>
-              <p className="text-xs text-[var(--text-muted)]">Explore masterworks created by world-renowned animation powerhouses</p>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgb(var(--primary-color))] block">
+                Studio Spotlights
+              </span>
+              <h3 className="font-display text-lg sm:text-xl font-bold text-[var(--text-main)]">Animation Studios</h3>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {ANIME_STUDIOS.map(studio => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {ANIME_STUDIOS.map((studio, idx) => {
               const isSelected = selectedStudio?.name === studio.name;
+              const studioAccents = [
+                'from-rose-600/20 to-red-900/25 border-rose-500/25',
+                'from-violet-600/20 to-purple-900/25 border-violet-500/25',
+                'from-sky-600/20 to-blue-900/25 border-sky-500/25',
+                'from-amber-500/20 to-orange-900/25 border-amber-500/25',
+                'from-emerald-600/20 to-teal-900/25 border-emerald-500/25',
+                'from-fuchsia-600/20 to-pink-900/25 border-fuchsia-500/25',
+              ];
               return (
                 <div
                   key={studio.name}
                   onClick={() => setSelectedStudio(isSelected ? null : studio)}
-                  className={`p-4 rounded-2xl bg-[var(--bg-main)] border transition-all cursor-pointer group hover:-translate-y-1 shadow-md ${
-                    isSelected ? 'border-pink-500 shadow-pink-500/20 ring-1 ring-pink-500' : 'border-[var(--border-subtle)] hover:border-pink-500/60'
+                  className={`p-4 rounded-xl bg-gradient-to-br ${studioAccents[idx % studioAccents.length]} border transition-all cursor-pointer group hover:-translate-y-0.5 hover:shadow-lg ${
+                    isSelected ? 'ring-2 ring-[rgb(var(--primary-color))] shadow-lg shadow-[rgb(var(--primary-color))]/20' : ''
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-base font-black text-[var(--text-main)] group-hover:text-pink-400 transition-colors">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <h4 className="font-display text-base font-bold text-[var(--text-main)] group-hover:text-[rgb(var(--primary-color))] transition-colors">
                       {studio.name}
                     </h4>
-                    <span className="text-[10px] uppercase font-bold text-pink-400 bg-pink-500/10 px-2 py-0.5 rounded-full border border-pink-500/20">
-                      {studio.masterpieces.length} Hits
+                    <span className="text-[11px] font-mono font-semibold tabular-nums px-2 py-0.5 rounded-md bg-[var(--bg-main)]/75 text-[var(--text-main)] border border-[var(--border-subtle)]">
+                      {studio.masterpieces.length} titles
                     </span>
                   </div>
                   <p className="text-xs text-[var(--text-muted)] line-clamp-2">
@@ -912,7 +889,7 @@ export const Anime: React.FC<AnimeProps> = ({ onSelect }) => {
             })}
           </div>
 
-          {/* Interactive Studio Masterworks Showcase */}
+          {/* Interactive Studio Works Showcase */}
           {selectedStudio && (
             <div 
               ref={(el) => {
@@ -922,24 +899,23 @@ export const Anime: React.FC<AnimeProps> = ({ onSelect }) => {
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <div>
-                  <h4 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-pink-500 shadow-sm" />
-                    <span>{selectedStudio.name} Masterworks</span>
+                  <h4 className="font-display text-lg font-semibold text-[var(--text-main)]">
+                    {selectedStudio.name}
                   </h4>
                   <p className="text-xs text-[var(--text-muted)] mt-0.5">{selectedStudio.description}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => navigate(`/search?q=${encodeURIComponent(selectedStudio.name)}`)}
-                    className="px-3 py-1.5 rounded-xl bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 border border-pink-500/30 text-xs font-bold transition-colors flex items-center gap-1.5"
+                    className="px-3 py-1.5 rounded-lg bg-[var(--bg-hover)] text-[var(--text-main)] border border-[var(--border-subtle)] text-xs font-medium transition-colors flex items-center gap-1 cursor-pointer"
                   >
-                    <span>Search all {selectedStudio.name}</span>
+                    <span>Browse {selectedStudio.name}</span>
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => setSelectedStudio(null)}
-                    className="p-1.5 rounded-lg bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-white"
-                    title="Close showcase"
+                    className="p-1.5 rounded-lg bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer"
+                    title="Close"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -953,28 +929,23 @@ export const Anime: React.FC<AnimeProps> = ({ onSelect }) => {
                     onClick={() => onSelect(anime as TMDBResult)}
                     className="group cursor-pointer flex flex-col gap-1.5"
                   >
-                    <div className="aspect-[2/3] rounded-xl overflow-hidden bg-[var(--bg-main)] border border-[var(--border-subtle)] group-hover:border-pink-500 transition-all shadow-md group-hover:shadow-pink-500/20 relative">
+                    <div className="aspect-[2/3] rounded-xl overflow-hidden bg-[var(--bg-main)] border border-[var(--border-subtle)] group-hover:border-[var(--text-muted)] transition-colors relative">
                       <img 
                         src={`https://image.tmdb.org/t/p/w342${anime.poster_path}`} 
                         alt={anime.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
                         loading="lazy"
                         decoding="async"
                         onError={(e) => {
                           e.currentTarget.onerror = null;
-                          e.currentTarget.src = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22300%22%20height%3D%22450%22%20viewBox%3D%220%200%20300%20450%22%3E%3Crect%20fill%3D%22%2318181b%22%20width%3D%22300%22%20height%3D%22450%22%2F%3E%3Ctext%20fill%3D%22%23ec4899%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22bold%22%20x%3D%2250%25%22%20y%3D%2250%25%22%20text-anchor%3D%22middle%22%3E' + encodeURIComponent(anime.title) + '%3C%2Ftext%3E%3C%2Fsvg%3E';
+                          e.currentTarget.src = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22300%22%20height%3D%22450%22%20viewBox%3D%220%200%20300%20450%22%3E%3Crect%20fill%3D%22%2318181b%22%20width%3D%22300%22%20height%3D%22450%22%2F%3E%3Ctext%20fill%3D%22%23a1a1aa%22%20font-family%3D%22sans-serif%22%20font-size%3D%2214%22%20font-weight%3D%22bold%22%20x%3D%2250%25%22%20y%3D%2250%25%22%20text-anchor%3D%22middle%22%3E' + encodeURIComponent(anime.title) + '%3C%2Ftext%3E%3C%2Fsvg%3E';
                         }}
                       />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <div className="w-9 h-9 rounded-full bg-pink-500 text-white flex items-center justify-center shadow-lg">
-                          <Play className="w-4 h-4 fill-white ml-0.5" />
-                        </div>
-                      </div>
-                      <span className="absolute bottom-2 left-2 px-1.5 py-0.2 rounded bg-black/80 backdrop-blur-sm text-[10px] font-bold text-amber-400 font-mono">
+                      <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-sm text-[11px] font-semibold text-amber-400 tabular-nums">
                         ★ {anime.vote_average}
                       </span>
                     </div>
-                    <p className="text-xs font-bold text-[var(--text-main)] truncate group-hover:text-pink-400 transition-colors">
+                    <p className="text-xs font-semibold text-[var(--text-main)] truncate group-hover:text-[rgb(var(--primary-color))] transition-colors">
                       {anime.title}
                     </p>
                   </div>
@@ -987,10 +958,9 @@ export const Anime: React.FC<AnimeProps> = ({ onSelect }) => {
         {/* Upcoming Anime Seasons */}
         {upcoming && (
           <AnimeRow 
-            title="Highly Anticipated Upcoming Anime" 
-            badge="COMING SOON"
+            title="Upcoming Anime" 
+            icon={Calendar}
             items={upcoming} 
-            icon={Calendar} 
             onClick={handleAnimeSelect} 
           />
         )}

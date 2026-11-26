@@ -391,9 +391,9 @@ export const saveStreamProviders = (providers: StreamProvider[]) => {
 // --- Settings & Data ---
 export const getTheme = (): string => {
   try {
-    return localStorage.getItem(THEME_KEY) || 'purple';
+    return localStorage.getItem(THEME_KEY) || 'red';
   } catch {
-    return 'purple';
+    return 'red';
   }
 };
 export const setTheme = (color: string) => safeSetItem(THEME_KEY, color);
@@ -414,7 +414,7 @@ export const themeToRgb = (theme: string): string => {
     const n = parseInt(hex.slice(1), 16);
     return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
   }
-  return THEME_RGB['purple'];
+  return THEME_RGB['red'];
 };
 export const getMode = (): 'dark' | 'light' => {
   try {

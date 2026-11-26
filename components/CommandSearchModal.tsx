@@ -6,7 +6,7 @@ import { searchAnimeList, mapAniListToTMDB } from '../services/anilist';
 import { rankSearchResults, getSpellCorrection } from '../services/searchUtils';
 import { TMDBResult, MediaType } from '../types';
 import { TMDB_POSTER_BASE, POSTER_FALLBACK_SVG } from '../constants';
-import { Search, Film, Tv, Star, X, Loader2, ArrowRight, CornerDownLeft, Sparkles, Ghost, Music, Play } from 'lucide-react';
+import { Search, Star, X, Loader2, ArrowRight, CornerDownLeft, Music, Play } from 'lucide-react';
 import type { MusicTrack } from '../src/modules/music/types';
 
 interface CommandSearchModalProps {
@@ -262,9 +262,8 @@ export const CommandSearchModal: React.FC<CommandSearchModalProps> = ({
                       </div>
                       <div className="flex items-center gap-2 text-xs text-white/50 mt-0.5">
                         {item.anilist_id ? (
-                          <span className="text-pink-400 font-bold flex items-center gap-1">
-                            <Ghost className="w-3 h-3" />
-                            <span>Anime</span>
+                          <span className="text-[rgb(var(--primary-color))] font-medium">
+                            Anime
                           </span>
                         ) : (
                           <span className="capitalize">{item.media_type === MediaType.TV ? 'Series' : item.media_type === MediaType.MOVIE ? 'Movie' : 'Person'}</span>
@@ -296,9 +295,8 @@ export const CommandSearchModal: React.FC<CommandSearchModalProps> = ({
           ) : (
             /* Quick suggestions */
             <div className="p-3">
-              <div className="text-[11px] font-bold text-white/40 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>Trending Searches</span>
+              <div className="text-[11px] font-medium text-white/45 uppercase tracking-wider mb-2.5">
+                Popular Searches
               </div>
               <div className="flex flex-wrap gap-2">
                 {trendingTags.map(tag => (

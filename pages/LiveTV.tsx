@@ -332,15 +332,15 @@ export const LiveTV: React.FC = () => {
   return (
     <div className="min-h-screen animate-fade-in flex flex-col h-screen overflow-hidden bg-[var(--bg-main)]">
       {/* Header */}
-      <div className="border-b border-[var(--border-color)] bg-[var(--bg-card)] p-4 sticky top-0 z-10">
+      <div className="border-b border-[var(--border-subtle)] bg-[var(--bg-card)] px-4 py-3.5 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-[rgb(var(--primary-color))]/10 p-2.5 rounded-lg">
-              <Tv2 className="w-6 h-6 text-[rgb(var(--primary-color))]" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[rgb(var(--primary-color))] to-rose-700 flex items-center justify-center text-white shadow-md shadow-[rgb(var(--primary-color))]/30 shrink-0">
+              <Tv2 className="w-4 h-4" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-[var(--text-main)]">Live TV</h1>
-              <p className="text-xs text-[var(--text-muted)]">{channels.length} channels • {filteredChannels.length} shown</p>
+              <h1 className="font-display text-2xl font-bold text-[var(--text-main)] tracking-tight">Live TV</h1>
+              <p className="text-xs text-[var(--text-muted)] tabular-nums">{channels.length} channels · {filteredChannels.length} shown</p>
             </div>
           </div>
         </div>

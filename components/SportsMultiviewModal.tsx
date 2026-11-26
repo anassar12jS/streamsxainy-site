@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { SportsMatch, SportsStream } from '../types';
 import { getMatchStreams, isMatchFinished } from '../services/sports';
+import { TeamLogo } from './TeamLogo';
 
 interface SportsMultiviewModalProps {
   isOpen: boolean;
@@ -253,10 +254,30 @@ export const SportsMultiviewModal: React.FC<SportsMultiviewModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setPickingSlotId(slot.slotId)}
-                      className="text-left font-bold text-white hover:text-cyan-400 truncate max-w-[150px] sm:max-w-[220px] transition-colors"
+                      className="flex items-center gap-1.5 text-left font-bold text-white hover:text-cyan-400 min-w-0 transition-colors"
                       title="Click to switch match"
                     >
-                      {slot.match.title}
+                      {slot.match.teams?.home && slot.match.teams?.away && (
+                        <span className="flex items-center -space-x-1 shrink-0">
+                          <TeamLogo
+                            name={slot.match.teams.home.name}
+                            logo={slot.match.teams.home.logo}
+                            competition={slot.match.competition}
+                            category={slot.match.category}
+                            className="w-5 h-5"
+                            size="text-[7px]"
+                          />
+                          <TeamLogo
+                            name={slot.match.teams.away.name}
+                            logo={slot.match.teams.away.logo}
+                            competition={slot.match.competition}
+                            category={slot.match.category}
+                            className="w-5 h-5"
+                            size="text-[7px]"
+                          />
+                        </span>
+                      )}
+                      <span className="truncate max-w-[140px] sm:max-w-[210px]">{slot.match.title}</span>
                     </button>
                   ) : (
                     <span className="text-white/40 italic">Empty Slot</span>
@@ -427,14 +448,36 @@ export const SportsMultiviewModal: React.FC<SportsMultiviewModalProps> = ({
                       setPickingSlotId(null);
                       setPickerSearch('');
                     }}
-                    className="w-full text-left p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-cyan-500/40 transition-all flex items-center justify-between group"
+                    className="w-full text-left p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-cyan-500/40 transition-all flex items-center justify-between gap-3 group"
                   >
-                    <div className="min-w-0 pr-3">
-                      <div className="text-xs font-bold text-white group-hover:text-cyan-300 truncate">
-                        {match.title}
-                      </div>
-                      <div className="text-[11px] text-white/50 mt-0.5 truncate">
-                        {match.competition || match.category} · {match.sources?.length || 0} feeds listed
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      {match.teams?.home && match.teams?.away && (
+                        <div className="flex items-center -space-x-1.5 shrink-0">
+                          <TeamLogo
+                            name={match.teams.home.name}
+                            logo={match.teams.home.logo}
+                            competition={match.competition}
+                            category={match.category}
+                            className="w-7 h-7"
+                            size="text-[9px]"
+                          />
+                          <TeamLogo
+                            name={match.teams.away.name}
+                            logo={match.teams.away.logo}
+                            competition={match.competition}
+                            category={match.category}
+                            className="w-7 h-7"
+                            size="text-[9px]"
+                          />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-white group-hover:text-cyan-300 truncate">
+                          {match.title}
+                        </div>
+                        <div className="text-[11px] text-white/50 mt-0.5 truncate">
+                          {match.competition || match.category} · {match.sources?.length || 0} feeds listed
+                        </div>
                       </div>
                     </div>
                     <span className="shrink-0 px-2 py-1 rounded bg-cyan-500/10 text-cyan-400 text-[10px] font-bold border border-cyan-500/20">

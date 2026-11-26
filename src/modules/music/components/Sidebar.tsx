@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Search, Home, LayoutGrid, Clock, Mic2, Disc, Music2, Heart,
-  UserCheck, Sparkles, Settings, ExternalLink, ChevronsUpDown,
-  Film, Users, Youtube, Radio, LogOut, Check, Music, Terminal, ListMusic, LayoutList
+  UserCheck, History, Settings, ExternalLink, ChevronsUpDown,
+  Film, Users, Radio, LogOut, Check, Music, Terminal, ListMusic, LayoutList, Puzzle
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMusicPlayerStore } from '../store/useMusicPlayerStore';
@@ -156,7 +156,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { path: '/music/library/artists', label: 'Artists', icon: Mic2 },
     { path: '/music/library/albums', label: 'Albums', icon: Disc },
     { path: '/music/library/songs', label: 'Songs', icon: Music2 },
-    { path: '/music/replay', label: `Replay '${String(new Date().getFullYear()).slice(-2)}`, icon: Sparkles },
+    { path: '/music/replay', label: `Replay '${String(new Date().getFullYear()).slice(-2)}`, icon: History },
     { path: '/music/library/for-you', label: 'Made for You', icon: UserCheck },
   ];
 
@@ -183,7 +183,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="flex items-center gap-2.5 group cursor-pointer"
             onClick={onCloseMobile}
           >
-            <div className="flex items-center justify-center w-7 h-7 rounded-xl bg-gradient-to-br from-violet-600 via-fuchsia-500 to-pink-500 shadow-lg shadow-fuchsia-500/30 ring-1 ring-white/20">
+            <div className="flex items-center justify-center w-7 h-7 rounded-xl bg-gradient-to-br from-rose-500 via-fuchsia-600 to-violet-600 shadow-lg shadow-rose-500/25 ring-1 ring-white/20">
               <Music2 className="w-4 h-4 text-white" strokeWidth={2.4} />
             </div>
             <span className="font-bold text-lg text-white tracking-tight">
@@ -231,10 +231,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold bg-[#1a1a1a] hover:bg-[#222222] border border-white/5 text-white/90 hover:text-white transition-all cursor-pointer shadow-sm group"
           >
             <div className="flex items-center gap-2.5">
-              <Users className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+              <Users className="w-4 h-4 text-violet-400 group-hover:scale-110 transition-transform" />
               <span>Listen Together</span>
             </div>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300">
               Live
             </span>
           </button>
@@ -469,12 +469,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           title={extensionConnected ? 'Xainy Music Extension Active (Full YouTube Engine)' : 'Click to install Xainy Music Companion Extension'}
         >
           <div className="flex items-center gap-2.5">
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            <span className="text-xs">Xainy Music Extension</span>
+            <Puzzle className="w-4 h-4 text-white/60" />
+            <span className="text-xs">Companion Extension</span>
           </div>
           <span 
             className={`w-2 h-2 rounded-full ${
-              extensionConnected ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-zinc-600'
+              extensionConnected ? 'bg-emerald-400' : 'bg-zinc-600'
             }`} 
             title={extensionConnected ? 'Connected' : 'Not connected'}
           />
@@ -494,21 +494,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Cinema Switcher — prominent card so it's easy to spot */}
+        {/* Cinema Switcher */}
         <Link
           to="/"
-          className="flex items-center justify-between gap-2 w-full px-3.5 py-3 rounded-2xl bg-gradient-to-r from-violet-600/20 via-fuchsia-600/10 to-transparent hover:from-violet-600/30 border border-violet-500/25 hover:border-violet-400/50 text-white transition-all group cursor-pointer"
+          className="flex items-center justify-between gap-2 w-full px-2.5 py-2.5 rounded-2xl bg-gradient-to-r from-[rgb(var(--primary-color))]/20 via-rose-500/10 to-transparent hover:from-[rgb(var(--primary-color))]/30 border border-[rgb(var(--primary-color))]/30 hover:border-[rgb(var(--primary-color))]/60 text-white transition-all group cursor-pointer"
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30 shrink-0 group-hover:scale-105 transition-transform">
-              <Film className="w-4 h-4 text-white" />
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[rgb(var(--primary-color))] to-rose-600 flex items-center justify-center shadow-lg shadow-[rgb(var(--primary-color))]/30 shrink-0 group-hover:scale-105 transition-transform">
+              <Film className="w-3.5 h-3.5 text-white" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-bold text-white truncate">StreamHub Cinema</p>
-              <p className="text-[10px] text-white/50">Movies, shows & sports</p>
+              <p className="text-[11px] font-bold text-white whitespace-nowrap">StreamHub Cinema</p>
+              <p className="text-[10px] text-white/55 truncate">Movies, shows &amp; sports</p>
             </div>
           </div>
-          <ExternalLink className="w-3.5 h-3.5 text-white/40 group-hover:text-white/80 transition-colors shrink-0" />
+          <ExternalLink className="w-3 h-3 text-white/40 group-hover:text-white/80 transition-colors shrink-0" />
         </Link>
 
       </div>

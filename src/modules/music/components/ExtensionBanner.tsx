@@ -14,7 +14,7 @@ export const ExtensionBanner: React.FC = () => {
     <div className="mx-4 sm:mx-6 mt-4 rounded-2xl bg-gradient-to-br from-[#1c1c1e] to-[#141416] border border-white/10 p-4 sm:p-5 shadow-xl animate-fade-in">
       <div className="flex items-start gap-4">
         {/* Logo tile */}
-        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 flex items-center justify-center shrink-0 shadow-lg shadow-fuchsia-500/20">
+        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-rose-500 via-fuchsia-600 to-violet-600 flex items-center justify-center shrink-0 shadow-lg shadow-rose-500/25">
           <Music2 className="w-5 h-5 text-white" />
         </div>
 

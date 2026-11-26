@@ -25,9 +25,11 @@ import { MediaCard } from '../components/MediaCard';
 import { StreamingProvidersShowcase } from '../components/StreamingProvidersShowcase';
 import { TMDB_BACKDROP_W1280, TMDB_BACKDROP_W780, TMDB_BACKDROP_W300, TMDB_POSTER_BASE, BACKDROP_FALLBACK_SVG } from '../constants';
 import { 
-  Play, Info, TrendingUp, Star, ChevronLeft, ChevronRight, 
-  Plus, Check, Youtube, X, Flame, Sparkles, Film, Tv, Compass, 
-  CheckCircle2, ArrowRight, Pause, Layers, Zap
+  Play, Info, Star, ChevronLeft, ChevronRight, 
+  Plus, Check, Youtube, X, Film, Tv, 
+  CheckCircle2, ArrowRight, Pause, Flame, Rocket,
+  Clapperboard, Smile, Ghost, ShieldAlert, Globe,
+  LayoutGrid, TrendingUp, Award, Ticket, Clock, Trophy
 } from 'lucide-react';
 import { RowSkeleton, Skeleton } from '../components/Skeleton';
 import { Reveal } from '../components/Reveal';
@@ -67,22 +69,21 @@ const TMDB_GENRE_MAP: Record<number, string> = {
 };
 
 const POPULAR_GENRE_HUBS = [
-  { id: 28, name: 'Action', icon: Flame, color: 'from-orange-500/20 via-red-600/15 to-transparent', border: 'hover:border-red-500/50' },
-  { id: 878, name: 'Sci-Fi & Fantasy', icon: Sparkles, color: 'from-cyan-500/20 via-blue-600/15 to-transparent', border: 'hover:border-cyan-500/50' },
-  { id: 18, name: 'Drama', icon: Film, color: 'from-purple-500/20 via-indigo-600/15 to-transparent', border: 'hover:border-purple-500/50' },
-  { id: 35, name: 'Comedy', icon: Zap, color: 'from-amber-500/20 via-yellow-600/15 to-transparent', border: 'hover:border-amber-500/50' },
-  { id: 27, name: 'Horror & Suspense', icon: Flame, color: 'from-rose-500/20 via-pink-600/15 to-transparent', border: 'hover:border-rose-500/50' },
-  { id: 53, name: 'Crime & Mystery', icon: Compass, color: 'from-emerald-500/20 via-teal-600/15 to-transparent', border: 'hover:border-emerald-500/50' },
-  { id: 16, name: 'Anime & Animation', icon: Tv, color: 'from-pink-500/20 via-rose-600/15 to-transparent', border: 'hover:border-pink-500/50' },
-  { id: 99, name: 'Documentary', icon: Layers, color: 'from-blue-500/20 via-slate-600/15 to-transparent', border: 'hover:border-blue-500/50' },
+  { id: 28, name: 'Action', sub: 'High stakes', icon: Flame, gradient: 'from-orange-600/85 via-red-600/80 to-rose-900/90', glow: 'group-hover:shadow-orange-500/25' },
+  { id: 878, name: 'Sci-Fi & Fantasy', sub: 'New worlds', icon: Rocket, gradient: 'from-cyan-500/80 via-blue-600/85 to-indigo-900/90', glow: 'group-hover:shadow-cyan-500/25' },
+  { id: 18, name: 'Drama', sub: 'Character driven', icon: Clapperboard, gradient: 'from-amber-500/80 via-amber-700/85 to-stone-900/95', glow: 'group-hover:shadow-amber-500/25' },
+  { id: 35, name: 'Comedy', sub: 'Feel-good hits', icon: Smile, gradient: 'from-yellow-500/80 via-orange-500/80 to-rose-900/90', glow: 'group-hover:shadow-yellow-500/25' },
+  { id: 27, name: 'Horror', sub: 'Late-night chills', icon: Ghost, gradient: 'from-rose-700/85 via-red-900/90 to-zinc-950', glow: 'group-hover:shadow-red-600/30' },
+  { id: 53, name: 'Crime & Thriller', sub: 'Edge of seat', icon: ShieldAlert, gradient: 'from-emerald-500/80 via-teal-700/85 to-slate-900/95', glow: 'group-hover:shadow-emerald-500/25' },
+  { id: 16, name: 'Animation', sub: 'Worlds in motion', icon: Film, gradient: 'from-violet-500/85 via-purple-700/85 to-indigo-950', glow: 'group-hover:shadow-violet-500/25' },
+  { id: 99, name: 'Documentary', sub: 'True stories', icon: Globe, gradient: 'from-sky-500/80 via-blue-700/85 to-slate-900/95', glow: 'group-hover:shadow-sky-500/25' },
 ];
 
 // Interactive Horizontal Row with Desktop Left/Right Chevron Controls & Optional View All Link
 const InteractiveRow = React.memo(({ 
   title, 
   items, 
-  icon: Icon, 
-  badge,
+  icon: Icon,
   viewAllLink,
   onSelect 
 }: { 
@@ -121,31 +122,27 @@ const InteractiveRow = React.memo(({
   return (
     <Reveal className="mb-12 relative group/row cv-row">
       <div className="flex items-center justify-between mb-4 px-4 sm:px-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="w-1 h-5 rounded-full bg-[rgb(var(--primary-color))] shrink-0" />
           {Icon && (
-            <div className="p-1.5 rounded-xl bg-[rgb(var(--primary-color))]/10 text-[rgb(var(--primary-color))]">
-              <Icon className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-[rgb(var(--primary-color))]/12 border border-[rgb(var(--primary-color))]/25 flex items-center justify-center text-[rgb(var(--primary-color))] shrink-0">
+              <Icon className="w-4 h-4" />
             </div>
           )}
-          <h2 className="text-xl sm:text-2xl font-bold text-[var(--text-main)] tracking-tight">
+          <h2 className="font-display text-lg sm:text-xl font-bold text-[var(--text-main)] tracking-tight">
             {title}
           </h2>
-          {badge && (
-            <span className="hidden sm:inline-flex items-center text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded bg-[var(--bg-hover)] text-[var(--text-muted)] border border-[var(--border-subtle)]">
-              {badge}
-            </span>
-          )}
         </div>
 
         {/* Right Controls: View All + Desktop Arrow Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {viewAllLink && (
             <button
               onClick={() => navigate(viewAllLink)}
-              className="flex items-center gap-1 text-xs font-semibold text-[rgb(var(--primary-color))] hover:brightness-110 transition-colors px-2.5 py-1 rounded-lg hover:bg-[rgb(var(--primary-color))]/10 cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-card)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors cursor-pointer"
             >
-              <span>Explore all</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <span>View all</span>
+              <ArrowRight className="w-3.5 h-3.5 text-[rgb(var(--primary-color))]" />
             </button>
           )}
 
@@ -154,7 +151,7 @@ const InteractiveRow = React.memo(({
               onClick={() => scroll('left')}
               disabled={!canScrollLeft}
               aria-label="Scroll left"
-              className="p-1.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-md cursor-pointer"
+              className="p-1.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -162,7 +159,7 @@ const InteractiveRow = React.memo(({
               onClick={() => scroll('right')}
               disabled={!canScrollRight}
               aria-label="Scroll right"
-              className="p-1.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:pointer-events-none transition-all shadow-md cursor-pointer"
+              className="p-1.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -187,7 +184,7 @@ const InteractiveRow = React.memo(({
   );
 });
 
-// Top 10 Showcase with 3D Styled Numbers and Tab Filters
+// Editorial Top 10 Showcase with clean photography and crisp tabular index below frame
 const Top10Showcase = React.memo(({ 
   allTop, 
   moviesTop, 
@@ -217,94 +214,56 @@ const Top10Showcase = React.memo(({
     }
   };
 
-  // Cursor-follow tilt + image drift, same feel as MediaCard
-  const reducedMotion = useMemo(
-    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-    []
-  );
-  const handleCardMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (reducedMotion) return;
-    const card = e.currentTarget;
-    const img = card.querySelector('img');
-    if (!img) return;
-    const r = card.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width - 0.5;
-    const py = (e.clientY - r.top) / r.height - 0.5;
-    const prev = (card as any).__raf as number | undefined;
-    if (prev) cancelAnimationFrame(prev);
-    (card as any).__raf = requestAnimationFrame(() => {
-      card.style.transform = `perspective(800px) rotateX(${(-py * 5).toFixed(2)}deg) rotateY(${(px * 5).toFixed(2)}deg) scale(1.03)`;
-      img.style.transform = `translate(${(px * 12).toFixed(1)}px, ${(py * 12).toFixed(1)}px) scale(1.06)`;
-    });
-  };
-  const handleCardLeave = (e: React.MouseEvent<HTMLDivElement>) => {
-    const card = e.currentTarget;
-    const img = card.querySelector('img');
-    const prev = (card as any).__raf as number | undefined;
-    if (prev) cancelAnimationFrame(prev);
-    card.style.transform = '';
-    if (img) img.style.transform = '';
-  };
-
   return (
-    <Reveal className="mb-14 relative group/top10 z-10 cv-row">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 px-4 sm:px-6">
+    <Reveal className="mb-12 relative group/top10 z-10 cv-row">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 px-4 sm:px-6">
         <div className="flex items-center gap-3">
-          <div className="w-1.5 h-8 bg-gradient-to-b from-[rgb(var(--primary-color))] to-pink-500 rounded-full" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[rgb(var(--primary-color))] to-rose-700 flex items-center justify-center text-white shadow-lg shadow-[rgb(var(--primary-color))]/30 shrink-0">
+            <Trophy className="w-5 h-5" />
+          </div>
           <div>
-            <h2 className="text-2xl sm:text-3xl font-black text-[var(--text-main)] tracking-tight uppercase italic flex items-center gap-2">
-              <span>Top 10 Today</span>
-              <Flame className="w-6 h-6 text-amber-500 fill-amber-500" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgb(var(--primary-color))] block">
+              Daily Charts
+            </span>
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-[var(--text-main)] tracking-tight">
+              Top 10 Today
             </h2>
           </div>
         </div>
 
         {/* Tab Switcher & Navigation Controls */}
         <div className="flex items-center gap-3">
-          <div className="flex bg-[var(--bg-card)] p-1 rounded-xl border border-[var(--border-subtle)] text-xs font-semibold">
-            <button
-              onClick={() => setActiveTab('all')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'all' 
-                  ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm font-bold' 
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setActiveTab('movies')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'movies' 
-                  ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm font-bold' 
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
-              }`}
-            >
-              Movies
-            </button>
-            <button
-              onClick={() => setActiveTab('series')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'series' 
-                  ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm font-bold' 
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
-              }`}
-            >
-              Series
-            </button>
+          <div className="flex bg-[var(--bg-card)] p-1 rounded-xl border border-[var(--border-subtle)] text-xs font-semibold shadow-sm">
+            {([
+              { id: 'all', label: 'All' },
+              { id: 'movies', label: 'Movies' },
+              { id: 'series', label: 'Series' },
+            ] as const).map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  activeTab === tab.id
+                    ? 'bg-[rgb(var(--primary-color))] text-white shadow-md shadow-[rgb(var(--primary-color))]/25'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
-          <div className="hidden sm:flex items-center gap-1">
+          <div className="hidden sm:flex items-center gap-1.5">
             <button
               onClick={() => scroll('left')}
-              className="p-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] transition-all shadow cursor-pointer"
+              className="p-2 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
               aria-label="Previous"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={() => scroll('right')}
-              className="p-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] transition-all shadow cursor-pointer"
+              className="p-2 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
               aria-label="Next"
             >
               <ChevronRight className="w-4 h-4" />
@@ -313,82 +272,82 @@ const Top10Showcase = React.memo(({
         </div>
       </div>
 
-      {/* Cards List */}
+      {/* Sculpted Top 10 Poster Cards */}
       <div 
         ref={scrollRef}
-        className="flex overflow-x-auto overflow-y-hidden overscroll-x-contain space-x-6 px-4 sm:px-6 pb-8 custom-scrollbar scroll-smooth snap-x snap-proximity pt-3"
+        className="flex overflow-x-auto overflow-y-hidden overscroll-x-contain space-x-5 px-4 sm:px-6 pb-4 custom-scrollbar scroll-smooth snap-x snap-proximity"
       >
         {displayItems.map((item, index) => {
           const itemKey = `${item.media_type || (item.title ? 'movie' : 'tv')}-${item.id}`;
-          const imgSrc = item.backdrop_path
-            ? `${TMDB_BACKDROP_W300}${item.backdrop_path}`
-            : item.poster_path
-              ? `${TMDB_POSTER_BASE}${item.poster_path}`
+          const posterSrc = item.poster_path
+            ? `${TMDB_POSTER_BASE}${item.poster_path}`
+            : item.backdrop_path
+              ? `${TMDB_BACKDROP_W780}${item.backdrop_path}`
               : BACKDROP_FALLBACK_SVG;
-          return (
-          <div 
-            key={itemKey} 
-            className="snap-start relative min-w-[270px] sm:min-w-[340px] aspect-[16/9] rounded-2xl cursor-pointer group transition-[box-shadow,border-color] duration-300 hover:scale-[1.03] hover:z-20 shrink-0 will-change-transform"
-            onClick={() => onSelect(item)}
-            onMouseMove={handleCardMove}
-            onMouseLeave={handleCardLeave}
-          >
-            {/* Rank 3D Numbers */}
-            <div 
-              className="absolute -left-3 -bottom-5 z-20 font-black text-[115px] sm:text-[135px] leading-none text-[var(--bg-main)] select-none drop-shadow-2xl font-mono tracking-tighter" 
-              style={{ WebkitTextStroke: '3px rgba(255, 255, 255, 0.25)', textShadow: '4px 4px 0px rgba(0,0,0,0.8)' }}
-            >
-              {index + 1}
-            </div>
-            <div 
-              className="absolute -left-3 -bottom-5 z-30 font-black text-[115px] sm:text-[135px] leading-none text-[var(--bg-main)] select-none opacity-0 group-hover:opacity-100 transition-opacity duration-300 font-mono tracking-tighter" 
-              style={{ WebkitTextStroke: '2.5px rgb(var(--primary-color))' }}
-            >
-              {index + 1}
-            </div>
+          const rankNum = index + 1;
+          const year = (item.first_air_date || item.release_date)?.split('-')[0];
+          const score = item.vote_average ? item.vote_average.toFixed(1) : null;
 
-            {/* Poster Backdrop Box */}
-            <div className="w-full h-full rounded-2xl overflow-hidden shadow-2xl relative border border-[var(--border-subtle)] bg-[var(--bg-card)] ml-8 sm:ml-9 group-hover:border-[rgb(var(--primary-color))]/50 transition-all duration-300 group-hover:shadow-[rgb(var(--primary-color))]/10">
-              <img 
-                src={imgSrc} 
-                alt={item.name || item.title} 
-                className="w-full h-full object-cover opacity-85 group-hover:opacity-100 group-hover:scale-105 transition-opacity duration-500"
-                loading="lazy"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = BACKDROP_FALLBACK_SVG;
-                }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
-              
-              {/* Play Badge on Hover */}
-              <div className="absolute top-3 right-3 w-9 h-9 rounded-full bg-[rgb(var(--primary-color))] text-white flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all transform scale-75 group-hover:scale-100">
-                <Play className="w-4 h-4 fill-current ml-0.5" />
+          return (
+            <button
+              key={itemKey}
+              type="button"
+              onClick={() => onSelect(item)}
+              className="snap-start shrink-0 flex items-end text-left group cursor-pointer pt-2 pl-1"
+            >
+              {/* Sculpted Rank Numeral (cleanly anchored beside poster without colliding) */}
+              <div className="relative z-10 -mr-2.5 pb-11 select-none pointer-events-none">
+                <span
+                  className="font-display font-black leading-[0.8] tracking-tighter text-[76px] sm:text-[92px] text-transparent bg-clip-text bg-gradient-to-b from-[var(--text-main)] via-[var(--text-muted)]/75 to-transparent drop-shadow-[0_4px_12px_rgba(0,0,0,0.35)] group-hover:from-[rgb(var(--primary-color))] group-hover:via-[rgb(var(--primary-color))]/75 transition-all duration-300"
+                  style={{ WebkitTextStroke: '1.5px rgba(161, 161, 170, 0.35)' }}
+                >
+                  {rankNum}
+                </span>
               </div>
 
-              {/* Title & Metadata */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 pl-12 sm:pl-14">
-                <h3 className="text-white font-black text-lg sm:text-xl leading-tight drop-shadow-md uppercase italic truncate group-hover:text-[rgb(var(--primary-color))] transition-colors">
-                  {item.name || item.title}
-                </h3>
-                <div className="flex items-center gap-2.5 mt-1.5 text-xs font-semibold text-gray-300">
-                  <span className="flex items-center gap-1 text-amber-400">
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    {item.vote_average ? item.vote_average.toFixed(1) : '8.2'}
-                  </span>
-                  <span>·</span>
-                  <span className="text-gray-400 uppercase text-[10px] tracking-wider font-bold">
-                    {item.media_type === 'tv' ? 'Series' : 'Movie'}
-                  </span>
-                  <span>·</span>
-                  <span>{(item.first_air_date || item.release_date)?.split('-')[0]}</span>
+              {/* Poster Column */}
+              <div className="w-[144px] sm:w-[168px]">
+                <div className="relative aspect-[2/3] w-full rounded-xl overflow-hidden bg-[var(--bg-card)] border border-[var(--border-subtle)] group-hover:border-[rgb(var(--primary-color))]/70 shadow-xl shadow-black/40 group-hover:shadow-[0_14px_32px_-8px_rgba(var(--primary-color),0.4)] group-hover:-translate-y-1 transition-all duration-300">
+                  <img
+                    src={posterSrc}
+                    alt={item.name || item.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                    loading="lazy"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = BACKDROP_FALLBACK_SVG;
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/15 pointer-events-none" />
+
+                  {score && (
+                    <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-md px-1.5 py-0.5 rounded text-[11px] font-semibold text-amber-400 flex items-center gap-1 font-mono tabular-nums border border-white/10">
+                      <Star className="w-3 h-3 fill-amber-400" />
+                      <span>{score}</span>
+                    </div>
+                  )}
+
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                    <div className="w-10 h-10 rounded-full bg-[rgb(var(--primary-color))] text-white flex items-center justify-center shadow-lg shadow-[rgb(var(--primary-color))]/45">
+                      <Play className="w-4 h-4 fill-current ml-0.5" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-2.5 px-0.5">
+                  <h3 className="text-xs sm:text-sm font-semibold text-[var(--text-main)] truncate group-hover:text-[rgb(var(--primary-color))] transition-colors">
+                    {item.name || item.title}
+                  </h3>
+                  <p className="text-[11px] text-[var(--text-muted)] mt-0.5 flex items-center gap-1.5 tabular-nums">
+                    <span>{item.media_type === 'tv' ? 'Series' : 'Movie'}</span>
+                    {year && <span>· {year}</span>}
+                  </p>
                 </div>
               </div>
-            </div>
-          </div>
+            </button>
           );
         })}
-        <div className="w-6 shrink-0" />
+        <div className="w-4 shrink-0" />
       </div>
     </Reveal>
   );
@@ -719,7 +678,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
       {/* Cinematic Hero Spotlight Carousel */}
       {currentHero && (
         <div 
-          className="relative h-[clamp(440px,76vh,640px)] lg:h-[clamp(480px,80vh,680px)] w-full mb-8 sm:mb-10 group/hero overflow-hidden"
+          className="relative h-[clamp(440px,76vh,640px)] lg:h-[clamp(480px,80vh,680px)] w-full mb-8 sm:mb-10 group/hero overflow-hidden bg-[#09090b]"
           onMouseEnter={() => setIsHeroHovered(true)}
           onMouseLeave={() => setIsHeroHovered(false)}
         >
@@ -745,24 +704,21 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
               </div>
             ))}
 
-            {/* Seamless Top Vignette */}
-            <div className="absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-[var(--bg-main)] via-[var(--bg-main)]/60 to-transparent pointer-events-none z-10" />
+            {/* Top Scrim */}
+            <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-[#09090b]/80 via-[#09090b]/35 to-transparent pointer-events-none z-10" />
 
-            {/* Left Vignette for Text Contrast */}
-            <div className="absolute inset-0 bg-gradient-to-r from-[var(--bg-main)] via-[var(--bg-main)]/85 to-transparent w-full lg:w-3/5 z-10" />
+            {/* Left Scrim for Text Contrast */}
+            <div className="absolute inset-0 bg-gradient-to-r from-[#09090b]/95 via-[#09090b]/70 to-transparent w-full lg:w-3/5 z-10" />
 
-            {/* Bottom Seamless Fade */}
-            <div className="absolute inset-x-0 bottom-0 h-48 sm:h-56 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)]/80 to-transparent pointer-events-none z-10" />
-            
-            {/* Ambient Primary Glow */}
-            <div className="absolute top-1/3 left-1/4 w-80 h-80 bg-[rgb(var(--primary-color))]/15 rounded-full blur-[110px] pointer-events-none z-10" />
+            {/* Bottom Scrim */}
+            <div className="absolute inset-x-0 bottom-0 h-44 sm:h-52 bg-gradient-to-t from-[#09090b] via-[#09090b]/75 to-transparent pointer-events-none z-10" />
           </div>
 
           {/* Desktop Direct Hero Chevrons */}
           <button
             type="button"
             onClick={goToPrevHero}
-            className="flex absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 text-white items-center justify-center opacity-70 sm:opacity-0 sm:group-hover/hero:opacity-100 transition-all hover:scale-110 shadow-2xl cursor-pointer"
+            className="flex absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/50 hover:bg-black/80 border border-white/15 text-white items-center justify-center opacity-70 sm:opacity-0 sm:group-hover/hero:opacity-100 transition-all cursor-pointer"
             aria-label="Previous Spotlight"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -770,124 +726,109 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
           <button
             type="button"
             onClick={goToNextHero}
-            className="flex absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 text-white items-center justify-center opacity-70 sm:opacity-0 sm:group-hover/hero:opacity-100 transition-all hover:scale-110 shadow-2xl cursor-pointer"
+            className="flex absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/50 hover:bg-black/80 border border-white/15 text-white items-center justify-center opacity-70 sm:opacity-0 sm:group-hover/hero:opacity-100 transition-all cursor-pointer"
             aria-label="Next Spotlight"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
 
           {/* Hero Content Body */}
-          <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-end pb-5 sm:pb-7 lg:pb-9">
-            <div className="max-w-2xl flex flex-col gap-2 sm:gap-2.5">
+          <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-end pb-12 sm:pb-14 lg:pb-16">
+            <div className="max-w-2xl flex flex-col gap-3">
               
-              {/* Eyebrow Kicker with Auto-Play Status Toggle */}
-              <div className="flex items-center gap-2 text-xs font-bold tracking-wider uppercase animate-fade-in flex-wrap">
-                <span className="flex items-center gap-1.5 text-rose-400">
-                  <TrendingUp className="w-3.5 h-3.5" />
-                  <span>Spotlight #{heroIndex + 1}</span>
+              {/* Editorial Eyebrow Pill */}
+              <div className="flex items-center gap-2 text-xs font-semibold tracking-wider uppercase animate-fade-in flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[rgb(var(--primary-color))] text-white shadow-md shadow-[rgb(var(--primary-color))]/35">
+                  <Flame className="w-3 h-3 fill-current" />
+                  <span>Featured</span>
                 </span>
-                <span className="text-white/30">·</span>
-                <span className="text-white/70 font-medium tracking-wide">Trending Worldwide</span>
                 {heroGenres && (
-                  <>
-                    <span className="text-white/30">·</span>
-                    <span className="text-amber-300/90 font-medium tracking-wide">{heroGenres}</span>
-                  </>
+                  <span className="px-2.5 py-1 rounded-md bg-black/55 backdrop-blur-md border border-white/15 text-white/90 tracking-wider">
+                    {heroGenres}
+                  </span>
                 )}
-                <span className="text-white/30">·</span>
                 <button
                   type="button"
                   onClick={() => setIsHeroPaused(p => !p)}
-                  className="flex items-center gap-1 text-[11px] font-mono text-white/50 hover:text-white transition-colors cursor-pointer px-1.5 py-0.5 rounded bg-white/5 border border-white/10"
-                  title={isHeroPaused ? 'Resume auto-play' : 'Pause auto-play'}
+                  className="p-1.5 rounded-md bg-black/50 hover:bg-black/75 border border-white/15 text-white/70 hover:text-white transition-colors cursor-pointer backdrop-blur-md"
+                  title={isHeroPaused ? 'Resume slideshow' : 'Pause slideshow'}
+                  aria-label={isHeroPaused ? 'Resume slideshow' : 'Pause slideshow'}
                 >
-                  {isHeroPaused ? <Play className="w-2.5 h-2.5 fill-current" /> : <Pause className="w-2.5 h-2.5 fill-current" />}
-                  <span>{isHeroPaused ? 'Paused' : 'Auto'}</span>
+                  {isHeroPaused ? <Play className="w-3 h-3 fill-current" /> : <Pause className="w-3 h-3 fill-current" />}
                 </button>
               </div>
 
-              {/* Title with Balanced Linebreaks */}
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-black text-white leading-[1.15] tracking-tight drop-shadow-2xl animate-fade-in line-clamp-2 max-w-xl" style={{ textWrap: 'balance' }}>
+              {/* Title with Cinematic Drop Shadow */}
+              <h1 className="font-display text-3xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-[1.06] tracking-tight animate-fade-in line-clamp-2 max-w-2xl drop-shadow-[0_6px_24px_rgba(0,0,0,0.75)]" style={{ textWrap: 'balance' }}>
                 {currentHero.title || currentHero.name}
               </h1>
 
-              {/* Metadata Row */}
-              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 text-xs sm:text-sm font-medium text-white/80 animate-fade-in">
-                <span className="flex items-center gap-1 text-amber-400 font-bold">
-                  <Star className="w-3.5 h-3.5 fill-amber-400 shrink-0" />
-                  <span>{currentHero.vote_average ? currentHero.vote_average.toFixed(1) : '8.5'}</span>
-                </span>
-                <span className="text-white/30">·</span>
-                <span className="text-white/90 font-semibold">
+              {/* Metadata Pills */}
+              <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm font-semibold text-white/90 animate-fade-in tabular-nums">
+                {typeof currentHero.vote_average === 'number' && currentHero.vote_average > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-400/30 text-amber-300 backdrop-blur-md">
+                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 shrink-0" />
+                    <span>{currentHero.vote_average.toFixed(1)}</span>
+                  </span>
+                )}
+                <span className="px-2.5 py-1 rounded-lg bg-white/10 border border-white/15 backdrop-blur-md text-white">
                   {currentHero.media_type === 'tv' ? 'TV Series' : 'Feature Film'}
                 </span>
-                <span className="text-white/30">·</span>
-                <span className="text-white/70 font-mono">
-                  {(currentHero.first_air_date || currentHero.release_date)?.split('-')[0]}
-                </span>
-                <span className="text-white/30">·</span>
-                <span className="text-emerald-400 font-semibold text-xs uppercase tracking-wider font-mono">
-                  Ultra HD 4K
-                </span>
-                <span className="text-white/30">·</span>
-                <span className="text-cyan-300 font-mono text-[11px]">
-                  Dolby Atmos
-                </span>
+                {(currentHero.first_air_date || currentHero.release_date) && (
+                  <span className="px-2.5 py-1 rounded-lg bg-black/45 border border-white/15 backdrop-blur-md text-white/85 font-mono">
+                    {(currentHero.first_air_date || currentHero.release_date)?.split('-')[0]}
+                  </span>
+                )}
               </div>
 
               {/* Synopsis */}
-              <p className="text-zinc-200/90 text-xs sm:text-sm line-clamp-2 max-w-xl drop-shadow-sm font-normal leading-relaxed animate-fade-in">
+              <p className="text-zinc-200/90 text-xs sm:text-sm line-clamp-2 max-w-xl font-normal leading-relaxed animate-fade-in drop-shadow">
                 {currentHero.overview}
               </p>
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 pt-1.5 sm:pt-2 animate-fade-in shrink-0 relative z-30">
-                
-                {/* Watch Now Button */}
+              <div className="flex flex-wrap items-center gap-2.5 pt-2 animate-fade-in shrink-0 relative z-30">
                 <button
                   onClick={() => handleQuickPlay(currentHero)}
-                  className="flex items-center gap-2 bg-[rgb(var(--primary-color))] hover:brightness-110 text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-xl shadow-[rgb(var(--primary-color))]/30 hover:-translate-y-0.5 transition-all group cursor-pointer"
+                  className="flex items-center gap-2 bg-[rgb(var(--primary-color))] hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] text-white px-6 py-3 rounded-xl font-bold text-xs sm:text-sm shadow-xl shadow-[rgb(var(--primary-color))]/40 transition-all cursor-pointer"
                 >
-                  <Play className="w-4 h-4 fill-current transition-transform group-hover:scale-110" />
+                  <Play className="w-4 h-4 fill-current" />
                   <span>Watch Now</span>
                 </button>
 
-                {/* Trailer Button */}
                 <button
                   onClick={() => handleOpenTrailer(currentHero)}
-                  className="flex items-center gap-2 bg-black/40 hover:bg-black/60 border border-white/20 text-white px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-semibold text-xs sm:text-sm backdrop-blur-md transition-all hover:border-red-500/50 hover:text-red-400 group cursor-pointer"
+                  className="flex items-center gap-2 bg-black/60 hover:bg-black/80 border border-white/20 text-white px-4 py-3 rounded-xl font-semibold text-xs sm:text-sm backdrop-blur-md transition-all cursor-pointer"
                 >
-                  <Youtube className="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform" />
+                  <Youtube className="w-4 h-4 text-red-500" />
                   <span>Trailer</span>
                 </button>
 
-                {/* Details Button */}
                 <button
                   onClick={() => handleSelect(currentHero)}
-                  className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/15 text-white px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl font-semibold text-xs sm:text-sm backdrop-blur-md transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 border border-white/20 text-white px-4 py-3 rounded-xl font-semibold text-xs sm:text-sm backdrop-blur-md transition-all cursor-pointer"
                 >
                   <Info className="w-4 h-4" />
                   <span>Details</span>
                 </button>
 
-                {/* Watchlist Toggle Button */}
                 <button
                   onClick={toggleWatchlistForHero}
-                  className={`p-2 sm:p-2.5 rounded-xl border backdrop-blur-md transition-all flex items-center justify-center cursor-pointer ${
+                  className={`p-3 rounded-xl border backdrop-blur-md transition-all flex items-center justify-center cursor-pointer ${
                     inWatchlistState
-                      ? 'bg-[rgb(var(--primary-color))]/25 border-[rgb(var(--primary-color))] text-[rgb(var(--primary-color))]'
-                      : 'bg-black/40 hover:bg-black/60 border-white/15 text-white/80 hover:text-white'
+                      ? 'bg-[rgb(var(--primary-color))]/25 border-[rgb(var(--primary-color))] text-white shadow-lg shadow-[rgb(var(--primary-color))]/25'
+                      : 'bg-black/60 hover:bg-black/80 border-white/20 text-white/85 hover:text-white'
                   }`}
                   title={inWatchlistState ? 'In Watchlist' : 'Add to Watchlist'}
                   aria-label={inWatchlistState ? 'In Watchlist' : 'Add to Watchlist'}
                 >
-                  {inWatchlistState ? <Check className="w-4 h-4 sm:w-5 sm:h-5" /> : <Plus className="w-4 h-4 sm:w-5 sm:h-5" />}
+                  {inWatchlistState ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            {/* Carousel Navigation Filmstrip with Active Duration Progress (Bottom Right) */}
-            <div className="hidden xl:flex items-center gap-2 absolute bottom-5 sm:bottom-7 lg:bottom-9 right-6 lg:right-8 z-20 bg-black/60 p-1.5 sm:p-2 rounded-2xl border border-white/15 backdrop-blur-md shadow-2xl">
+            {/* Carousel Thumbnail Strip (Bottom Right) */}
+            <div className="hidden xl:flex items-center gap-2 absolute bottom-8 right-8 z-20 bg-black/50 p-1.5 rounded-xl border border-white/10 backdrop-blur-md">
               {featuredList.map((item, idx) => {
                 const isActive = idx === heroIndex;
                 return (
@@ -897,10 +838,10 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                       resetHeroTimer();
                       setHeroIndex(idx);
                     }}
-                    className={`relative w-16 h-10 xl:w-20 xl:h-12 rounded-xl overflow-hidden border-2 transition-all group cursor-pointer ${
+                    className={`relative w-16 h-10 rounded-lg overflow-hidden border transition-all cursor-pointer ${
                       isActive 
-                        ? 'border-[rgb(var(--primary-color))] scale-105 shadow-lg ring-1 ring-[rgb(var(--primary-color))]/40' 
-                        : 'border-transparent opacity-60 hover:opacity-100 hover:scale-102'
+                        ? 'border-white opacity-100' 
+                        : 'border-transparent opacity-50 hover:opacity-90'
                     }`}
                     title={item.title || item.name}
                   >
@@ -909,14 +850,11 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                       alt="" 
                       className="w-full h-full object-cover" 
                     />
-                    <div className="absolute inset-0 bg-black/30 group-hover:bg-transparent transition-colors" />
-                    
-                    {/* Active Slide Timer Line — CSS-driven, no React re-renders */}
                     {isActive && (
-                      <div className="absolute inset-x-0 bottom-0 h-1 bg-black/50 overflow-hidden">
+                      <div className="absolute inset-x-0 bottom-0 h-0.5 bg-black/50 overflow-hidden">
                         <div
                           key={heroIndex}
-                          className="h-full w-full bg-[rgb(var(--primary-color))] origin-left shadow-sm"
+                          className="h-full w-full bg-[rgb(var(--primary-color))] origin-left"
                           style={{
                             animation: `heroProgress ${SLIDE_DURATION_MS}ms linear forwards`,
                             animationPlayState: (isHeroHovered || isHeroPaused) ? 'paused' : 'running',
@@ -928,7 +866,6 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                 );
               })}
             </div>
-
 
             {/* Mobile Pager Dots */}
             <div className="flex lg:hidden items-center justify-center gap-1.5 pt-4">
@@ -951,56 +888,53 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
       )}
 
       {/* Main Content Layout */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10 relative z-10 -mt-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10 relative z-20">
 
-        {/* Quick Category Jumper Segmented Toolbar */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
-          {[
-            { id: 'all', label: 'All Entertainment', icon: Sparkles },
-            { id: 'movies', label: 'Movies', icon: Film },
-            { id: 'series', label: 'TV Shows', icon: Tv },
-            { id: 'theaters', label: 'In Theaters', icon: Flame },
-            { id: 'top', label: 'Critically Acclaimed', icon: Star },
-          ].map(cat => {
-            const Icon = cat.icon;
-            const isActive = activeCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border ${
-                  isActive
-                    ? 'bg-[rgb(var(--primary-color))] text-white border-[rgb(var(--primary-color))] shadow-lg shadow-[rgb(var(--primary-color))]/20'
-                    : 'bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] border-[var(--border-subtle)] hover:bg-[var(--bg-hover)]'
-                }`}
-              >
-                <Icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isActive ? 'text-white' : 'text-[var(--text-muted)]'}`} />
-                <span>{cat.label}</span>
-              </button>
-            );
-          })}
+        {/* Floating Glass Category Filter Bar */}
+        <div className="-mt-12 sm:-mt-14 mb-4 flex justify-start">
+          <div className="inline-flex items-center gap-1.5 bg-[var(--bg-card)]/90 backdrop-blur-xl border border-[var(--border-subtle)] p-1.5 rounded-2xl shadow-2xl overflow-x-auto max-w-full custom-scrollbar">
+            {[
+              { id: 'all', label: 'All', icon: LayoutGrid },
+              { id: 'movies', label: 'Movies', icon: Film },
+              { id: 'series', label: 'TV Shows', icon: Tv },
+              { id: 'theaters', label: 'In Theaters', icon: Ticket },
+              { id: 'top', label: 'Top Rated', icon: Award },
+            ].map(cat => {
+              const Icon = cat.icon;
+              const isActive = activeCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                    isActive
+                      ? 'bg-[rgb(var(--primary-color))] text-white shadow-lg shadow-[rgb(var(--primary-color))]/30'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)]/70'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Continue Watching Row */}
         {continueWatchingList.length > 0 && activeCategory === 'all' && (
           <Reveal className="mb-10 animate-fade-in cv-row">
             <div className="flex items-center justify-between mb-4 px-4 sm:px-6">
-              <div className="flex items-center gap-3">
-                <div className="p-1.5 rounded-xl bg-gradient-to-tr from-[rgb(var(--primary-color))] to-pink-500 text-white shadow-md">
-                  <Play className="w-4 h-4 fill-current ml-0.5" />
+              <div className="flex items-center gap-2.5">
+                <span className="w-1 h-5 rounded-full bg-[rgb(var(--primary-color))]" />
+                <div className="w-8 h-8 rounded-lg bg-[rgb(var(--primary-color))]/12 border border-[rgb(var(--primary-color))]/25 flex items-center justify-center text-[rgb(var(--primary-color))]">
+                  <Clock className="w-4 h-4" />
                 </div>
-                <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-[var(--text-main)] tracking-tight">
-                    Continue Watching
-                  </h2>
-                  <p className="text-xs text-[var(--text-muted)]">
-                    Pick up right where you left off
-                  </p>
-                </div>
+                <h2 className="font-display text-lg sm:text-xl font-bold text-[var(--text-main)] tracking-tight">
+                  Continue Watching
+                </h2>
               </div>
-
-              <span className="text-xs font-mono text-[var(--text-muted)]">
-                {continueWatchingList.length} in progress
+              <span className="text-xs font-mono tabular-nums text-[var(--text-muted)] bg-[var(--bg-card)] px-2.5 py-1 rounded-lg border border-[var(--border-subtle)]">
+                {continueWatchingList.length} saved
               </span>
             </div>
 
@@ -1013,9 +947,8 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                   <div
                     key={`${cw.media_type}_${cw.id}_${cw.season || 0}_${cw.episode || 0}`}
                     onClick={() => handleResumeContinueWatching(cw)}
-                    className="relative w-64 sm:w-72 shrink-0 bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:border-[rgb(var(--primary-color))]/50 rounded-2xl overflow-hidden group cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 flex flex-col"
+                    className="relative w-64 sm:w-72 shrink-0 bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:border-[rgb(var(--primary-color))]/60 rounded-2xl overflow-hidden group cursor-pointer transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-1 flex flex-col"
                   >
-                    {/* Thumbnail Image Stage with Hover Resume Overlay */}
                     <div className="relative aspect-video w-full bg-zinc-900 overflow-hidden">
                       <img
                         src={cw.poster_path ? `${TMDB_BACKDROP_W300}${cw.poster_path}` : ''}
@@ -1023,51 +956,45 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         loading="lazy"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-                      {/* Floating Remove Button */}
                       <button
                         type="button"
                         onClick={(e) => handleRemoveContinueWatching(e, cw.id)}
-                        className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-black/60 hover:bg-black/90 text-white/70 hover:text-white border border-white/20 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 z-20 cursor-pointer shadow-lg"
+                        className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-black/65 hover:bg-black/90 text-white/75 hover:text-white border border-white/15 flex items-center justify-center transition-opacity opacity-0 group-hover:opacity-100 z-20 cursor-pointer"
                         title="Remove from Continue Watching"
                         aria-label="Remove from Continue Watching"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
 
-                      {/* Play Button Icon Overlay */}
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div className="w-11 h-11 rounded-full bg-[rgb(var(--primary-color))] text-white flex items-center justify-center shadow-2xl transform scale-75 group-hover:scale-100 transition-transform">
-                          <Play className="w-5 h-5 fill-current ml-0.5" />
+                        <div className="w-11 h-11 rounded-full bg-[rgb(var(--primary-color))] text-white flex items-center justify-center shadow-xl shadow-[rgb(var(--primary-color))]/45">
+                          <Play className="w-4 h-4 fill-current ml-0.5" />
                         </div>
                       </div>
 
-                      {/* Episode Badge if Series */}
                       {cw.media_type === 'tv' && cw.episode && (
-                        <div className="absolute bottom-2 left-2 z-10 px-2 py-0.5 rounded bg-black/80 border border-white/15 text-[10px] font-mono font-bold text-white uppercase tracking-wider">
+                        <div className="absolute bottom-2 left-2 z-10 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-md border border-white/10 text-[10px] font-mono font-semibold text-white uppercase tracking-wider">
                           S{cw.season || 1} : E{cw.episode}
                         </div>
                       )}
                     </div>
 
-                    {/* Bottom Metadata & Progress Bar */}
                     <div className="p-3.5 flex flex-col justify-between flex-grow">
                       <div>
-                        <h4 className="font-bold text-sm text-[var(--text-main)] truncate group-hover:text-[rgb(var(--primary-color))] transition-colors">
+                        <h4 className="font-semibold text-sm text-[var(--text-main)] truncate group-hover:text-[rgb(var(--primary-color))] transition-colors">
                           {cw.title}
                         </h4>
-                        
-                        <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] mt-1.5 font-medium">
+                        <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] mt-1 tabular-nums">
                           <span>{percent}% watched</span>
                           {timeText && <span className="font-mono">{timeText}</span>}
                         </div>
                       </div>
 
-                      {/* Dynamic Progress Bar */}
-                      <div className="w-full bg-[var(--bg-hover)] h-1.5 rounded-full mt-2.5 overflow-hidden border border-white/5">
+                      <div className="w-full bg-[var(--bg-hover)] h-1.5 rounded-full mt-2.5 overflow-hidden">
                         <div 
-                          className="bg-gradient-to-r from-[rgb(var(--primary-color))] to-pink-500 h-full rounded-full transition-all duration-300 shadow-sm" 
+                          className="bg-[rgb(var(--primary-color))] h-full rounded-full transition-all duration-300" 
                           style={{ width: `${percent}%` }}
                         />
                       </div>
@@ -1079,7 +1006,7 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
           </Reveal>
         )}
 
-        {/* Top 10 Showcase — tabs filter the same trending source so every tab is a real "top 10" */}
+        {/* Top 10 Showcase */}
         {trending && trending.length > 0 && activeCategory === 'all' && (
           <Top10Showcase 
             allTop={trending} 
@@ -1093,64 +1020,68 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
         {trendingWeek && (activeCategory === 'all' || activeCategory === 'movies' || activeCategory === 'series') && (
           <InteractiveRow 
             title="Trending This Week" 
-            badge="HOT"
+            icon={TrendingUp}
             items={trendingWeek} 
-            icon={TrendingUp} 
             viewAllLink="/discover?type=movie"
             onSelect={handleSelect} 
           />
         )}
 
-        {/* Streaming Providers ("WHERE TO WATCH") Showcase */}
+        {/* Streaming Providers ("By platform") Showcase */}
         {(activeCategory === 'all' || activeCategory === 'movies' || activeCategory === 'series') && (
           <StreamingProvidersShowcase onSelect={handleSelect} />
         )}
 
-        {/* Curated Genre & Mood Discovery Strip */}
+        {/* Vibrant Cinema Genre Hubs */}
         {activeCategory === 'all' && (
           <Reveal className="mb-12 cv-row">
-            <div className="flex items-center justify-between mb-4 px-4 sm:px-6">
-              <div className="flex items-center gap-3">
-                <div className="p-1.5 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-600/30 text-amber-400">
-                  <Compass className="w-5 h-5" />
-                </div>
+            <div className="flex items-center justify-between mb-5 px-4 sm:px-6">
+              <div className="flex items-center gap-2.5">
+                <span className="w-1 h-5 rounded-full bg-[rgb(var(--primary-color))]" />
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-[var(--text-main)] tracking-tight">
-                    Explore by Mood & Genre
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgb(var(--primary-color))] block">
+                    Curated Worlds
+                  </span>
+                  <h2 className="font-display text-lg sm:text-xl font-bold text-[var(--text-main)] tracking-tight">
+                    Browse by Genre
                   </h2>
-                  <p className="text-xs text-[var(--text-muted)]">
-                    Dive directly into curated cinematic categories
-                  </p>
                 </div>
               </div>
 
               <button
                 onClick={() => navigate('/discover')}
-                className="flex items-center gap-1 text-xs font-semibold text-[rgb(var(--primary-color))] hover:brightness-110 px-2.5 py-1 rounded-lg hover:bg-[rgb(var(--primary-color))]/10 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-card)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors cursor-pointer"
               >
-                <span>Browse all</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <span>All genres</span>
+                <ArrowRight className="w-3.5 h-3.5 text-[rgb(var(--primary-color))]" />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 px-4 sm:px-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 sm:px-6">
               {POPULAR_GENRE_HUBS.map(hub => {
-                const HubIcon = hub.icon;
+                const Icon = hub.icon;
                 return (
                   <button
                     key={hub.id}
                     onClick={() => navigate(`/discover?type=movie&genre=${hub.id}&genreName=${encodeURIComponent(hub.name)}`)}
-                    className={`p-3.5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] ${hub.border} hover:scale-105 transition-all text-left group cursor-pointer flex flex-col justify-between h-24 relative overflow-hidden shadow-sm hover:shadow-xl`}
+                    className={`relative overflow-hidden p-4 sm:p-5 rounded-2xl bg-gradient-to-br ${hub.gradient} ring-1 ring-white/15 hover:ring-white/30 hover:-translate-y-1 transition-all duration-300 text-left group cursor-pointer shadow-lg ${hub.glow} flex flex-col justify-between h-28 sm:h-32`}
                   >
-                    <div className={`absolute inset-0 bg-gradient-to-br ${hub.color} opacity-30 group-hover:opacity-70 transition-opacity`} />
-                    <div className="relative z-10 p-1.5 rounded-xl bg-black/40 border border-white/10 w-fit text-white/90 group-hover:text-white transition-colors">
-                      <HubIcon className="w-4 h-4" />
+                    <div className="absolute -right-4 -bottom-4 opacity-15 group-hover:opacity-25 group-hover:scale-110 transition-all duration-300 pointer-events-none">
+                      <Icon className="w-24 h-24 text-white" />
                     </div>
-                    <div className="relative z-10 flex items-center justify-between w-full">
-                      <span className="text-xs font-bold text-[var(--text-main)] truncate group-hover:text-white transition-colors">
-                        {hub.name}
-                      </span>
-                      <ArrowRight className="w-3 h-3 text-[var(--text-muted)] group-hover:text-white group-hover:translate-x-0.5 transition-all" />
+                    <div className="w-8 h-8 rounded-lg bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-white">
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div className="relative z-10 flex items-end justify-between w-full gap-2">
+                      <div className="min-w-0">
+                        <span className="font-display text-sm sm:text-base font-bold text-white block truncate">
+                          {hub.name}
+                        </span>
+                        <span className="text-[11px] text-white/75 block truncate">
+                          {hub.sub}
+                        </span>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-white/75 group-hover:text-white group-hover:translate-x-1 transition-all shrink-0" />
                     </div>
                   </button>
                 );
@@ -1162,22 +1093,20 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
         {/* Popular Blockbusters */}
         {movies && (activeCategory === 'all' || activeCategory === 'movies') && (
           <InteractiveRow 
-            title="Popular Blockbusters" 
-            badge="MOVIES"
+            title="Popular Movies" 
+            icon={Film}
             items={movies} 
-            icon={Film} 
             viewAllLink="/discover?type=movie&sort=popularity.desc"
             onSelect={handleSelect} 
           />
         )}
 
-        {/* Binge-Worthy TV Series */}
+        {/* Popular TV Series */}
         {series && (activeCategory === 'all' || activeCategory === 'series') && (
           <InteractiveRow 
-            title="Binge-Worthy TV Shows" 
-            badge="SERIES"
+            title="Popular Series" 
+            icon={Tv}
             items={series} 
-            icon={Tv} 
             viewAllLink="/discover?type=tv&sort=popularity.desc"
             onSelect={handleSelect} 
           />
@@ -1186,34 +1115,31 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
         {/* In Theaters / Now Playing */}
         {nowPlaying && nowPlaying.length > 0 && (activeCategory === 'all' || activeCategory === 'movies' || activeCategory === 'theaters') && (
           <InteractiveRow 
-            title="Now In Theaters" 
-            badge="PREMIERE"
+            title="Now in Theaters" 
+            icon={Ticket}
             items={nowPlaying} 
-            icon={Sparkles} 
             viewAllLink="/discover?type=movie"
             onSelect={handleSelect} 
           />
         )}
 
-        {/* Critically Acclaimed Masterpieces */}
+        {/* Top Rated Films */}
         {topRatedMovies && (activeCategory === 'all' || activeCategory === 'movies' || activeCategory === 'top') && (
           <InteractiveRow 
-            title="Critically Acclaimed Masterpieces" 
-            badge="TOP RATED"
+            title="Top Rated Films" 
+            icon={Award}
             items={topRatedMovies} 
-            icon={Star} 
             viewAllLink="/discover?type=movie&sort=vote_average.desc"
             onSelect={handleSelect} 
           />
         )}
 
-        {/* Highly Anticipated Upcoming */}
+        {/* Upcoming Releases */}
         {upcomingMovies && upcomingMovies.length > 0 && (activeCategory === 'all' || activeCategory === 'theaters') && (
           <InteractiveRow 
-            title="Coming Soon to Theaters" 
-            badge="UPCOMING"
+            title="Upcoming Releases" 
+            icon={Clapperboard}
             items={upcomingMovies} 
-            icon={Compass} 
             viewAllLink="/discover?type=movie"
             onSelect={handleSelect} 
           />
@@ -1222,10 +1148,9 @@ export const Home: React.FC<HomeProps> = ({ onSelect }) => {
         {/* Top Rated Series */}
         {topRatedSeries && (activeCategory === 'all' || activeCategory === 'series' || activeCategory === 'top') && (
           <InteractiveRow 
-            title="Award-Winning Series" 
-            badge="CRITICS' CHOICE"
+            title="Top Rated Series" 
+            icon={Star}
             items={topRatedSeries} 
-            icon={Star} 
             viewAllLink="/discover?type=tv&sort=vote_average.desc"
             onSelect={handleSelect} 
           />

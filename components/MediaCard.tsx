@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { TMDBResult, MediaType } from '../types';
 import { TMDB_POSTER_BASE, TMDB_POSTER_SMALL } from '../constants';
@@ -19,16 +19,6 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onClick, onWatchlist
   const queryClient = useQueryClient();
   const [inWatchlist, setInWatchlist] = useState(false);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const posterRef = useRef<HTMLDivElement>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
-  const rafRef = useRef(0);
-  const tiltEnabled = useRef(false);
-
-  useEffect(() => {
-    tiltEnabled.current = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    return () => cancelAnimationFrame(rafRef.current);
-  }, []);
 
   useEffect(() => {
     if (item.id) {
@@ -39,49 +29,20 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onClick, onWatchlist
   const title = item.title || item.name || 'Untitled';
   const date = item.release_date || item.first_air_date;
   const year = date ? date.split('-')[0] : '';
-  
-  // Handle external URLs (AniList) vs TMDB paths
+
   const isTmdbPoster = Boolean(item.poster_path && !item.poster_path.startsWith('http'));
-  const posterUrl = item.poster_path?.startsWith('http') 
-    ? item.poster_path 
-    : item.poster_path 
-        ? `${TMDB_POSTER_BASE}${item.poster_path}` 
-        : FALLBACK_POSTER_SVG;
+  const posterUrl = item.poster_path?.startsWith('http')
+    ? item.poster_path
+    : item.poster_path
+      ? `${TMDB_POSTER_BASE}${item.poster_path}`
+      : FALLBACK_POSTER_SVG;
 
   const posterSrcSet = isTmdbPoster && item.poster_path
     ? `${TMDB_POSTER_SMALL}${item.poster_path} 185w, ${TMDB_POSTER_BASE}${item.poster_path} 342w`
     : undefined;
 
-  // CinemaOS-style cursor follow: poster tilts in 3D and the image drifts
-  // toward the pointer. Pure DOM writes inside rAF — zero re-renders.
-  const handleMouseMove = (e: React.MouseEvent) => {
-    const card = cardRef.current;
-    const poster = posterRef.current;
-    const img = imgRef.current;
-    if (!card || !poster || !img || !tiltEnabled.current) return;
-    const r = card.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width - 0.5;
-    const py = (e.clientY - r.top) / r.height - 0.5;
-    cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(() => {
-      poster.style.transform = `perspective(800px) rotateX(${(-py * 7).toFixed(2)}deg) rotateY(${(px * 7).toFixed(2)}deg)`;
-      img.style.transform = `translate(${(px * 10).toFixed(1)}px, ${(py * 10).toFixed(1)}px) scale(1.07)`;
-    });
-  };
-
-  const handleMouseLeave = () => {
-    cancelAnimationFrame(rafRef.current);
-    const poster = posterRef.current;
-    const img = imgRef.current;
-    if (poster) poster.style.transform = '';
-    if (img) img.style.transform = '';
-  };
-
   const handleIntentPrefetch = () => {
-    // 1. Preload route code chunk
     preloadRoute('details');
-    
-    // 2. Prefetch TMDB details data
     if (item.id && item.media_type && item.media_type !== MediaType.PERSON) {
       queryClient.prefetchQuery({
         queryKey: ['details', item.id, item.media_type],
@@ -105,27 +66,24 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onClick, onWatchlist
     }
   };
 
-  const mediaLabel = item.anilist_id 
-    ? 'Anime' 
-    : item.media_type === MediaType.TV 
-      ? 'Series' 
-      : item.media_type === MediaType.MOVIE 
-        ? 'Movie' 
+  const mediaLabel = item.anilist_id
+    ? 'Anime'
+    : item.media_type === MediaType.TV
+      ? 'Series'
+      : item.media_type === MediaType.MOVIE
+        ? 'Movie'
         : item.media_type === MediaType.PERSON
           ? 'Talent'
           : 'Media';
 
   return (
     <div
-      ref={cardRef}
       role="button"
       tabIndex={0}
       aria-label={`View details for ${title}`}
-      className="group relative flex-shrink-0 w-[148px] sm:w-[170px] md:w-[185px] text-left cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary-color))] rounded-2xl select-none"
+      className="group relative flex-shrink-0 w-[148px] sm:w-[170px] md:w-[185px] text-left cursor-pointer transition-transform duration-200 hover:-translate-y-1 hover:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--primary-color))] rounded-xl select-none"
       style={{ containIntrinsicSize: '185px 278px' }}
       onClick={() => onClick(item)}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -137,95 +95,88 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onClick, onWatchlist
       onFocus={handleIntentPrefetch}
     >
       {/* Poster Container */}
-      <div ref={posterRef} className="aspect-[2/3] rounded-2xl overflow-hidden shadow-lg shadow-black/25 bg-[var(--bg-card)] relative border border-[var(--border-subtle)] group-hover:border-[rgb(var(--primary-color))]/50 group-hover:shadow-[rgb(var(--primary-color))]/20 transition-[border-color,box-shadow] duration-300 will-change-transform">
-        
-        {/* Instant Blur-Up Ambient Placeholder (Zero Pop-In) */}
-        <div 
+      <div className="aspect-[2/3] rounded-xl overflow-hidden bg-[var(--bg-card)] relative border border-[var(--border-subtle)] group-hover:border-[rgb(var(--primary-color))]/60 transition-all duration-300 shadow-lg shadow-black/35 group-hover:shadow-[0_14px_32px_-10px_rgba(var(--primary-color),0.35)]">
+
+        <div
           aria-hidden="true"
-          className={`absolute inset-0 bg-gradient-to-br from-zinc-800 via-zinc-900 to-black transition-opacity duration-300 pointer-events-none ${
+          className={`absolute inset-0 bg-zinc-900 transition-opacity duration-300 pointer-events-none ${
             isImageLoaded ? 'opacity-0' : 'opacity-100 animate-pulse'
           }`}
         />
 
-        <img 
-          ref={imgRef}
-          src={posterUrl} 
+        <img
+          src={posterUrl}
           srcSet={posterSrcSet}
           sizes="(max-width: 640px) 148px, (max-width: 768px) 170px, 185px"
-          alt={title} 
+          alt={title}
           width={185}
           height={278}
-          className={`w-full h-full object-cover transition-[opacity,filter] duration-500 group-hover:scale-105 ${
-            isImageLoaded ? 'opacity-100 blur-0 scale-100' : 'opacity-0 blur-sm scale-95'
+          className={`w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.06] ${
+            isImageLoaded ? 'opacity-100' : 'opacity-0'
           }`}
           loading="lazy"
           decoding="async"
           onLoad={() => setIsImageLoaded(true)}
           onError={(e) => {
-            // Elegant SVG gradient fallback
             setIsImageLoaded(true);
             e.currentTarget.onerror = null;
             e.currentTarget.src = FALLBACK_POSTER_SVG;
           }}
         />
-        
-        {/* Subtle Dark Vignette */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/30 opacity-70 group-hover:opacity-90 transition-opacity" />
 
-        {/* Quick Play Center Hover Action */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all transform scale-75 group-hover:scale-100 pointer-events-none">
-          <div className="w-11 h-11 rounded-full bg-[rgb(var(--primary-color))] text-white flex items-center justify-center shadow-xl shadow-[rgb(var(--primary-color))]/40">
-            <Play className="w-5 h-5 fill-current ml-0.5" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-black/25 opacity-75 group-hover:opacity-95 transition-opacity" />
+
+        {/* Hover Play Affordance */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none">
+          <div className="w-11 h-11 rounded-full bg-[rgb(var(--primary-color))] text-white flex items-center justify-center shadow-xl shadow-[rgb(var(--primary-color))]/45 scale-90 group-hover:scale-100 transition-transform duration-200">
+            <Play className="w-4 h-4 fill-current ml-0.5" />
           </div>
         </div>
 
-        {/* Quick Watchlist Bookmark Button (Top Left) */}
+        {/* Watchlist Action */}
         {item.media_type !== MediaType.PERSON && (
           <button
             type="button"
             onClick={handleToggleWatchlist}
-            aria-label={inWatchlist ? "Remove from watchlist" : "Add to watchlist"}
-            title={inWatchlist ? "In Watchlist" : "Add to Watchlist"}
-            className={`absolute top-2.5 left-2.5 p-1.5 rounded-lg backdrop-blur-md transition-all shadow-md ${
+            aria-label={inWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+            title={inWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
+            className={`absolute top-2 left-2 p-1.5 rounded-md backdrop-blur-md transition-opacity duration-150 ${
               inWatchlist
-                ? 'bg-[rgb(var(--primary-color))] text-white opacity-100 scale-100'
-                : 'bg-black/60 text-white/70 hover:text-white hover:bg-black/90 opacity-0 group-hover:opacity-100'
+                ? 'bg-[rgb(var(--primary-color))] text-white opacity-100'
+                : 'bg-black/65 text-white/80 hover:text-white hover:bg-black/85 opacity-0 group-hover:opacity-100'
             }`}
           >
             {inWatchlist ? <Check className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
           </button>
         )}
 
-        {/* Rating Score Top Right (Unboxed text with gold star) */}
+        {/* Rating Readout */}
         {typeof item.vote_average === 'number' && item.vote_average > 0 && (
-          <div className="absolute top-2.5 right-2.5 bg-black/75 backdrop-blur-md px-2 py-0.5 rounded-md text-[11px] font-bold text-amber-400 flex items-center gap-1 border border-white/10 shadow-sm z-10 font-mono tabular-nums">
+          <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-md px-1.5 py-0.5 rounded text-[11px] font-medium text-amber-400 flex items-center gap-1 font-mono tabular-nums z-10">
             <Star className="w-3 h-3 fill-amber-400" />
             <span>{item.vote_average.toFixed(1)}</span>
           </div>
         )}
 
-        {/* Live Airing Episode Countdown Pill */}
+        {/* Airing Countdown or Anime Audio */}
         {item.next_airing_episode ? (
-          <div className="absolute bottom-2 inset-x-2 bg-black/85 backdrop-blur-md px-2 py-1 rounded-lg text-[10px] font-bold text-emerald-400 flex items-center justify-between border border-emerald-500/30 shadow-md z-10">
-            <span className="flex items-center gap-1 font-mono tabular-nums">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Ep {item.next_airing_episode.episode}
-            </span>
-            <span className="text-[9px] text-zinc-300 font-mono tabular-nums">
+          <div className="absolute bottom-2 inset-x-2 bg-black/80 backdrop-blur-md px-2 py-1 rounded text-[10px] font-medium text-emerald-400 flex items-center justify-between z-10 font-mono tabular-nums">
+            <span>Ep {item.next_airing_episode.episode}</span>
+            <span className="text-[10px] text-zinc-300">
               {item.next_airing_episode.airingAt - Math.floor(Date.now() / 1000) <= 0
-                ? 'Airing Now'
+                ? 'Airing'
                 : item.next_airing_episode.airingAt - Math.floor(Date.now() / 1000) > 86400
-                  ? `in ${Math.floor((item.next_airing_episode.airingAt - Math.floor(Date.now() / 1000)) / 86400)}d`
-                  : `in ${Math.floor((item.next_airing_episode.airingAt - Math.floor(Date.now() / 1000)) / 3600)}h`}
+                  ? `${Math.floor((item.next_airing_episode.airingAt - Math.floor(Date.now() / 1000)) / 86400)}d`
+                  : `${Math.floor((item.next_airing_episode.airingAt - Math.floor(Date.now() / 1000)) / 3600)}h`}
             </span>
           </div>
         ) : item.anilist_id ? (
           <div className="absolute bottom-2 right-2 flex items-center gap-1 z-10">
-            <span className="bg-black/80 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-black text-pink-400 border border-pink-500/20 font-mono">
+            <span className="bg-black/75 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-semibold text-zinc-200 font-mono">
               SUB
             </span>
             {item.is_dubbed && (
-              <span className="bg-pink-600/90 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-black text-white shadow-sm font-mono">
+              <span className="bg-black/75 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-semibold text-amber-300 font-mono">
                 DUB
               </span>
             )}
@@ -233,17 +184,15 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onClick, onWatchlist
         ) : null}
       </div>
 
-      {/* Card Info (Zero-Pill Discipline) */}
+      {/* Metadata */}
       <div className="mt-2.5 px-0.5">
-        <h3 className="text-[13px] sm:text-sm font-bold truncate text-[var(--text-main)] group-hover:text-[rgb(var(--primary-color))] transition-colors">
+        <h3 className="text-[13px] sm:text-sm font-semibold truncate text-[var(--text-main)] group-hover:text-[rgb(var(--primary-color))] transition-colors">
           {title}
         </h3>
-        
-        {/* Zero-Pill Clean Typographic Metadata */}
-        <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] mt-1">
+        <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] mt-0.5">
           {year && <span className="font-mono tabular-nums">{year}</span>}
-          {year && <span aria-hidden="true" className="opacity-40">·</span>}
-          <span className="capitalize font-medium">{mediaLabel}</span>
+          {year && <span aria-hidden="true">·</span>}
+          <span>{mediaLabel}</span>
         </div>
       </div>
     </div>

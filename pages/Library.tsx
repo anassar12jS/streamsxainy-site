@@ -5,7 +5,7 @@ import { getWatchlist, getFavoriteChannels, getProgress, removeFromProgress, rem
 import { MediaCard } from '../components/MediaCard';
 import { 
   Bookmark, Heart, Play, Clock, Tv2, 
-  Trash2, X, Compass, Search, Film, Tv, Ghost, Sparkles
+  X, Search, Film, Tv
 } from 'lucide-react';
 import { TMDB_POSTER_BASE, BACKDROP_FALLBACK_SVG } from '../constants';
 
@@ -93,33 +93,37 @@ export const Library: React.FC<LibraryProps> = ({ onSelect }) => {
       
       {/* Header & Tabs */}
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-8 border-b border-[var(--border-subtle)] pb-6">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-[var(--text-main)] flex items-center gap-3 tracking-tight">
-            <Bookmark className="w-8 h-8 text-[rgb(var(--primary-color))]" />
-            <span>My Library</span>
-          </h1>
-          <p className="text-xs sm:text-sm text-[var(--text-muted)] mt-1">
-            Persistent local storage database of your saved Watchlist, playback resume checkpoints, and favorite TV channels.
-          </p>
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[rgb(var(--primary-color))] to-rose-700 flex items-center justify-center text-white shadow-lg shadow-[rgb(var(--primary-color))]/30 shrink-0">
+            <Bookmark className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="font-display text-3xl sm:text-4xl font-bold text-[var(--text-main)] tracking-tight">
+              Library
+            </h1>
+            <p className="text-xs sm:text-sm text-[var(--text-muted)] mt-0.5">
+              Your saved watchlist, playback progress, and favorite channels.
+            </p>
+          </div>
         </div>
 
         {/* Tab Controls Bar */}
-        <div className="flex items-center gap-1 bg-[var(--bg-card)] p-1 rounded-xl border border-[var(--border-subtle)] shadow-sm overflow-x-auto max-w-full">
+        <div className="flex items-center gap-1 bg-[var(--bg-card)] p-1.5 rounded-xl border border-[var(--border-subtle)] shadow-lg overflow-x-auto max-w-full">
           <button 
             onClick={() => setActiveTab('all')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'all' 
-                ? 'bg-[rgb(var(--primary-color))] text-white shadow-md' 
+                ? 'bg-[rgb(var(--primary-color))] text-white shadow-md shadow-[rgb(var(--primary-color))]/30' 
                 : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
             }`}
           >
-            All Watchlist ({items.length})
+            All ({items.length})
           </button>
           <button 
             onClick={() => setActiveTab('movies')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'movies' 
-                ? 'bg-[rgb(var(--primary-color))] text-white shadow-md' 
+                ? 'bg-[rgb(var(--primary-color))] text-white shadow-md shadow-[rgb(var(--primary-color))]/30' 
                 : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
             }`}
           >
@@ -128,9 +132,9 @@ export const Library: React.FC<LibraryProps> = ({ onSelect }) => {
           </button>
           <button 
             onClick={() => setActiveTab('tv')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'tv' 
-                ? 'bg-[rgb(var(--primary-color))] text-white shadow-md' 
+                ? 'bg-[rgb(var(--primary-color))] text-white shadow-md shadow-[rgb(var(--primary-color))]/30' 
                 : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
             }`}
           >
@@ -140,36 +144,35 @@ export const Library: React.FC<LibraryProps> = ({ onSelect }) => {
           {animeCount > 0 && (
             <button 
               onClick={() => setActiveTab('anime')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
                 activeTab === 'anime' 
-                  ? 'bg-pink-600 text-white shadow-md' 
-                  : 'text-[var(--text-muted)] hover:text-pink-400'
+                  ? 'bg-[rgb(var(--primary-color))] text-white shadow-md shadow-[rgb(var(--primary-color))]/30' 
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
               }`}
             >
-              <Ghost className="w-3.5 h-3.5 text-pink-400" />
               <span>Anime ({animeCount})</span>
             </button>
           )}
           <button 
             onClick={() => setActiveTab('continue')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'continue' 
-                ? 'bg-[rgb(var(--primary-color))] text-white shadow-md' 
+                ? 'bg-[rgb(var(--primary-color))] text-white shadow-md shadow-[rgb(var(--primary-color))]/30' 
                 : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
             }`}
           >
-            <Clock className="w-3.5 h-3.5 text-amber-400" />
+            <Clock className="w-3.5 h-3.5" />
             <span>Continue Watching ({progressItems.length})</span>
           </button>
           <button 
             onClick={() => setActiveTab('favorites')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'favorites' 
-                ? 'bg-[rgb(var(--primary-color))] text-white shadow-md' 
+                ? 'bg-[rgb(var(--primary-color))] text-white shadow-md shadow-[rgb(var(--primary-color))]/30' 
                 : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
             }`}
           >
-            <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" />
+            <Heart className="w-3.5 h-3.5" />
             <span>Channels ({favChannels.length})</span>
           </button>
         </div>
@@ -199,18 +202,12 @@ export const Library: React.FC<LibraryProps> = ({ onSelect }) => {
 
       {/* Continue Watching Section (Shown when 'continue' or 'all' is selected) */}
       {(activeTab === 'all' || activeTab === 'continue') && progressItems.length > 0 && !searchQuery && (
-        <div className="mb-12 bg-gradient-to-r from-[var(--bg-card)] via-[var(--bg-card)] to-transparent p-5 sm:p-6 rounded-3xl border border-[var(--border-subtle)] shadow-xl">
+        <div className="mb-12 bg-[var(--bg-card)] p-5 sm:p-6 rounded-2xl border border-[var(--border-subtle)]">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-[rgb(var(--primary-color))]/15 text-[rgb(var(--primary-color))]">
-                <Clock className="w-4 h-4" />
-              </div>
-              <div>
-                <h2 className="text-base sm:text-lg font-bold text-[var(--text-main)]">Continue Watching Checkpoints</h2>
-                <p className="text-[11px] text-[var(--text-muted)]">Saved timestamp positions stored in local storage</p>
-              </div>
-            </div>
-            <span className="text-xs text-[var(--text-muted)] font-mono">{progressItems.length} active</span>
+            <h2 className="font-display text-base sm:text-lg font-semibold text-[var(--text-main)]">
+              Continue Watching
+            </h2>
+            <span className="text-xs text-[var(--text-muted)] font-mono tabular-nums">{progressItems.length} saved</span>
           </div>
 
           <div className="flex overflow-x-auto space-x-4 pb-2 custom-scrollbar">
@@ -286,9 +283,9 @@ export const Library: React.FC<LibraryProps> = ({ onSelect }) => {
                         {timeText && <span>{timeText} elapsed</span>}
                       </div>
                     </div>
-                    <div className="w-full bg-[var(--bg-hover)] h-1.5 rounded-full mt-2.5 overflow-hidden border border-white/5">
+                    <div className="w-full bg-[var(--bg-hover)] h-1 rounded-full mt-2.5 overflow-hidden">
                       <div 
-                        className="bg-gradient-to-r from-[rgb(var(--primary-color))] to-pink-500 h-full rounded-full transition-all duration-300" 
+                        className="bg-[rgb(var(--primary-color))] h-full rounded-full transition-all duration-300" 
                         style={{ width: `${percent}%` }}
                       />
                     </div>

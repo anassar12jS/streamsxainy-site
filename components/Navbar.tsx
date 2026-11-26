@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { 
-  Search, Film, Menu, X, Settings, Bookmark, Trophy, 
-  Compass, Sun, Moon, Ghost, Tv2, Command, Home,
-  Github, Instagram, Sparkles, ExternalLink, Flame, Shield,
-  Layers, ChevronRight, Play, Radio, Music2
+import {
+  Search, Menu, X, Settings, Sun, Moon, Command,
+  Github, Instagram, ChevronRight, Play
 } from 'lucide-react';
 import { CommandSearchModal } from './CommandSearchModal';
 import { TMDBResult, MediaType } from '../types';
@@ -28,17 +26,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
   const location = useLocation();
   const sidebarRef = useRef<HTMLDivElement>(null);
 
-  // Scroll listener for glassmorphism elevation
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 15);
+      setIsScrolled(window.scrollY > 12);
     };
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Update watchlist count
   useEffect(() => {
     const updateCount = () => {
       try {
@@ -50,10 +46,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
     };
     updateCount();
     window.addEventListener('storage', updateCount);
-    return () => window.removeEventListener('storage', updateCount);
+    window.addEventListener('streamhub_storage_update', updateCount);
+    return () => {
+      window.removeEventListener('storage', updateCount);
+      window.removeEventListener('streamhub_storage_update', updateCount);
+    };
   }, [location.pathname]);
 
-  // Listen for Cmd+K / Ctrl+K / '/' keyboard shortcut
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -70,13 +69,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isSidebarOpen]);
 
-  // Lock body scroll when sidebar is open on mobile
   useEffect(() => {
-    if (isSidebarOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    document.body.style.overflow = isSidebarOpen ? 'hidden' : '';
     return () => {
       document.body.style.overflow = '';
     };
@@ -85,11 +79,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = query.trim();
-    if (trimmed) {
-      navigate(`/search?q=${encodeURIComponent(trimmed)}`);
-    } else {
-      navigate('/search');
-    }
+    navigate(trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : '/search');
     setIsSidebarOpen(false);
   };
 
@@ -99,125 +89,70 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
       navigate(`/movie/${item.id}`, { state });
     } else if (item.media_type === MediaType.TV) {
       navigate(`/tv/${item.id}`, { state });
+    } else if (item.title) {
+      navigate(`/movie/${item.id}`, { state });
     } else {
-      if (item.title) navigate(`/movie/${item.id}`, { state });
-      else if (item.name) navigate(`/tv/${item.id}`, { state });
-      else navigate(`/movie/${item.id}`, { state });
+      navigate(`/tv/${item.id}`, { state });
     }
   };
 
   const navLinks = [
-    { 
-      path: '/', 
-      label: 'Home', 
-      icon: Home, 
-      color: 'text-purple-400',
-      description: 'Spotlights, trending releases & continue watching'
-    },
-    { 
-      path: '/discover', 
-      label: 'Discover', 
-      icon: Compass,
-      color: 'text-cyan-400',
-      description: 'Filter films and series by provider, genre & year'
-    },
-    { 
-      path: '/anime', 
-      label: 'Anime', 
-      icon: Ghost, 
-      color: 'text-pink-400',
-      badge: 'HOT',
-      badgeColor: 'bg-pink-500/20 text-pink-300 border-pink-500/30',
-      description: 'Subbed & dubbed anime series, OVAs and rankings'
-    },
-    { 
-      path: '/sports', 
-      label: 'Sports', 
-      icon: Trophy, 
-      color: 'text-amber-400',
-      badge: 'LIVE',
-      badgeColor: 'bg-red-500/20 text-red-400 border-red-500/30',
-      pulse: true,
-      description: 'Live match streams, scores, fixtures & standings'
-    },
-    { 
-      path: '/livetv', 
-      label: 'Live TV', 
-      icon: Tv2, 
-      color: 'text-emerald-400',
-      badge: '24/7',
-      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-      description: 'Global live broadcast channels and streams'
-    },
-    { 
-      path: '/music', 
-      label: 'Music', 
-      icon: Music2, 
-      color: 'text-rose-400',
-      badge: 'NEW',
-      badgeColor: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
-      description: 'BitChord player, anime & movie OSTs, and live lo-fi radio'
-    },
-    { 
-      path: '/library', 
-      label: 'Library', 
-      icon: Bookmark,
-      color: 'text-blue-400',
-      badge: watchlistCount > 0 ? `${watchlistCount}` : undefined,
-      badgeColor: 'bg-[rgb(var(--primary-color))]/20 text-[rgb(var(--primary-color))] border-[rgb(var(--primary-color))]/30',
-      description: 'Your saved favorites, watchlist and watch history'
+    { path: '/', label: 'Home', description: 'Featured films, series and resume queue' },
+    { path: '/discover', label: 'Discover', description: 'Filter by genre, year, platform and rating' },
+    { path: '/anime', label: 'Anime', description: 'Seasonal simulcasts, top series and studios' },
+    { path: '/sports', label: 'Sports', description: 'Live match fixtures, scores and standings' },
+    { path: '/livetv', label: 'Live TV', description: 'Global broadcast channels and EPG guide' },
+    { path: '/music', label: 'Music', description: 'Tracks, soundtracks and live radio' },
+    {
+      path: '/library',
+      label: 'Library',
+      count: watchlistCount > 0 ? watchlistCount : undefined,
+      description: 'Saved watchlist and playback progress',
     },
   ];
 
   const quickGenres = [
-    { id: 28, name: 'Action', color: 'hover:border-red-500/40 hover:text-red-400' },
-    { id: 878, name: 'Sci-Fi', color: 'hover:border-cyan-500/40 hover:text-cyan-400' },
-    { id: 18, name: 'Drama', color: 'hover:border-purple-500/40 hover:text-purple-400' },
-    { id: 35, name: 'Comedy', color: 'hover:border-amber-500/40 hover:text-amber-400' },
-    { id: 27, name: 'Horror', color: 'hover:border-rose-500/40 hover:text-rose-400' },
-    { id: 16, name: 'Animation', color: 'hover:border-pink-500/40 hover:text-pink-400' },
+    { id: 28, name: 'Action' },
+    { id: 878, name: 'Sci-Fi' },
+    { id: 18, name: 'Drama' },
+    { id: 35, name: 'Comedy' },
+    { id: 27, name: 'Horror' },
+    { id: 16, name: 'Animation' },
   ];
+
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent || '');
 
   return (
     <>
-      {/* ========================================================================= */}
-      {/* 1. TOP NAVBAR                                                             */}
-      {/* ========================================================================= */}
-      <nav 
-        aria-label="Main navigation" 
-        className={`sticky top-0 z-40 transition-all duration-300 overflow-x-clip ${
-          isScrolled 
-            ? 'bg-[var(--bg-main)]/95 backdrop-blur-2xl border-b border-white/5 shadow-xl shadow-black/30 py-2' 
-            : 'bg-transparent border-b-0 py-2.5'
+      <nav
+        aria-label="Main navigation"
+        className={`sticky top-0 z-40 transition-colors duration-200 overflow-x-clip ${
+          isScrolled
+            ? 'bg-[var(--bg-main)]/90 backdrop-blur-xl border-b border-[var(--border-subtle)] py-3'
+            : 'bg-gradient-to-b from-[var(--bg-main)]/80 to-transparent py-3.5'
         }`}
       >
-        <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-5 xl:px-6">
-          <div className="flex items-center justify-between gap-1.5 sm:gap-2 lg:gap-2.5 xl:gap-3 min-w-0">
-            
-            {/* Logo */}
-            <Link 
-              to="/" 
-              className="flex items-center cursor-pointer group shrink-0 select-none"
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between gap-6 min-w-0">
+
+            {/* Brand Wordmark */}
+            <Link
+              to="/"
+              className="flex items-center gap-2.5 shrink-0 select-none group"
               title="StreamHub Home"
             >
-              <div className="h-9 w-9 bg-gradient-to-tr from-[rgb(var(--primary-color))] via-indigo-600 to-pink-500 rounded-xl flex items-center justify-center mr-2 shadow-lg shadow-[rgb(var(--primary-color))]/30 group-hover:scale-105 group-hover:shadow-[rgb(var(--primary-color))]/50 transition-all">
-                <Film className="h-5 w-5 text-white transform group-hover:rotate-6 transition-transform" />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-black text-xl text-[var(--text-main)] tracking-tight leading-none">
-                  Stream<span className="text-[rgb(var(--primary-color))]">Hub</span>
-                </span>
-                <span className="text-[9px] font-mono font-bold tracking-wider uppercase text-[var(--text-muted)] group-hover:text-[rgb(var(--primary-color))] transition-colors">
-                  Pro Cinema
-                </span>
-              </div>
+              <span className="w-7 h-7 rounded-lg bg-[rgb(var(--primary-color))] flex items-center justify-center text-white transition-transform duration-150 group-hover:scale-105">
+                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+              </span>
+              <span className="font-display font-bold text-lg tracking-tight text-[var(--text-main)] whitespace-nowrap">
+                StreamHub
+              </span>
             </Link>
 
-            {/* Desktop Navigation Links */}
-            <div className="hidden lg:flex items-center gap-0.5 xl:gap-1 shrink-0">
+            {/* Primary Navigation Links */}
+            <div className="hidden lg:flex items-center gap-6 shrink-0">
               {navLinks.map(link => {
                 const isCurrent = location.pathname === link.path;
-                const Icon = link.icon;
                 return (
                   <Link
                     key={link.path}
@@ -225,220 +160,149 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
                     onPointerEnter={() => preloadRoute(link.path)}
                     onFocus={() => preloadRoute(link.path)}
                     aria-current={isCurrent ? 'page' : undefined}
-                    className={`px-1.5 xl:px-2.5 2xl:px-3 py-1.5 rounded-xl text-xs xl:text-xs 2xl:text-[13px] font-bold transition-all relative flex items-center gap-1 xl:gap-1.5 cursor-pointer whitespace-nowrap ${
+                    className={`relative py-1 text-[13px] font-medium transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
                       isCurrent
-                        ? 'text-white bg-[rgb(var(--primary-color))] shadow-md shadow-[rgb(var(--primary-color))]/25'
-                        : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
+                        ? 'text-[var(--text-main)] font-semibold'
+                        : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                     }`}
                   >
-                    {Icon && <Icon className={`w-3.5 h-3.5 shrink-0 ${isCurrent ? 'text-white' : link.color || ''}`} />}
                     <span>{link.label}</span>
-
-                    {/* Live / Hot Badges */}
-                    {link.badge && (
-                      <span className={`text-[9px] font-mono px-1 xl:px-1.5 py-0.2 rounded-full border font-bold flex items-center gap-1 ${
-                        isCurrent 
-                          ? 'bg-white/20 text-white border-white/30' 
-                          : link.badgeColor
-                      }`}>
-                        {link.pulse && <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />}
-                        <span>{link.badge}</span>
+                    {link.count !== undefined && (
+                      <span className="text-[11px] font-mono tabular-nums text-[var(--text-muted)]">
+                        ({link.count})
                       </span>
+                    )}
+                    {isCurrent && (
+                      <span className="absolute inset-x-0 -bottom-1 h-[2px] rounded-full bg-[rgb(var(--primary-color))]" />
                     )}
                   </Link>
                 );
               })}
             </div>
 
-            {/* Quick Search Bar with Spotlight Command Trigger */}
-            <div className="hidden md:flex items-center flex-1 max-w-[130px] lg:max-w-[170px] xl:max-w-[220px] 2xl:max-w-[260px] min-w-0">
-              <form onSubmit={handleSubmit} className="w-full">
-                <div 
-                  onClick={() => setIsCommandOpen(true)}
-                  className="relative w-full flex items-center bg-[var(--bg-card)] hover:bg-[var(--bg-hover)] border border-white/10 hover:border-[rgb(var(--primary-color))]/50 rounded-xl px-2 xl:px-2.5 py-1.5 transition-all shadow-xs cursor-pointer group"
-                >
-                  <Search className="w-3.5 h-3.5 text-[var(--text-muted)] group-hover:text-[rgb(var(--primary-color))] shrink-0 mr-1 xl:mr-1.5 transition-colors pointer-events-none" />
-                  <span className="w-full text-[var(--text-muted)] text-[11px] xl:text-xs font-medium select-none truncate">
-                    Search movies, shows...
-                  </span>
-                  <div className="ml-1 shrink-0 hidden sm:flex items-center justify-center gap-0.5 text-[10px] font-mono text-[var(--text-muted)] bg-[var(--bg-main)] h-5 px-1.5 rounded-md border border-white/10 group-hover:border-[rgb(var(--primary-color))]/40 transition-colors">
-                    {typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent || '') ? (
-                      <Command className="w-2.5 h-2.5" />
-                    ) : (
-                      <span className="text-[9px] font-semibold">Ctrl</span>
-                    )}
-                    <span>K</span>
-                  </div>
-                </div>
-              </form>
-            </div>
-
-            {/* Right Quick Controls - ALWAYS FULLY VISIBLE & NEVER OVERFLOWING */}
-            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
-              
-              {/* Mobile Search Icon Trigger */}
+            {/* Right Controls */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
               <button
                 type="button"
                 onClick={() => setIsCommandOpen(true)}
-                className="md:hidden p-2 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors cursor-pointer"
-                title="Search (⌘K)"
+                className="hidden md:flex items-center gap-2 bg-[var(--bg-card)]/90 hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] rounded-lg px-2.5 py-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors cursor-pointer"
+                aria-label="Search titles"
+              >
+                <Search className="w-3.5 h-3.5 shrink-0" />
+                <span className="pr-2 whitespace-nowrap">Search</span>
+                <kbd className="hidden xl:inline-flex items-center gap-0.5 text-[10px] font-mono text-[var(--text-muted)] bg-[var(--bg-main)] px-1.5 py-0.5 rounded border border-[var(--border-subtle)]">
+                  {isMac ? <Command className="w-2.5 h-2.5" /> : <span>Ctrl</span>}
+                  <span>K</span>
+                </kbd>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsCommandOpen(true)}
+                className="md:hidden p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors cursor-pointer"
                 aria-label="Open search"
               >
-                <Search className="w-5 h-5" />
+                <Search className="w-4 h-4" />
               </button>
 
-              {/* GitHub Profile (visible on ultra-wide screens; always in drawer) */}
-              <a
-                href="https://github.com/anassar12jS"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="GitHub Profile (@anassar12jS)"
-                aria-label="GitHub Profile"
-                className="hidden 2xl:flex p-2 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"
-              >
-                <Github className="w-4 h-4 sm:w-5 sm:h-5" />
-              </a>
-
-              {/* Instagram Profile (visible on ultra-wide screens; always in drawer) */}
-              <a
-                href="https://instagram.com/xainyx_"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Instagram Profile (@xainyx_)"
-                aria-label="Instagram Profile"
-                className="hidden 2xl:flex p-2 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-pink-400 transition-colors"
-              >
-                <Instagram className="w-4 h-4 sm:w-5 sm:h-5" />
-              </a>
-
-              {/* Theme Toggle Button - ALWAYS VISIBLE */}
-              <button 
+              <button
+                type="button"
                 onClick={onToggleMode}
                 aria-label={currentMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                title={currentMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                className="p-1.5 sm:p-2 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors relative cursor-pointer shrink-0"
+                title={currentMode === 'dark' ? 'Light mode' : 'Dark mode'}
+                className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors cursor-pointer"
               >
-                <div className={`transform transition-transform duration-500 ${currentMode === 'dark' ? 'rotate-0' : 'rotate-180'}`}>
-                  {currentMode === 'dark' ? (
-                    <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
-                  ) : (
-                    <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400" />
-                  )}
-                </div>
+                {currentMode === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
 
-              {/* Settings Modal Button - ALWAYS VISIBLE */}
-              <button 
+              <button
+                type="button"
                 onClick={onOpenSettings}
                 aria-label="Open settings"
-                title="Theme Colors & Server Settings"
-                className="p-1.5 sm:p-2 rounded-xl hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors cursor-pointer group shrink-0"
+                title="Preferences"
+                className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors cursor-pointer"
               >
-                <Settings className="w-4 h-4 sm:w-5 sm:h-5 group-hover:rotate-45 transition-transform duration-300" />
+                <Settings className="w-4 h-4" />
               </button>
 
-              {/* Sidebar Menu Trigger (Accessible for all screen sizes) */}
               <button
                 type="button"
                 onClick={() => setIsSidebarOpen(true)}
-                aria-label="Open navigation sidebar"
+                aria-label="Open navigation menu"
                 aria-expanded={isSidebarOpen}
-                className="p-1.5 sm:p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer border border-white/10 sm:border-transparent flex items-center gap-1.5 shrink-0"
-                title="Open Sidebar"
+                className="lg:hidden p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
+                title="Menu"
               >
-                <Menu className="h-5 w-5 sm:h-5 sm:w-5" />
-                <span className="hidden 2xl:inline text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-main)]">Menu</span>
+                <Menu className="h-5 w-5" />
               </button>
-
             </div>
           </div>
         </div>
       </nav>
 
-      {/* ========================================================================= */}
-      {/* 2. SLIDE-OUT SIDEBAR DRAWER & BACKDROP                                    */}
-      {/* ========================================================================= */}
+      {/* Mobile / Drawer Navigation */}
       {isSidebarOpen && (
         <div className="fixed inset-0 z-50 overflow-hidden">
-          {/* Backdrop Blur Overlay */}
-          <div 
+          <div
             onClick={() => setIsSidebarOpen(false)}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 animate-fade-in"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
             aria-hidden="true"
           />
 
-          {/* Slide-over Sidebar Container */}
           <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-            <div 
+            <div
               ref={sidebarRef}
-              className="w-screen max-w-md bg-[var(--bg-card)]/98 backdrop-blur-2xl border-l border-[var(--border-subtle)] shadow-2xl flex flex-col justify-between overflow-y-auto fancy-scrollbar animate-in slide-in-from-right duration-300"
+              className="w-screen max-w-sm bg-[var(--bg-card)] border-l border-[var(--border-subtle)] shadow-2xl flex flex-col justify-between overflow-y-auto custom-scrollbar"
             >
-              
-              {/* Top Header */}
               <div>
-                <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between gap-3 bg-[var(--bg-main)]/50">
-                  <Link 
-                    to="/" 
+                <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
+                  <Link
+                    to="/"
                     onClick={() => setIsSidebarOpen(false)}
-                    className="flex items-center gap-3 cursor-pointer group"
+                    className="flex items-center gap-2.5"
                   >
-                    <div className="h-10 w-10 bg-gradient-to-tr from-[rgb(var(--primary-color))] via-indigo-600 to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-[rgb(var(--primary-color))]/30 group-hover:scale-105 transition-transform">
-                      <Film className="h-5 w-5 text-white" />
-                    </div>
-                    <div>
-                      <h2 className="font-black text-lg text-[var(--text-main)] tracking-tight leading-tight">
-                        Stream<span className="text-[rgb(var(--primary-color))]">Hub</span>
-                      </h2>
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        <span className="text-[10px] font-mono text-[var(--text-muted)] uppercase tracking-wider font-semibold">
-                          Online Cinema Hub
-                        </span>
-                      </div>
-                    </div>
+                    <span className="w-7 h-7 rounded-lg bg-[rgb(var(--primary-color))] flex items-center justify-center text-white">
+                      <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                    </span>
+                    <span className="font-display font-bold text-lg tracking-tight text-[var(--text-main)]">
+                      StreamHub
+                    </span>
                   </Link>
 
-                  {/* Close Button */}
                   <button
                     type="button"
                     onClick={() => setIsSidebarOpen(false)}
-                    aria-label="Close sidebar"
-                    className="p-2 rounded-xl bg-[var(--bg-main)] hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-white border border-[var(--border-subtle)] transition-colors cursor-pointer"
+                    aria-label="Close menu"
+                    className="p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors cursor-pointer"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                {/* Quick Search in Sidebar */}
-                <div className="p-5 pb-3">
+                <div className="p-4 pb-2">
                   <form onSubmit={handleSubmit} className="relative">
                     <input
                       type="text"
-                      className="w-full bg-[var(--bg-main)] rounded-xl pl-10 pr-9 py-2.5 text-xs text-[var(--text-main)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--primary-color))] border border-[var(--border-subtle)] font-medium"
-                      placeholder="Search films, anime, live TV..."
+                      className="w-full bg-[var(--bg-input)] rounded-lg pl-9 pr-8 py-2 text-xs text-[var(--text-main)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--primary-color))] border border-[var(--border-subtle)]"
+                      placeholder="Search films, series, anime..."
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                     />
-                    <Search className="absolute left-3.5 top-3 h-4 w-4 text-[var(--text-muted)]" />
+                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-[var(--text-muted)]" />
                     {query && (
                       <button
                         type="button"
                         onClick={() => setQuery('')}
-                        className="absolute right-3 top-3 text-[var(--text-muted)] hover:text-white cursor-pointer"
+                        className="absolute right-2.5 top-2.5 text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer"
                       >
-                        <X className="w-4 h-4" />
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </form>
                 </div>
 
-                {/* Primary Hub Navigation Links */}
-                <div className="px-3 py-2 space-y-1">
-                  <div className="px-3 py-1 text-[10px] font-bold tracking-wider uppercase text-[var(--text-muted)]">
-                    Main Channels & Stages
-                  </div>
+                <div className="px-3 py-2 space-y-0.5">
                   {navLinks.map(link => {
-                    const Icon = link.icon;
                     const isCurrent = location.pathname === link.path;
                     return (
                       <Link
@@ -447,60 +311,43 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
                         onTouchStart={() => preloadRoute(link.path)}
                         onPointerEnter={() => preloadRoute(link.path)}
                         onClick={() => setIsSidebarOpen(false)}
-                        className={`group flex items-center justify-between p-3 rounded-2xl transition-all cursor-pointer ${
+                        className={`flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors ${
                           isCurrent
-                            ? 'bg-[rgb(var(--primary-color))]/15 border border-[rgb(var(--primary-color))]/30 text-[var(--text-main)] shadow-sm'
-                            : 'hover:bg-[var(--bg-hover)] border border-transparent text-[var(--text-main)]'
+                            ? 'bg-[var(--bg-hover)] text-[var(--text-main)]'
+                            : 'hover:bg-[var(--bg-hover)]/60 text-[var(--text-main)]'
                         }`}
                       >
-                        <div className="flex items-center gap-3.5 min-w-0">
-                          <div className={`p-2 rounded-xl transition-colors ${
-                            isCurrent
-                              ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
-                              : 'bg-[var(--bg-main)] text-[var(--text-muted)] group-hover:text-white'
-                          }`}>
-                            <Icon className="w-4 h-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className={`text-sm font-bold tracking-tight truncate ${isCurrent ? 'text-[rgb(var(--primary-color))]' : ''}`}>
-                                {link.label}
+                        <div className="min-w-0 pr-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-semibold ${isCurrent ? 'text-[rgb(var(--primary-color))]' : ''}`}>
+                              {link.label}
+                            </span>
+                            {link.count !== undefined && (
+                              <span className="text-xs font-mono tabular-nums text-[var(--text-muted)]">
+                                ({link.count})
                               </span>
-                              {link.badge && (
-                                <span className={`text-[9px] font-mono px-2 py-0.2 rounded-full border font-bold flex items-center gap-1 ${link.badgeColor}`}>
-                                  {link.pulse && <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />}
-                                  <span>{link.badge}</span>
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-[var(--text-muted)] truncate max-w-[240px]">
-                              {link.description}
-                            </p>
+                            )}
                           </div>
+                          <p className="text-xs text-[var(--text-muted)] truncate mt-0.5">
+                            {link.description}
+                          </p>
                         </div>
-
-                        <ChevronRight className={`w-4 h-4 text-[var(--text-muted)] group-hover:translate-x-1 group-hover:text-white transition-all shrink-0 ${
-                          isCurrent ? 'text-[rgb(var(--primary-color))]' : ''
-                        }`} />
+                        <ChevronRight className="w-4 h-4 text-[var(--text-muted)] shrink-0" />
                       </Link>
                     );
                   })}
                 </div>
 
-                {/* Quick Genre Discovery Section */}
-                <div className="p-4 mx-3 my-2 rounded-2xl bg-[var(--bg-main)]/50 border border-[var(--border-subtle)]">
+                <div className="px-5 py-4 mt-2 border-t border-[var(--border-subtle)]">
                   <div className="flex items-center justify-between mb-2.5">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>Explore by Genre</span>
-                    </span>
+                    <span className="text-xs font-semibold text-[var(--text-muted)]">Genres</span>
                     <button
                       type="button"
                       onClick={() => {
                         navigate('/discover');
                         setIsSidebarOpen(false);
                       }}
-                      className="text-[11px] font-bold text-[rgb(var(--primary-color))] hover:underline cursor-pointer"
+                      className="text-xs font-medium text-[rgb(var(--primary-color))] hover:underline cursor-pointer"
                     >
                       View all
                     </button>
@@ -514,37 +361,24 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
                           navigate(`/discover?type=movie&genre=${genre.id}&genreName=${encodeURIComponent(genre.name)}`);
                           setIsSidebarOpen(false);
                         }}
-                        className={`px-2.5 py-1.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[11px] font-semibold text-[var(--text-main)] transition-all cursor-pointer text-center truncate ${genre.color}`}
+                        className="px-2.5 py-1.5 rounded-lg bg-[var(--bg-input)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-xs font-medium text-[var(--text-main)] transition-colors cursor-pointer text-center truncate"
                       >
                         {genre.name}
                       </button>
                     ))}
                   </div>
                 </div>
-
               </div>
 
-              {/* Sidebar Bottom / Preferences & Socials */}
-              <div className="p-5 border-t border-[var(--border-subtle)] bg-[var(--bg-main)]/40 space-y-4">
-                
-                {/* Mode & Theme Quick Switcher */}
-                <div className="flex items-center justify-between gap-3">
+              <div className="p-5 border-t border-[var(--border-subtle)] space-y-3">
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={onToggleMode}
-                    className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[var(--bg-card)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-xs font-bold text-[var(--text-main)] transition-colors cursor-pointer"
+                    className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-[var(--bg-input)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-xs font-medium text-[var(--text-main)] transition-colors cursor-pointer"
                   >
-                    {currentMode === 'dark' ? (
-                      <>
-                        <Sun className="w-4 h-4 text-amber-400" />
-                        <span>Light Mode</span>
-                      </>
-                    ) : (
-                      <>
-                        <Moon className="w-4 h-4 text-indigo-400" />
-                        <span>Dark Mode</span>
-                      </>
-                    )}
+                    {currentMode === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                    <span>{currentMode === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
                   </button>
 
                   <button
@@ -553,22 +387,20 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
                       setIsSidebarOpen(false);
                       onOpenSettings();
                     }}
-                    className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[var(--bg-card)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-xs font-bold text-[var(--text-main)] transition-colors cursor-pointer"
+                    className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-[var(--bg-input)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-xs font-medium text-[var(--text-main)] transition-colors cursor-pointer"
                   >
-                    <Settings className="w-4 h-4 text-[rgb(var(--primary-color))]" />
+                    <Settings className="w-3.5 h-3.5" />
                     <span>Settings</span>
                   </button>
                 </div>
 
-                {/* Creator Socials */}
-                <div className="flex items-center justify-between pt-2 border-t border-white/10 text-xs">
-                  <span className="text-[11px] font-semibold text-[var(--text-muted)]">Connect:</span>
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between text-xs text-[var(--text-muted)] pt-1">
+                  <div className="flex items-center gap-3">
                     <a
                       href="https://github.com/anassar12jS"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] text-xs font-semibold text-[var(--text-main)] hover:border-[rgb(var(--primary-color))]/50 transition-colors"
+                      className="hover:text-[var(--text-main)] transition-colors inline-flex items-center gap-1"
                     >
                       <Github className="w-3.5 h-3.5" />
                       <span>GitHub</span>
@@ -577,34 +409,26 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSettings, currentMode, onT
                       href="https://instagram.com/xainyx_"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-card)] border border-[var(--border-subtle)] text-xs font-semibold text-pink-400 hover:border-pink-500/50 transition-colors"
+                      className="hover:text-[var(--text-main)] transition-colors inline-flex items-center gap-1"
                     >
                       <Instagram className="w-3.5 h-3.5" />
                       <span>Instagram</span>
                     </a>
                   </div>
-                </div>
-
-                {/* Legal & Version Footnote */}
-                <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)] pt-1">
-                  <span>StreamHub v2.6 Pro</span>
                   <div className="flex items-center gap-2">
-                    <Link to="/dmca" onClick={() => setIsSidebarOpen(false)} className="hover:underline">DMCA</Link>
-                    <span>•</span>
-                    <Link to="/privacy" onClick={() => setIsSidebarOpen(false)} className="hover:underline">Privacy</Link>
-                    <span>•</span>
-                    <Link to="/terms" onClick={() => setIsSidebarOpen(false)} className="hover:underline">Terms</Link>
+                    <Link to="/dmca" onClick={() => setIsSidebarOpen(false)} className="hover:text-[var(--text-main)]">DMCA</Link>
+                    <span>·</span>
+                    <Link to="/privacy" onClick={() => setIsSidebarOpen(false)} className="hover:text-[var(--text-main)]">Privacy</Link>
+                    <span>·</span>
+                    <Link to="/terms" onClick={() => setIsSidebarOpen(false)} className="hover:text-[var(--text-main)]">Terms</Link>
                   </div>
                 </div>
-
               </div>
-
             </div>
           </div>
         </div>
       )}
 
-      {/* Global Spotlight / Command Search Modal (⌘K) */}
       <CommandSearchModal
         isOpen={isCommandOpen}
         onClose={() => setIsCommandOpen(false)}

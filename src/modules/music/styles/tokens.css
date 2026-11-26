@@ -18,8 +18,8 @@
   --bitchord-card-radius: 8px;
 }
 
-body, html, #root {
-  font-family: var(--bitchord-font) !important;
+.bitchord-shell {
+  font-family: var(--bitchord-font);
   background-color: var(--bitchord-bg-main);
   color: var(--bitchord-text-primary);
   -webkit-font-smoothing: antialiased;

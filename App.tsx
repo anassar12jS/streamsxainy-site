@@ -45,25 +45,17 @@ const AppHome = lazyWithRetry(() => import('./pages/AppHome').then(m => ({ defau
 
 const PageLoadingFallback = () => (
   <div className="min-h-[70vh] w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 animate-fade-in">
-    {/* Hero skeleton */}
-    <div className="h-72 sm:h-96 rounded-3xl bg-[var(--bg-card)] border border-[var(--border-color)] animate-pulse mb-10" />
-    {/* Row skeletons */}
-    {[0, 1, 2].map(row => (
+    <div className="h-72 sm:h-96 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] animate-pulse mb-10" />
+    {[0, 1].map(row => (
       <div key={row} className="mb-10">
-        <div className="h-6 w-48 rounded-lg bg-[var(--bg-card)] animate-pulse mb-5" />
+        <div className="h-5 w-44 rounded-md bg-[var(--bg-card)] animate-pulse mb-5" />
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="aspect-[2/3] rounded-2xl bg-[var(--bg-card)] border border-[var(--border-color)] animate-pulse" style={{ animationDelay: `${i * 80}ms` }} />
+            <div key={i} className="aspect-[2/3] rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] animate-pulse" />
           ))}
         </div>
       </div>
     ))}
-    <div className="flex items-center justify-center gap-3 pt-4">
-      <Loader2 className="w-5 h-5 text-[rgb(var(--primary-color))] animate-spin" />
-      <span className="text-xs font-mono font-bold tracking-widest text-[var(--text-muted)] uppercase">
-        Loading Stage...
-      </span>
-    </div>
   </div>
 );
 
@@ -89,9 +81,9 @@ const ScrollToTop: React.FC = () => {
 
 const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [themeColor, setThemeColor] = useState('147, 51, 234'); 
+  const [themeColor, setThemeColor] = useState(() => themeToRgb(getTheme()));
   const [mode, setMode] = useState<'dark' | 'light'>(getMode());
-  const [isAppReady, setIsAppReady] = useState(true);
+  const [isAppReady] = useState(true);
   
   const location = useLocation();
   const navigate = useNavigate();

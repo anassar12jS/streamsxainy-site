@@ -163,8 +163,8 @@ export const Search: React.FC<SearchProps> = ({ onSelect }) => {
 
         {/* Popular / Quick Search Tags */}
         <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 text-xs text-[var(--text-muted)] custom-scrollbar">
-          <span className="shrink-0 flex items-center gap-1 font-medium">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Popular:
+          <span className="shrink-0 font-medium">
+            Popular:
           </span>
           {quickSearches.map((term) => (
             <button
@@ -195,14 +195,14 @@ export const Search: React.FC<SearchProps> = ({ onSelect }) => {
             </p>
           </div>
 
-          {/* Filter Pills */}
+          {/* Filter Tabs */}
           {combinedAll.length > 0 && (
             <div className="flex items-center gap-1.5 bg-[var(--bg-card)] p-1 rounded-xl border border-[var(--border-subtle)] text-xs font-semibold self-start sm:self-auto overflow-x-auto">
               <button
                 onClick={() => setActiveTab('all')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
+                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                   activeTab === 'all'
-                    ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm'
+                    ? 'bg-[rgb(var(--primary-color))] text-white'
                     : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                 }`}
               >
@@ -210,49 +210,48 @@ export const Search: React.FC<SearchProps> = ({ onSelect }) => {
               </button>
               <button
                 onClick={() => setActiveTab('movie')}
-                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer ${
                   activeTab === 'movie'
-                    ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm'
+                    ? 'bg-[rgb(var(--primary-color))] text-white'
                     : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                 }`}
               >
-                <Film className="w-3 h-3 text-cyan-400" />
+                <Film className="w-3 h-3" />
                 <span>Movies ({categorized.movies.length})</span>
               </button>
               <button
                 onClick={() => setActiveTab('tv')}
-                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer ${
                   activeTab === 'tv'
-                    ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm'
+                    ? 'bg-[rgb(var(--primary-color))] text-white'
                     : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                 }`}
               >
-                <Tv className="w-3 h-3 text-purple-400" />
+                <Tv className="w-3 h-3" />
                 <span>Series ({categorized.tvShows.length})</span>
               </button>
               {animeResults.length > 0 && (
                 <button
                   onClick={() => setActiveTab('anime')}
-                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                     activeTab === 'anime'
-                      ? 'bg-pink-600 text-white shadow-sm'
-                      : 'text-[var(--text-muted)] hover:text-pink-400'
+                      ? 'bg-[rgb(var(--primary-color))] text-white'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                   }`}
                 >
-                  <Ghost className="w-3 h-3 text-pink-400" />
                   <span>Anime ({animeResults.length})</span>
                 </button>
               )}
               {categorized.people.length > 0 && (
                 <button
                   onClick={() => setActiveTab('person')}
-                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer ${
                     activeTab === 'person'
-                      ? 'bg-[rgb(var(--primary-color))] text-white shadow-sm'
+                      ? 'bg-[rgb(var(--primary-color))] text-white'
                       : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                   }`}
                 >
-                  <User className="w-3 h-3 text-orange-400" />
+                  <User className="w-3 h-3" />
                   <span>People ({categorized.people.length})</span>
                 </button>
               )}
@@ -263,27 +262,22 @@ export const Search: React.FC<SearchProps> = ({ onSelect }) => {
 
       {/* Spell Correction / Did You Mean Banner */}
       {spellCorrection && query && (
-        <div className="mb-6 p-3.5 sm:p-4 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm animate-fade-in shadow-sm">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-            </div>
-            <div>
-              <span className="text-[var(--text-muted)] text-xs sm:text-sm">Did you mean: </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setInputVal(spellCorrection);
-                  setSearchParams({ q: spellCorrection });
-                }}
-                className="font-bold text-[rgb(var(--primary-color))] hover:underline capitalize ml-1 text-sm sm:text-base inline-flex items-center gap-1"
-              >
-                {spellCorrection}
-              </button>
-            </div>
+        <div className="mb-6 p-3.5 sm:p-4 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm animate-fade-in">
+          <div>
+            <span className="text-[var(--text-muted)] text-xs sm:text-sm">Did you mean: </span>
+            <button
+              type="button"
+              onClick={() => {
+                setInputVal(spellCorrection);
+                setSearchParams({ q: spellCorrection });
+              }}
+              className="font-semibold text-[rgb(var(--primary-color))] hover:underline capitalize ml-1 text-sm sm:text-base inline-flex items-center gap-1"
+            >
+              {spellCorrection}
+            </button>
           </div>
           <div className="text-xs text-[var(--text-muted)] sm:self-center">
-            Typo-tolerant search applied automatically
+            Showing closest matches
           </div>
         </div>
       )}
@@ -291,9 +285,9 @@ export const Search: React.FC<SearchProps> = ({ onSelect }) => {
       {/* Loading State */}
       {isLoading && !tmdbResults && !animeRawResults ? (
         <div className="flex flex-col items-center justify-center py-32">
-          <Loader2 className="w-12 h-12 text-[rgb(var(--primary-color))] animate-spin mb-4" />
-          <p className="text-[var(--text-muted)] text-sm animate-pulse">
-            Deep-searching TMDB and AniList for matching movies, shows, and anime...
+          <Loader2 className="w-10 h-10 text-[rgb(var(--primary-color))] animate-spin mb-4" />
+          <p className="text-[var(--text-muted)] text-sm">
+            Searching titles...
           </p>
         </div>
       ) : filteredItems && filteredItems.length > 0 ? (

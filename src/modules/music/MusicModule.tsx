@@ -1073,7 +1073,7 @@ export const MusicModule: React.FC = () => {
 
   return (
     <div 
-      className="h-full w-full flex bg-[#0f0f0f] text-[#ffffff] relative overflow-hidden"
+      className="bitchord-shell h-full w-full flex bg-[#0f0f0f] text-[#ffffff] relative overflow-hidden"
       style={{ fontFamily: 'var(--bitchord-font)' }}
     >
       

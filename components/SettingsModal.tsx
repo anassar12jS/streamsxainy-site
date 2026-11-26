@@ -17,8 +17,8 @@ interface SettingsModalProps {
 }
 
 const THEME_OPTIONS = [
-  { id: 'purple', name: 'Royal Purple', hex: '#9333ea', rgb: '147, 51, 234' },
   { id: 'red', name: 'Crimson Red', hex: '#dc2626', rgb: '220, 38, 38' },
+  { id: 'purple', name: 'Royal Purple', hex: '#9333ea', rgb: '147, 51, 234' },
   { id: 'blue', name: 'Electric Blue', hex: '#2563eb', rgb: '37, 99, 235' },
   { id: 'green', name: 'Emerald Green', hex: '#16a34a', rgb: '22, 163, 74' },
   { id: 'orange', name: 'Sunset Orange', hex: '#ea580c', rgb: '234, 88, 12' },
@@ -37,8 +37,8 @@ const SERVER_OPTIONS = [
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<'appearance' | 'streaming' | 'data' | 'providers'>('appearance');
   
-  const [activeTheme, setActiveTheme] = useState('purple');
-  const [customHex, setCustomHex] = useState('#a855f7');
+  const [activeTheme, setActiveTheme] = useState('red');
+  const [customHex, setCustomHex] = useState('#dc2626');
   const [currentMode, setCurrentMode] = useState<'dark' | 'light'>('dark');
   const [defaultServer, setDefServerState] = useState('ishowstream');
   const [autoplayNext, setAutoplayState] = useState(true);
@@ -56,7 +56,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     if (isOpen) {
       setActiveTheme(getTheme());
       const stored = getTheme();
-      setCustomHex(stored.startsWith('#') ? stored : '#a855f7');
+      setCustomHex(stored.startsWith('#') ? stored : '#dc2626');
       setCurrentMode(getMode());
       setDefServerState(getDefaultServer());
       setAutoplayState(getAutoplayNext());
@@ -142,18 +142,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in">
       <div 
-        className="w-full max-w-2xl bg-[var(--bg-card)] border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full max-w-2xl bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between bg-[var(--bg-main)]/50">
+        <div className="px-6 py-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-main)]/50">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-[rgb(var(--primary-color))]/15 text-[rgb(var(--primary-color))]">
+            <div className="p-2 rounded-xl bg-[rgb(var(--primary-color))]/15 text-[rgb(var(--primary-color))]">
               <Settings className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-[var(--text-main)]">Preferences & Settings</h2>
-              <p className="text-xs text-[var(--text-muted)]">Configure styling, streaming mirrors, and local backups</p>
+              <h2 className="font-display text-lg font-semibold text-[var(--text-main)]">Settings</h2>
+              <p className="text-xs text-[var(--text-muted)]">Appearance, playback defaults, addons, and backups</p>
             </div>
           </div>
           <button 

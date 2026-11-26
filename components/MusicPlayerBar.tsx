@@ -57,7 +57,7 @@ export const MusicPlayerBar: React.FC = () => {
         }}
       >
         <div 
-          className="h-full bg-gradient-to-r from-rose-500 to-pink-500 relative transition-all"
+          className="h-full bg-[rgb(var(--primary-color))] relative transition-all"
           style={{ width: `${progressPercent}%` }}
         >
           <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -83,7 +83,7 @@ export const MusicPlayerBar: React.FC = () => {
               <Maximize2 className="w-4 h-4 text-white" />
             </div>
             {currentTrack.isRadio && (
-              <span className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-black animate-pulse" />
+              <span className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-black" />
             )}
           </div>
 

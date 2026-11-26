@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Search, Play, Pause, Heart, Sparkles, Disc3, Radio, Flame, 
-  Trophy, Shuffle, Music2, Clock, Plus, Check, Volume2, 
-  ExternalLink, ArrowRight, Compass, Shield, Headphones
+  Search, Play, Pause, Heart, Disc3, Radio, Flame, 
+  Trophy, Shuffle, Music2, Music as MusicIcon, Clock, Plus, Check, Volume2, 
+  ExternalLink, ArrowRight, Compass, Shield
 } from 'lucide-react';
 import { useMusic } from '../services/MusicContext';
 import { 
@@ -97,39 +97,31 @@ export const MusicPage: React.FC = () => {
     <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-main)] transition-colors duration-300 pb-36">
       
       {/* ========================================================================= */}
-      {/* 1. HERO HEADER                                                            */}
+      {/* 1. HEADER                                                                 */}
       {/* ========================================================================= */}
-      <div className="relative border-b border-white/10 bg-gradient-to-b from-rose-950/25 via-black/40 to-transparent">
+      <div className="border-b border-[var(--border-subtle)] bg-[var(--bg-main)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-8">
           
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             
             <div>
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-rose-400 bg-rose-500/15 px-3 py-1 rounded-full border border-rose-500/30 shadow-sm">
-                  <Headphones className="w-3.5 h-3.5" /> BitChord Audio Studio
-                </span>
-                <span className="flex items-center gap-1 text-xs font-bold text-white/80 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/15">
-                  <Sparkles className="w-3 h-3 text-amber-400" /> Native Streaming
-                </span>
-                <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                  Ad-Free
-                </span>
-              </div>
+              <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-[rgb(var(--primary-color))] block mb-1">
+                Audio
+              </span>
 
-              <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
-                StreamHub <span className="bg-gradient-to-r from-rose-400 to-pink-500 bg-clip-text text-transparent">Music</span>
+              <h1 className="font-display text-3xl sm:text-4xl font-bold text-[var(--text-main)] tracking-tight">
+                Music
               </h1>
-              <p className="text-sm text-[var(--text-muted)] max-w-2xl mt-2 leading-relaxed">
-                Stream millions of songs, blockbuster cinema soundtracks, trending anime openings, and 24/7 background lo-fi radio natively within StreamHub.
+              <p className="text-sm text-[var(--text-muted)] max-w-xl mt-1.5 leading-relaxed">
+                Film scores, anime soundtracks, and 24/7 lo-fi radio streams.
               </p>
             </div>
 
             {/* Quick Play Action Bar */}
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-2.5 shrink-0">
               <button
                 onClick={() => handlePlayCollection(CURATED_CINEMA_TRACKS, undefined, true)}
-                className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-sm shadow-xl shadow-rose-500/25 cursor-pointer hover:scale-105 active:scale-95 transition-all"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[rgb(var(--primary-color))] hover:brightness-110 text-white font-semibold text-sm cursor-pointer transition-all"
               >
                 <Shuffle className="w-4 h-4" />
                 <span>Shuffle Cinema OSTs</span>
@@ -137,30 +129,30 @@ export const MusicPage: React.FC = () => {
 
               <button
                 onClick={() => handlePlayCollection(CURATED_LOFI_STATIONS, CURATED_LOFI_STATIONS[0])}
-                className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold text-sm cursor-pointer hover:scale-105 active:scale-95 transition-all"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--bg-card)] hover:bg-[var(--bg-hover)] border border-[var(--border-subtle)] text-[var(--text-main)] font-medium text-sm cursor-pointer transition-colors"
               >
-                <Radio className="w-4 h-4 text-emerald-400" />
-                <span>Play Live Lo-Fi</span>
+                <Radio className="w-4 h-4 text-[rgb(var(--primary-color))]" />
+                <span>Live Lo-Fi</span>
               </button>
             </div>
 
           </div>
 
           {/* Real-time Search Box */}
-          <div className="mt-8 max-w-2xl relative">
-            <div className="relative flex items-center bg-[var(--bg-card)] border border-white/15 focus-within:border-rose-500/80 rounded-2xl px-4 py-3 shadow-xl transition-all">
-              <Search className="w-5 h-5 text-rose-400 mr-3 shrink-0" />
+          <div className="mt-7 max-w-2xl relative">
+            <div className="relative flex items-center bg-[var(--bg-card)] border border-[var(--border-subtle)] focus-within:border-[rgb(var(--primary-color))] rounded-xl px-4 py-3 transition-colors">
+              <Search className="w-4 h-4 text-[var(--text-muted)] mr-3 shrink-0" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search any song, artist, anime opening, movie soundtrack, or genre..."
-                className="w-full bg-transparent border-0 outline-none text-sm sm:text-base text-white placeholder-white/40"
+                placeholder="Search songs, artists, soundtracks..."
+                className="w-full bg-transparent border-0 outline-none text-sm text-[var(--text-main)] placeholder-[var(--text-muted)]"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="text-xs text-white/40 hover:text-white px-2 py-1 rounded cursor-pointer"
+                  className="text-xs text-[var(--text-muted)] hover:text-[var(--text-main)] px-2 py-1 rounded cursor-pointer"
                 >
                   Clear
                 </button>
@@ -442,16 +434,16 @@ export const MusicPage: React.FC = () => {
         {!debouncedQuery && (
           <div className="space-y-6">
             
-            {/* Nav Pill Tabs */}
+            {/* Nav Tabs */}
             <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-2">
               {[
-                { id: 'featured', label: 'All Featured', icon: Sparkles },
+                { id: 'featured', label: 'All Featured', icon: MusicIcon },
                 { id: 'cinema', label: 'Cinema OSTs', icon: Flame },
                 { id: 'anime', label: 'Anime Soundtracks', icon: Disc3 },
                 { id: 'hits', label: 'Global Hits', icon: Trophy },
                 { id: 'lofi', label: '24/7 Lo-Fi Radios', icon: Radio },
-                { id: 'gaming', label: 'Gaming Legends', icon: Compass },
-                { id: 'liked', label: `Liked Songs (${likedTracks.length})`, icon: Heart },
+                { id: 'gaming', label: 'Gaming', icon: Compass },
+                { id: 'liked', label: `Liked (${likedTracks.length})`, icon: Heart },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -459,10 +451,10 @@ export const MusicPage: React.FC = () => {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors cursor-pointer whitespace-nowrap border ${
                       isActive 
-                        ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/25 ring-1 ring-rose-400' 
-                        : 'bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-white hover:bg-white/10 border border-white/10'
+                        ? 'bg-[rgb(var(--primary-color))] text-white border-[rgb(var(--primary-color))] font-semibold' 
+                        : 'bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] border-[var(--border-subtle)]'
                     }`}
                   >
                     <Icon className="w-4 h-4" />

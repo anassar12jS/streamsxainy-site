@@ -7,7 +7,7 @@ import { TMDB_POSTER_BASE, POSTER_FALLBACK_SVG } from '../constants';
 import { STREAMING_PROVIDERS } from '../components/StreamingProvidersShowcase';
 import { 
   Filter, Dices, X, Loader2, Play, RefreshCw, Star, 
-  Sparkles, Film, Tv, Calendar, ArrowUpDown, AlertCircle
+  Film, Tv, AlertCircle, Compass
 } from 'lucide-react';
 
 interface DiscoverProps {
@@ -176,22 +176,27 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
       
       {/* Page Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 border-b border-[var(--border-subtle)] pb-6">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-[var(--text-main)] mb-2 flex items-center gap-3 tracking-tight">
-            <span>Explore Discovery</span>
-          </h1>
-          <p className="text-xs sm:text-sm text-[var(--text-muted)]">
-            Curate and filter through millions of blockbusters, indie gems, and binge-worthy shows.
-          </p>
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[rgb(var(--primary-color))] to-rose-700 flex items-center justify-center text-white shadow-lg shadow-[rgb(var(--primary-color))]/30 shrink-0">
+            <Compass className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="font-display text-3xl sm:text-4xl font-bold text-[var(--text-main)] tracking-tight">
+              Discover
+            </h1>
+            <p className="text-xs sm:text-sm text-[var(--text-muted)] mt-0.5">
+              Filter films and series by genre, platform, release year, or rating.
+            </p>
+          </div>
         </div>
 
         {/* Media Type Segmented Switcher */}
-        <div className="flex items-center gap-1 bg-[var(--bg-card)] p-1 rounded-xl border border-[var(--border-subtle)] shadow-sm">
+        <div className="flex items-center gap-1 bg-[var(--bg-card)] p-1.5 rounded-xl border border-[var(--border-subtle)] shadow-lg">
           <button
             onClick={() => handleMediaTypeChange(MediaType.MOVIE)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               mediaType === MediaType.MOVIE
-                ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
+                ? 'bg-[rgb(var(--primary-color))] text-white shadow-md shadow-[rgb(var(--primary-color))]/30'
                 : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
             }`}
           >
@@ -200,9 +205,9 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
           </button>
           <button
             onClick={() => handleMediaTypeChange(MediaType.TV)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               mediaType === MediaType.TV
-                ? 'bg-[rgb(var(--primary-color))] text-white shadow-md'
+                ? 'bg-[rgb(var(--primary-color))] text-white shadow-md shadow-[rgb(var(--primary-color))]/30'
                 : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
             }`}
           >
@@ -308,18 +313,16 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
       {/* Grid of Results */}
       <div>
         {selectedGenre && (
-          <div className="flex items-center gap-2 mb-5 bg-[rgb(var(--primary-color))]/10 border border-[rgb(var(--primary-color))]/30 rounded-xl px-3.5 py-2 w-fit animate-fade-in shadow-xs">
-            <Sparkles className="w-3.5 h-3.5 text-[rgb(var(--primary-color))]" />
-            <span className="text-xs font-semibold text-[var(--text-main)]">
-              Filtered by: <strong className="text-[rgb(var(--primary-color))]">{searchParams.get('genreName') || genres.find(g => g.id === selectedGenre)?.name || 'Selected Category'}</strong>
+          <div className="flex items-center gap-2 mb-5 bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 w-fit animate-fade-in">
+            <span className="text-xs text-[var(--text-muted)]">
+              Genre: <strong className="text-[var(--text-main)] font-semibold">{searchParams.get('genreName') || genres.find(g => g.id === selectedGenre)?.name || 'Selected'}</strong>
             </span>
             <button
               onClick={() => handleGenreChange(undefined)}
-              className="ml-2 flex items-center gap-1 text-[11px] font-bold text-[rgb(var(--primary-color))] hover:underline cursor-pointer"
+              className="ml-1 flex items-center gap-1 text-xs font-medium text-[rgb(var(--primary-color))] hover:underline cursor-pointer"
               title="Clear genre filter"
             >
               <X className="w-3.5 h-3.5" />
-              <span>Clear Filter</span>
             </button>
           </div>
         )}
@@ -360,18 +363,15 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
               <button
                 onClick={() => setCurrentPage(prev => prev + 1)}
                 disabled={loading}
-                className="px-8 py-3.5 bg-[rgb(var(--primary-color))] hover:brightness-110 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-xl shadow-[rgb(var(--primary-color))]/25 hover:-translate-y-0.5"
+                className="px-7 py-3 bg-[var(--bg-card)] hover:bg-[var(--bg-hover)] disabled:opacity-50 text-[var(--text-main)] border border-[var(--border-subtle)] rounded-xl font-semibold text-sm transition-colors flex items-center gap-2 cursor-pointer"
               >
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Loading Titles...</span>
+                    <span>Loading...</span>
                   </>
                 ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    <span>Load More Results</span>
-                  </>
+                  <span>Load More</span>
                 )}
               </button>
             </div>
@@ -379,14 +379,15 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
         )}
       </div>
 
-      {/* Floating Movie Roulette FAB */}
+      {/* Floating Title Roulette Trigger */}
       <button 
         onClick={() => setIsRouletteOpen(true)}
-        className="fixed bottom-8 right-8 z-40 bg-gradient-to-r from-pink-600 via-rose-500 to-amber-500 text-white p-4 rounded-2xl shadow-2xl hover:scale-105 transition-all border border-white/20 group hover:shadow-pink-500/25"
-        title="Spin the Movie Roulette"
+        className="fixed bottom-8 right-8 z-40 bg-gradient-to-br from-[rgb(var(--primary-color))] to-rose-700 text-white p-3.5 rounded-2xl shadow-xl shadow-[rgb(var(--primary-color))]/40 hover:scale-105 active:scale-95 transition-all group cursor-pointer flex items-center gap-2"
+        title="Random Title Roulette"
         aria-label="Spin Movie Roulette"
       >
-        <Dices className="w-6 h-6 group-hover:rotate-180 transition-transform duration-500" />
+        <Dices className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+        <span className="hidden sm:inline text-xs font-bold pr-1">Surprise Me</span>
       </button>
 
       {/* Movie Roulette Modal */}
@@ -396,12 +397,12 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
           onClick={handleRouletteClose}
         >
           <div 
-            className="bg-[#121216] border border-white/15 w-full max-w-md rounded-3xl p-6 relative shadow-2xl flex flex-col items-center text-white"
+            className="bg-[#111114] border border-white/10 w-full max-w-md rounded-2xl p-6 relative shadow-2xl flex flex-col items-center text-white"
             onClick={(e) => e.stopPropagation()}
           >
             <button 
               onClick={handleRouletteClose} 
-              className="absolute top-4 right-4 p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors"
+              className="absolute top-4 right-4 p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors"
               aria-label="Close"
             >
               <X className="w-5 h-5" />
@@ -409,16 +410,16 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
             
             {/* Modal Header */}
             <div className="text-center mb-5">
-              <h3 className="text-xl sm:text-2xl font-black text-white flex items-center justify-center gap-2 tracking-tight">
-                <Dices className="w-6 h-6 text-pink-500" /> 
-                {spinning ? 'SPINNING ROULETTE...' : rouletteWinner ? 'WE FOUND A MATCH!' : 'MOVIE ROULETTE'}
+              <h3 className="font-display text-xl font-bold text-white flex items-center justify-center gap-2 tracking-tight">
+                <Dices className="w-5 h-5 text-[rgb(var(--primary-color))]" /> 
+                {spinning ? 'Picking a title...' : rouletteWinner ? 'Selected Title' : 'Random Pick'}
               </h3>
               <p className="text-white/60 text-xs mt-1">
                 {spinning 
-                  ? 'Searching through thousands of curated titles...' 
+                  ? 'Filtering matching releases...' 
                   : rouletteWinner 
-                    ? 'Your lucky pick is ready to stream!' 
-                    : 'Unsure what to watch? Let destiny choose for you.'}
+                    ? 'Ready to watch' 
+                    : 'Pick a random film or series from your current filters.'}
               </p>
             </div>
 
@@ -478,10 +479,10 @@ export const Discover: React.FC<DiscoverProps> = ({ onSelect }) => {
                 <button 
                   onClick={handleSpin}
                   disabled={spinning}
-                  className="w-full py-3.5 bg-gradient-to-r from-pink-600 via-rose-500 to-amber-500 text-white rounded-xl font-bold text-base shadow-xl hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2 hover:scale-[1.01]"
+                  className="w-full py-3 bg-[rgb(var(--primary-color))] hover:brightness-110 text-white rounded-xl font-semibold text-sm disabled:opacity-50 transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  {spinning ? <Loader2 className="w-5 h-5 animate-spin" /> : <Dices className="w-5 h-5" />}
-                  <span>{spinning ? 'Finding title...' : 'SPIN THE ROULETTE'}</span>
+                  {spinning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Dices className="w-4 h-4" />}
+                  <span>{spinning ? 'Selecting...' : 'Spin Roulette'}</span>
                 </button>
               ) : (
                 <div className="grid grid-cols-2 gap-2.5 animate-in fade-in slide-in-from-bottom-2">

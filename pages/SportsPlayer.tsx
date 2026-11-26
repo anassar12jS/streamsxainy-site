@@ -22,6 +22,7 @@ import {
   formatMatchCountdown
 } from '../services/clockSync';
 import { SportsMultiviewModal } from '../components/SportsMultiviewModal';
+import { TeamLogo, LeagueLogo } from '../components/TeamLogo';
 
 const getSportIcon = (cat?: string) => {
   const c = (cat || '').toLowerCase();
@@ -363,7 +364,12 @@ export const SportsPlayer: React.FC = () => {
                 {match.competition && (
                   <>
                     <span>•</span>
-                    <span className="max-w-[180px] truncate text-[10px]">{match.competition}</span>
+                    <span className="inline-flex items-center gap-1 max-w-[190px]">
+                      {match.category === 'football' && (
+                        <LeagueLogo name={match.competition} fallbackEmoji="🏆" className="w-3.5 h-3.5" emojiClassName="text-[10px]" />
+                      )}
+                      <span className="truncate text-[10px]">{match.competition}</span>
+                    </span>
                   </>
                 )}
                 <span>•</span>
@@ -613,16 +619,18 @@ export const SportsPlayer: React.FC = () => {
 
             {/* Scoreboard Center Fixture */}
             <div className="flex items-center justify-between gap-4 max-w-2xl mx-auto py-2">
-              <div className="flex items-center gap-3 flex-1 justify-end text-right">
+              <div className="flex items-center gap-3 flex-1 justify-end text-right min-w-0">
                 <span className="font-black text-sm sm:text-base text-white truncate max-w-[150px] sm:max-w-[200px]">
                   {match.teams?.home?.name || 'Home'}
                 </span>
-                {match.teams?.home?.logo && (
-                  <img 
-                    src={match.teams.home.logo} 
-                    alt="" 
-                    className="w-8 h-8 sm:w-10 sm:h-10 object-contain shrink-0" 
-                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                {match.teams?.home?.name && (
+                  <TeamLogo
+                    name={match.teams.home.name}
+                    logo={match.teams.home.logo}
+                    competition={match.competition}
+                    category={match.category}
+                    className="w-8 h-8 sm:w-10 sm:h-10 shrink-0"
+                    size="text-[10px]"
                   />
                 )}
               </div>
@@ -651,13 +659,15 @@ export const SportsPlayer: React.FC = () => {
                 <span className="text-lg font-black text-[var(--text-muted)] italic">VS</span>
               )}
 
-              <div className="flex items-center gap-3 flex-1 justify-start text-left">
-                {match.teams?.away?.logo && (
-                  <img 
-                    src={match.teams.away.logo} 
-                    alt="" 
-                    className="w-8 h-8 sm:w-10 sm:h-10 object-contain shrink-0" 
-                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              <div className="flex items-center gap-3 flex-1 justify-start text-left min-w-0">
+                {match.teams?.away?.name && (
+                  <TeamLogo
+                    name={match.teams.away.name}
+                    logo={match.teams.away.logo}
+                    competition={match.competition}
+                    category={match.category}
+                    className="w-8 h-8 sm:w-10 sm:h-10 shrink-0"
+                    size="text-[10px]"
                   />
                 )}
                 <span className="font-black text-sm sm:text-base text-white truncate max-w-[150px] sm:max-w-[200px]">
@@ -848,19 +858,14 @@ export const SportsPlayer: React.FC = () => {
               <div className="flex items-center justify-between w-full max-w-2xl mx-auto gap-4">
                 {/* Home */}
                 <div className="flex flex-col items-center gap-2 flex-1 text-center">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-[var(--bg-main)] border border-[var(--border-subtle)] p-2.5 flex items-center justify-center shadow-md">
-                    {match.teams?.home?.logo ? (
-                      <img 
-                        src={match.teams.home.logo} 
-                        alt={match.teams.home.name} 
-                        className="w-full h-full object-contain"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                      />
-                    ) : (
-                      <Trophy className="w-8 h-8 text-[rgb(var(--primary-color))]" />
-                    )}
-                  </div>
+                  <TeamLogo
+                    name={match.teams?.home?.name || 'Home'}
+                    logo={match.teams?.home?.logo}
+                    competition={match.competition}
+                    category={match.category}
+                    className="w-16 h-16 sm:w-20 sm:h-20 p-2"
+                    size="text-base"
+                  />
                   <span className="font-black text-sm sm:text-base text-[var(--text-main)] line-clamp-1">
                     {match.teams?.home?.name}
                   </span>
@@ -879,19 +884,14 @@ export const SportsPlayer: React.FC = () => {
 
                 {/* Away */}
                 <div className="flex flex-col items-center gap-2 flex-1 text-center">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-[var(--bg-main)] border border-[var(--border-subtle)] p-2.5 flex items-center justify-center shadow-md">
-                    {match.teams?.away?.logo ? (
-                      <img 
-                        src={match.teams.away.logo} 
-                        alt={match.teams.away.name} 
-                        className="w-full h-full object-contain"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                      />
-                    ) : (
-                      <Trophy className="w-8 h-8 text-pink-500" />
-                    )}
-                  </div>
+                  <TeamLogo
+                    name={match.teams?.away?.name || 'Away'}
+                    logo={match.teams?.away?.logo}
+                    competition={match.competition}
+                    category={match.category}
+                    className="w-16 h-16 sm:w-20 sm:h-20 p-2"
+                    size="text-base"
+                  />
                   <span className="font-black text-sm sm:text-base text-[var(--text-main)] line-clamp-1">
                     {match.teams?.away?.name}
                   </span>
@@ -960,6 +960,26 @@ export const SportsPlayer: React.FC = () => {
                   }}
                   className="p-3 rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] hover:border-[rgb(var(--primary-color))]/50 transition-all cursor-pointer flex items-center justify-between gap-3 group shadow-sm hover:shadow-md"
                 >
+                  {m.teams?.home && m.teams?.away && (
+                    <div className="flex items-center -space-x-1.5 shrink-0">
+                      <TeamLogo
+                        name={m.teams.home.name}
+                        logo={m.teams.home.logo}
+                        competition={m.competition}
+                        category={m.category}
+                        className="w-7 h-7"
+                        size="text-[9px]"
+                      />
+                      <TeamLogo
+                        name={m.teams.away.name}
+                        logo={m.teams.away.logo}
+                        competition={m.competition}
+                        category={m.category}
+                        className="w-7 h-7"
+                        size="text-[9px]"
+                      />
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <span className="text-[10px] text-[rgb(var(--primary-color))] uppercase font-bold tracking-wider">
                       {m.category}
